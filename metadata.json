@@ -1,0 +1,6 @@
+{
+  "name": "TrungTin87 Blog Studio",
+  "description": "Personal blog and Markdown publishing studio connected to GitHub Pages (trungtin87.github.io) with live theme switching and direct GitHub API publishing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
