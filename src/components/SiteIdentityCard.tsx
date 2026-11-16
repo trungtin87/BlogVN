@@ -5,7 +5,6 @@ import {
   Globe,
   ImagePlus,
   Loader2,
-  MessageSquare,
   Plus,
   Rocket,
   Save,
@@ -20,6 +19,7 @@ import type {
   GitHubRepoInfo,
   SiteNavLink,
 } from '../types/blog';
+import { ghSaveSiteConfig } from '../utils/githubClient';
 
 interface SiteIdentityCardProps {
   theme: BlogTheme;
@@ -75,7 +75,7 @@ export function SiteIdentityCard({
 
   const [siteTitle, setSiteTitle] = useState(config.siteTitle || '');
   const [tagline, setTagline] = useState(config.tagline || '');
-  const [siteIcon, setSiteIcon] = useState(config.siteIcon || '/icon.svg');
+  const [siteIcon, setSiteIcon] = useState(config.siteIcon || './icon.svg');
   const [headerTitle, setHeaderTitle] = useState(config.headerTitle || 'BlogVN');
   const [headerNavLinks, setHeaderNavLinks] = useState<SiteNavLink[]>(
     config.headerNavLinks || []
@@ -84,13 +84,6 @@ export function SiteIdentityCard({
   const [footerLinks, setFooterLinks] = useState<SiteNavLink[]>(config.footerLinks || []);
   const [authorName, setAuthorName] = useState(config.authorName || '');
   const [authorBio, setAuthorBio] = useState(config.authorBio || '');
-  const [commentsEnabled, setCommentsEnabled] = useState(config.commentsEnabled !== false);
-  const [commentsRequireApproval, setCommentsRequireApproval] = useState(
-    config.commentsRequireApproval !== false
-  );
-  const [commentsHeading, setCommentsHeading] = useState(
-    config.commentsHeading || 'Bình luận bài viết'
-  );
 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeployingApp, setIsDeployingApp] = useState(false);
@@ -100,32 +93,26 @@ export function SiteIdentityCard({
   useEffect(() => {
     setSiteTitle(config.siteTitle || '');
     setTagline(config.tagline || '');
-    setSiteIcon(config.siteIcon || '/icon.svg');
+    setSiteIcon(config.siteIcon || './icon.svg');
     setHeaderTitle(config.headerTitle || 'BlogVN');
     setHeaderNavLinks(config.headerNavLinks || []);
     setFooterText(config.footerText || '');
     setFooterLinks(config.footerLinks || []);
     setAuthorName(config.authorName || '');
     setAuthorBio(config.authorBio || '');
-    setCommentsEnabled(config.commentsEnabled !== false);
-    setCommentsRequireApproval(config.commentsRequireApproval !== false);
-    setCommentsHeading(config.commentsHeading || 'Bình luận bài viết');
   }, [config]);
 
   const buildDraftConfig = (): BlogConfig => ({
     ...config,
     siteTitle: siteTitle.trim() || config.siteTitle,
     tagline: tagline.trim(),
-    siteIcon: siteIcon.trim() || '/icon.svg',
+    siteIcon: siteIcon.trim() || './icon.svg',
     headerTitle: headerTitle.trim() || 'BlogVN',
     headerNavLinks: headerNavLinks.filter((l) => l.label.trim() && l.url.trim()),
     footerText: footerText.trim(),
     footerLinks: footerLinks.filter((l) => l.label.trim() && l.url.trim()),
     authorName: authorName.trim() || config.authorName,
     authorBio: authorBio.trim(),
-    commentsEnabled,
-    commentsRequireApproval,
-    commentsHeading: commentsHeading.trim() || 'Bình luận bài viết',
   });
 
   const handleIconFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -154,33 +141,28 @@ export function SiteIdentityCard({
     }
 
     try {
-      const res = await fetch('/api/site-config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          owner: config.githubOwner,
-          repo: config.githubRepo,
-          branch: repoInfo?.defaultBranch || 'main',
-          config: nextCfg,
-          syncToGitHub: options.syncToGitHub,
-          publishWebApp: options.publishWebApp,
-          posts: options.publishWebApp ? posts.filter((p) => p.source !== 'sample') : [],
-        }),
+      const result = await ghSaveSiteConfig({
+        owner: config.githubOwner,
+        repo: config.githubRepo,
+        branch: repoInfo?.defaultBranch || 'main',
+        config: nextCfg,
+        syncToGitHub: options.syncToGitHub,
+        publishWebApp: options.publishWebApp,
+        posts: options.publishWebApp ? posts.filter((p) => p.source !== 'sample') : [],
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorMessage(data.error || 'Không thể lưu cấu hình nhận dạng web.');
+      if (!result.ok) {
+        setErrorMessage(result.error || 'Không thể lưu cấu hình nhận dạng web.');
         return;
       }
 
       if (options.publishWebApp) {
         const msg = `Đã xuất bản Web App độc lập & nhận dạng mới lên ${config.pagesUrl}`;
-        setStatusMessage({ text: msg, url: data.commit?.htmlUrl || config.pagesUrl });
-        onDeployedToGitHub?.(msg, data.commit?.htmlUrl);
+        setStatusMessage({ text: msg, url: result.commitUrl || config.pagesUrl });
+        onDeployedToGitHub?.(msg, result.commitUrl);
       } else if (options.syncToGitHub) {
         const msg = `Đã lưu & đồng bộ cấu hình nhận dạng lên Git (.blogvn/site-config.json).`;
-        setStatusMessage({ text: msg, url: data.commit?.htmlUrl });
-        onDeployedToGitHub?.(msg, data.commit?.htmlUrl);
+        setStatusMessage({ text: msg, url: result.commitUrl });
+        onDeployedToGitHub?.(msg, result.commitUrl);
       } else {
         setStatusMessage({
           text: 'Đã lưu nhận dạng web vào thiết bị & áp dụng ngay trên giao diện.',
@@ -238,11 +220,11 @@ export function SiteIdentityCard({
               4. Nhận dạng Web cá nhân, Header/Footer &amp; Xuất bản Web App GitHub Pages
             </h2>
             <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
-              Tuỳ chỉnh Icon, Tiêu đề web, Header, Footer, Mô tả riêng cho{' '}
+              Tuỳ chỉnh Icon, Tiêu đề web, Header, Footer và Mô tả riêng cho{' '}
               <code>
                 {config.githubOwner}/{config.githubRepo}
-              </code>{' '}
-              và bật bình luận kiểm duyệt.
+              </code>
+              .
             </p>
           </div>
         </div>
@@ -254,7 +236,7 @@ export function SiteIdentityCard({
         className="p-3.5 rounded-xl border flex items-center gap-3"
       >
         <img
-          src={siteIcon || '/icon.svg'}
+          src={siteIcon || './icon.svg'}
           alt="Icon"
           className="w-5 h-5 rounded object-cover shrink-0"
         />
@@ -564,65 +546,6 @@ export function SiteIdentityCard({
         </div>
       </div>
 
-      {/* Comment & Moderation Policy Box */}
-      <div
-        style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
-        className="p-4 rounded-xl border space-y-3"
-      >
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <MessageSquare className="w-4 h-4" style={{ color: palette.link }} />
-          Cài đặt Bình luận &amp; Kiểm duyệt hiển thị
-        </div>
-
-        <label className="flex items-center gap-2.5 cursor-pointer select-none min-h-[36px]">
-          <input
-            type="checkbox"
-            checked={commentsEnabled}
-            onChange={(e) => setCommentsEnabled(e.target.checked)}
-            className="w-4 h-4 accent-current rounded"
-          />
-          <span className="text-xs sm:text-sm font-medium">
-            Mở tính năng bình luận trên bài viết
-          </span>
-        </label>
-
-        {commentsEnabled && (
-          <div className="space-y-3 pl-1">
-            <label className="flex items-start gap-2.5 cursor-pointer select-none min-h-[36px]">
-              <input
-                type="checkbox"
-                checked={commentsRequireApproval}
-                onChange={(e) => setCommentsRequireApproval(e.target.checked)}
-                className="w-4 h-4 mt-0.5 accent-current rounded"
-              />
-              <span className="text-xs sm:text-sm leading-relaxed">
-                <strong>Chỉ hiển thị công khai khi bạn bấm Duyệt trong ứng dụng BlogVN</strong>{' '}
-                <span style={{ color: palette.textMuted }}>
-                  (Bình luận mới sẽ vào hàng chờ duyệt, không hiển thị lên web hay Git nếu chưa được duyệt).
-                </span>
-              </span>
-            </label>
-
-            <div className="max-w-md space-y-1">
-              <label style={{ color: palette.textMuted }} className="block text-xs font-medium">
-                Tiêu đề mục bình luận
-              </label>
-              <input
-                type="text"
-                value={commentsHeading}
-                onChange={(e) => setCommentsHeading(e.target.value)}
-                style={{
-                  backgroundColor: palette.surface,
-                  borderColor: palette.border,
-                  color: palette.textPrimary,
-                }}
-                className="w-full px-3 min-h-[40px] text-xs rounded-lg border"
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
       {errorMessage && (
         <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs">
           {errorMessage}
@@ -705,7 +628,7 @@ export function SiteIdentityCard({
         </div>
 
         <p style={{ color: palette.textMuted }} className="text-xs leading-relaxed">
-          Lưu ý lưu trữ &amp; GitHub Pages: Toàn bộ bài viết, cấu hình nhận dạng (<code>.blogvn/site-config.json</code>) và bình luận đã duyệt (<code>.blogvn/approved-comments.json</code>) nằm trên thiết bị và Git repository của bạn. Nút <strong>Xuất bản Web App</strong> đẩy bộ giao diện PWA đọc blog tĩnh (<code>index.html</code> + <code>manifest.webmanifest</code> + <code>sw.js</code>) lên GitHub Pages (chỉ dùng cho kho blog thuần muốn dùng giao diện Web App BlogVN thay cho theme Astro/Jekyll cũ); còn phần đăng nhập GitHub OAuth &amp; duyệt bình luận bảo mật chạy trên máy chủ ứng dụng này.
+          Lưu ý lưu trữ &amp; GitHub Pages: Toàn bộ bài viết và cấu hình nhận dạng (<code>.blogvn/site-config.json</code>) được lưu riêng trên thiết bị theo tài khoản Google và đồng bộ trực tiếp lên Git repository của bạn. Nút <strong>Xuất bản Web App</strong> đẩy bộ giao diện PWA đọc blog tĩnh (<code>index.html</code> + <code>manifest.webmanifest</code> + <code>posts-manifest.json</code>) lên GitHub Pages.
         </p>
       </div>
     </section>

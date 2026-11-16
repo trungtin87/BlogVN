@@ -17,6 +17,13 @@ import type {
   GitHubRepoInfo,
   ScheduledTask,
 } from '../types/blog';
+import {
+  ghCheckSchedulerWorkflow,
+  ghDeleteSchedule,
+  ghRunScheduleNow,
+  ghSyncSchedulerWorkflow,
+  ghUpdateSchedule,
+} from '../utils/githubClient';
 
 interface ScheduleManagerCardProps {
   theme: BlogTheme;
@@ -83,15 +90,12 @@ export function ScheduleManagerCard({
 
   const checkWorkflowStatus = useCallback(async () => {
     try {
-      const res = await fetch(
-        `/api/schedules/github-workflow-status?owner=${encodeURIComponent(
-          config.githubOwner
-        )}&repo=${encodeURIComponent(config.githubRepo)}&branch=${encodeURIComponent(branch)}`
+      const installed = await ghCheckSchedulerWorkflow(
+        config.githubOwner,
+        config.githubRepo,
+        branch
       );
-      if (res.ok) {
-        const data = await res.json();
-        setWorkflowInstalled(Boolean(data.installed));
-      }
+      setWorkflowInstalled(installed);
     } catch {
       // ignore
     }
@@ -106,11 +110,8 @@ export function ScheduleManagerCard({
     setActionError(null);
     setActionMessage(null);
     try {
-      const res = await fetch(`/api/schedules/${encodeURIComponent(task.id)}/run`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (!res.ok) {
+      const data = await ghRunScheduleNow(task);
+      if (!data.ok) {
         setActionError(data.error || 'Không thể thực thi lịch trình ngay lúc này.');
       } else {
         setActionMessage({
@@ -118,7 +119,7 @@ export function ScheduleManagerCard({
             task.type === 'publish'
               ? `Đã đăng bài "${task.title}" lên GitHub.`
               : `Đã xoá tệp "${task.filePath}" khỏi GitHub.`,
-          url: data.task?.commitUrl,
+          url: data.commitUrl,
         });
         await onRefreshTasks();
         onTasksExecuted();
@@ -132,21 +133,16 @@ export function ScheduleManagerCard({
 
   const handleDeleteTask = async (taskId: string) => {
     setActionError(null);
-    await fetch(`/api/schedules/${encodeURIComponent(taskId)}`, { method: 'DELETE' });
+    await ghDeleteSchedule(taskId);
     await onRefreshTasks();
   };
 
   const handleSaveReschedule = async (taskId: string) => {
     if (!editTimeValue) return;
     setActionError(null);
-    const res = await fetch(`/api/schedules/${encodeURIComponent(taskId)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scheduledAt: new Date(editTimeValue).toISOString() }),
-    });
+    const res = await ghUpdateSchedule(taskId, new Date(editTimeValue).toISOString());
     if (!res.ok) {
-      const err = await res.json();
-      setActionError(err.error || 'Không thể cập nhật giờ hẹn.');
+      setActionError(res.error || 'Không thể cập nhật giờ hẹn.');
       return;
     }
     setEditingId(null);
@@ -158,24 +154,19 @@ export function ScheduleManagerCard({
     setActionError(null);
     setActionMessage(null);
     try {
-      const res = await fetch('/api/schedules/sync-github-workflow', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          owner: config.githubOwner,
-          repo: config.githubRepo,
-          branch,
-        }),
+      const data = await ghSyncSchedulerWorkflow({
+        owner: config.githubOwner,
+        repo: config.githubRepo,
+        branch,
       });
-      const data = await res.json();
-      if (!res.ok) {
+      if (!data.ok) {
         setActionError(data.error || 'Không thể đồng bộ Workflow lên GitHub.');
         return;
       }
       setWorkflowInstalled(true);
       setActionMessage({
-        text: `Đã cài đặt GitHub Actions Scheduler & đồng bộ ${data.syncedCount} lịch trình chạy tự động 24/7.`,
-        url: data.commit?.htmlUrl,
+        text: `Đã cài đặt GitHub Actions Scheduler & đồng bộ ${data.syncedCount || 0} lịch trình chạy tự động 24/7.`,
+        url: data.commitUrl,
       });
     } catch {
       setActionError('Lỗi mạng khi cài đặt GitHub Actions.');

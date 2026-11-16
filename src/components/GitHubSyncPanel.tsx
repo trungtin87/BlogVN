@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { User } from 'firebase/auth';
 import {
   Check,
   CheckCircle2,
@@ -9,6 +10,7 @@ import {
   FolderGit2,
   GitBranch,
   GitCommitHorizontal,
+  KeyRound,
   Loader2,
   LogOut,
   PlusCircle,
@@ -17,6 +19,7 @@ import {
   ShieldCheck,
   Smartphone,
   Trash2,
+  UserCheck,
   X,
 } from 'lucide-react';
 import type {
@@ -28,22 +31,23 @@ import type {
   BuildStatusInfo,
   GitHubRepoInfo,
   GitHubRepoSummary,
-  PostComment,
   RepoStructureInfo,
   ScheduledTask,
 } from '../types/blog';
 import { COLLECTION_LABELS } from '../data/themes';
 import { formatDisplayDate } from '../utils/markdown';
+import { ghCreateStarterPagesSite } from '../utils/githubClient';
 import { ResilientImage } from './ResilientImage';
 import { PWAInstallButton } from './PWAInstallButton';
 import { SiteEssentialsCard } from './SiteEssentialsCard';
 import { SiteIdentityCard } from './SiteIdentityCard';
 import { ScheduleManagerCard } from './ScheduleManagerCard';
-import { CommentModerationCard } from './CommentModerationCard';
 
 interface GitHubSyncPanelProps {
   theme: BlogTheme;
   config: BlogConfig;
+  firebaseUser: User | null;
+  hasPersonalPat: boolean;
   authStatus: AuthStatus | null;
   repoInfo: GitHubRepoInfo | null;
   repoStructure: RepoStructureInfo | null;
@@ -51,12 +55,10 @@ interface GitHubSyncPanelProps {
   userRepos: GitHubRepoSummary[];
   posts: BlogPost[];
   scheduledTasks: ScheduledTask[];
-  comments: PostComment[];
   isLoading: boolean;
   repoError: string | null;
   onRefresh: () => void;
   onRefreshSchedules: () => Promise<void>;
-  onRefreshComments: () => Promise<void>;
   onUpdateConfig: (next: BlogConfig) => void;
   onDeployedToGitHub?: (message: string, commitUrl?: string) => void;
   onScheduleDeletePost: (post: BlogPost, scheduledAtIso: string) => Promise<void>;
@@ -64,6 +66,8 @@ interface GitHubSyncPanelProps {
   onDeletePost: (post: BlogPost) => Promise<void>;
   onConnectOAuth: () => Promise<void>;
   onLogoutOAuth: () => Promise<void>;
+  onSavePersonalPat: (token: string) => Promise<void>;
+  onSignOutGoogle: () => Promise<void>;
   onUpdateTargetRepo: (owner: string, repo: string) => void;
   onSiteCreated: (owner: string, repo: string, pagesUrl: string) => void;
   onClearLocalData: () => Promise<void>;
@@ -80,6 +84,8 @@ const FILTER_TABS: Array<{ id: 'all' | BlogCollection; label: string }> = [
 export function GitHubSyncPanel({
   theme,
   config,
+  firebaseUser,
+  hasPersonalPat,
   authStatus,
   repoInfo,
   repoStructure,
@@ -87,12 +93,10 @@ export function GitHubSyncPanel({
   userRepos,
   posts,
   scheduledTasks,
-  comments,
   isLoading,
   repoError,
   onRefresh,
   onRefreshSchedules,
-  onRefreshComments,
   onUpdateConfig,
   onDeployedToGitHub,
   onScheduleDeletePost,
@@ -100,6 +104,8 @@ export function GitHubSyncPanel({
   onDeletePost,
   onConnectOAuth,
   onLogoutOAuth,
+  onSavePersonalPat,
+  onSignOutGoogle,
   onUpdateTargetRepo,
   onSiteCreated,
   onClearLocalData,
@@ -107,6 +113,8 @@ export function GitHubSyncPanel({
   const { palette, fonts, isDark } = theme;
   const [ownerInput, setOwnerInput] = useState(config.githubOwner);
   const [repoInput, setRepoInput] = useState(config.githubRepo);
+  const [patInput, setPatInput] = useState('');
+  const [isSavingPat, setIsSavingPat] = useState(false);
   const [deletingPath, setDeletingPath] = useState<string | null>(null);
   const [confirmDeletePath, setConfirmDeletePath] = useState<string | null>(null);
   const [collectionFilter, setCollectionFilter] = useState<'all' | BlogCollection>('all');
@@ -172,17 +180,12 @@ export function GitHubSyncPanel({
     setCreateSiteError(null);
     setIsCreatingSite(true);
     try {
-      const res = await fetch('/api/github/create-pages-site', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          siteTitle: newSiteTitle.trim(),
-          repoName: newRepoName.trim(),
-          tagline: newTagline.trim(),
-        }),
+      const data = await ghCreateStarterPagesSite({
+        siteTitle: newSiteTitle.trim(),
+        repoName: newRepoName.trim(),
+        tagline: newTagline.trim(),
       });
-      const data = await res.json();
-      if (!res.ok) {
+      if (!data.ok || !data.owner || !data.repo || !data.pagesUrl) {
         setCreateSiteError(data.error || 'Không thể khởi tạo blog mới trên GitHub.');
         return;
       }
@@ -267,14 +270,10 @@ export function GitHubSyncPanel({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 style={{ fontFamily: fonts.display }} className="text-lg font-bold">
-                  1. Đăng nhập GitHub (Người dùng có sẵn &amp; mới)
+                  1. Phiên Google cá nhân &amp; Kết nối GitHub
                 </h2>
                 <p style={{ color: palette.textSecondary }} className="text-sm mt-1">
-                  {authStatus?.mode === 'oauth'
-                    ? 'Đã đăng nhập bằng tài khoản GitHub cá nhân qua OAuth. Chọn kho bên dưới hoặc tạo blog mới.'
-                    : authStatus?.authenticated
-                    ? 'Đang sử dụng quyền kết nối máy chủ. Người dùng cuối trên App Store chỉ cần nhấn Đăng nhập GitHub OAuth.'
-                    : 'Đăng nhập 1 chạm bằng tài khoản GitHub để kết nối trang có sẵn hoặc tạo blog mới.'}
+                  Dữ liệu ứng dụng được tách biệt hoàn toàn theo tài khoản Google trên máy của bạn và kết nối thẳng tới GitHub repository của riêng bạn.
                 </p>
               </div>
               {authStatus?.authenticated ? (
@@ -283,6 +282,58 @@ export function GitHubSyncPanel({
                 <ShieldAlert className="w-6 h-6 text-amber-600 shrink-0" />
               )}
             </div>
+
+            {/* Active Google Account Session Box */}
+            {firebaseUser && (
+              <div
+                style={{
+                  borderColor: palette.border,
+                  backgroundColor: palette.canvas,
+                }}
+                className="p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {firebaseUser.photoURL ? (
+                    <img
+                      src={firebaseUser.photoURL}
+                      alt={firebaseUser.displayName || 'Google'}
+                      className="w-9 h-9 rounded-full object-cover shrink-0"
+                    />
+                  ) : (
+                    <div
+                      style={{ backgroundColor: palette.surface, borderColor: palette.border }}
+                      className="w-9 h-9 rounded-full border flex items-center justify-center shrink-0"
+                    >
+                      <UserCheck className="w-4 h-4" style={{ color: palette.link }} />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-xs sm:text-sm font-semibold truncate">
+                      {firebaseUser.displayName || 'Người dùng Google'}
+                    </div>
+                    <div
+                      style={{ color: palette.textMuted, fontFamily: fonts.mono }}
+                      className="text-[11px] truncate"
+                    >
+                      {firebaseUser.email || firebaseUser.uid}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onSignOutGoogle}
+                  style={{
+                    borderColor: palette.border,
+                    color: palette.textSecondary,
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer hover:text-red-500 whitespace-nowrap"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  Đổi / Đăng xuất Google
+                </button>
+              </div>
+            )}
 
             {authStatus?.authenticated ? (
               <div
@@ -309,12 +360,29 @@ export function GitHubSyncPanel({
                       className="text-xs truncate"
                     >
                       @{authStatus.user?.login || config.githubOwner} ·{' '}
-                      {authStatus.mode === 'oauth' ? 'Phiên OAuth' : 'Server Token'}
+                      {authStatus.mode === 'pat'
+                        ? 'GitHub Token cá nhân'
+                        : authStatus.mode === 'oauth'
+                        ? 'Phiên OAuth'
+                        : 'Server Token'}
                     </div>
                   </div>
                 </div>
 
-                {authStatus.mode === 'oauth' ? (
+                {authStatus.mode === 'pat' ? (
+                  <button
+                    type="button"
+                    onClick={() => onSavePersonalPat('')}
+                    style={{
+                      borderColor: palette.border,
+                      color: palette.textSecondary,
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-xs font-medium rounded-lg border cursor-pointer hover:text-red-500"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    Gỡ GitHub Token
+                  </button>
+                ) : authStatus.mode === 'oauth' ? (
                   <button
                     type="button"
                     onClick={onLogoutOAuth}
@@ -325,7 +393,7 @@ export function GitHubSyncPanel({
                     className="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-xs font-medium rounded-lg border cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    Đăng xuất
+                    Đăng xuất OAuth
                   </button>
                 ) : (
                   authStatus.oauthConfigured && (
@@ -344,45 +412,97 @@ export function GitHubSyncPanel({
                 )}
               </div>
             ) : (
-              <div
-                style={{
-                  borderColor: palette.border,
-                  backgroundColor: palette.canvas,
-                }}
-                className="p-4 rounded-xl border space-y-3"
-              >
-                {authStatus?.oauthConfigured ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-xs sm:text-sm" style={{ color: palette.textSecondary }}>
-                      Nhấn để đăng nhập tài khoản GitHub của bạn — không cần tạo Token thủ công.
-                    </div>
-                    <button
-                      type="button"
-                      onClick={onConnectOAuth}
-                      style={{
-                        backgroundColor: palette.accent,
-                        color: palette.accentText,
-                      }}
-                      className="px-4 min-h-[44px] text-sm font-semibold rounded-xl cursor-pointer whitespace-nowrap"
-                    >
-                      Đăng nhập bằng GitHub
-                    </button>
+              authStatus?.oauthConfigured && (
+                <div
+                  style={{
+                    borderColor: palette.border,
+                    backgroundColor: palette.canvas,
+                  }}
+                  className="p-4 rounded-xl border flex flex-wrap items-center justify-between gap-3"
+                >
+                  <div className="text-xs sm:text-sm" style={{ color: palette.textSecondary }}>
+                    Nhấn để đăng nhập GitHub qua OAuth — hoặc nhập Token cá nhân bên dưới.
                   </div>
-                ) : (
-                  <div className="space-y-2 text-xs leading-relaxed" style={{ color: palette.textSecondary }}>
-                    <div className="font-semibold" style={{ color: palette.textPrimary }}>
-                      Hướng dẫn bật đăng nhập 1 chạm (OAuth App):
-                    </div>
-                    <p>
-                      Cấu hình <code>GITHUB_CLIENT_ID</code> và <code>GITHUB_CLIENT_SECRET</code> với Callback URL:
-                    </p>
-                    <code className="block mt-1 px-2.5 py-1.5 rounded bg-black/5 dark:bg-white/5 break-all">
-                      {callbackUrl}
-                    </code>
-                  </div>
-                )}
-              </div>
+                  <button
+                    type="button"
+                    onClick={onConnectOAuth}
+                    style={{
+                      backgroundColor: palette.accent,
+                      color: palette.accentText,
+                    }}
+                    className="px-4 min-h-[44px] text-sm font-semibold rounded-xl cursor-pointer whitespace-nowrap"
+                  >
+                    Đăng nhập bằng GitHub OAuth
+                  </button>
+                </div>
+              )
             )}
+
+            {/* Personal GitHub Token Box (Works directly on static GitHub Pages without server) */}
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!patInput.trim()) return;
+                setIsSavingPat(true);
+                try {
+                  await onSavePersonalPat(patInput.trim());
+                  setPatInput('');
+                } finally {
+                  setIsSavingPat(false);
+                }
+              }}
+              style={{
+                borderColor: palette.border,
+                backgroundColor: palette.canvas,
+              }}
+              className="p-4 rounded-xl border space-y-2.5"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5" style={{ color: palette.link }} />
+                  GitHub Personal Access Token (Lưu riêng trên máy theo Google UID)
+                </span>
+                <a
+                  href="https://github.com/settings/tokens/new?scopes=repo&description=BlogVN"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: palette.link }}
+                  className="text-[11px] font-medium underline underline-offset-4 whitespace-nowrap"
+                >
+                  Tạo Token (quyền repo)
+                </a>
+              </div>
+              <p style={{ color: palette.textMuted }} className="text-[11px] leading-relaxed">
+                Khi chạy trên <strong>GitHub Pages</strong> (không có backend), trình duyệt gọi thẳng GitHub API bằng Token lưu cục bộ của riêng bạn để đăng bài &amp; tải ảnh.
+                {hasPersonalPat ? ' (Đang lưu Token cá nhân trên thiết bị này.)' : ''}
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="password"
+                  value={patInput}
+                  onChange={(e) => setPatInput(e.target.value)}
+                  placeholder="github_pat_... hoặc ghp_..."
+                  style={{
+                    backgroundColor: palette.surface,
+                    borderColor: palette.border,
+                    color: palette.textPrimary,
+                    fontFamily: fonts.mono,
+                  }}
+                  className="flex-1 min-w-0 px-3 min-h-[40px] text-xs rounded-lg border"
+                />
+                <button
+                  type="submit"
+                  disabled={isSavingPat || !patInput.trim()}
+                  style={{
+                    backgroundColor: palette.accent,
+                    color: palette.accentText,
+                  }}
+                  className="px-3.5 min-h-[40px] text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-45 whitespace-nowrap"
+                >
+                  {isSavingPat ? 'Đang kiểm tra...' : 'Lưu & Kết nối'}
+                </button>
+              </div>
+            </form>
 
             {/* Quick Repo Picker for Authenticated User */}
             {userRepos.length > 0 && (
@@ -739,17 +859,6 @@ export function GitHubSyncPanel({
           tasks={scheduledTasks}
           onRefreshTasks={onRefreshSchedules}
           onTasksExecuted={onRefresh}
-        />
-
-        {/* Post Comment Moderation Queue & Approved Export */}
-        <CommentModerationCard
-          theme={theme}
-          config={config}
-          authStatus={authStatus}
-          repoInfo={repoInfo}
-          comments={comments}
-          onRefreshComments={onRefreshComments}
-          onCommentsSynced={onDeployedToGitHub}
         />
 
         {/* Mobile App Install & App Store / APK Publishing Card */}

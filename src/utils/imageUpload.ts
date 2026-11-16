@@ -117,6 +117,8 @@ export async function prepareImageForUpload(
   }
 }
 
+import { ghUploadImagesBatch, ghUploadSingleImage } from './githubClient';
+
 export async function uploadImageToGitHub(params: {
   file: File;
   owner: string;
@@ -132,25 +134,16 @@ export async function uploadImageToGitHub(params: {
     format: 'webp',
   });
 
-  const response = await fetch('/api/github/upload-image', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      owner: params.owner,
-      repo: params.repo,
-      branch: params.branch || 'main',
-      filename,
-      base64Data,
-      isAstroRepo: Boolean(params.isAstroRepo),
-      uploadDir: params.uploadDir,
-      publicUploadPrefix: params.publicUploadPrefix,
-    }),
+  const data = await ghUploadSingleImage({
+    owner: params.owner,
+    repo: params.repo,
+    branch: params.branch || 'main',
+    filename,
+    base64Data,
+    isAstroRepo: Boolean(params.isAstroRepo),
+    uploadDir: params.uploadDir,
+    publicUploadPrefix: params.publicUploadPrefix,
   });
-
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.error || 'Tải ảnh lên GitHub thất bại.');
-  }
 
   return {
     repoPath: data.repoPath,
@@ -170,30 +163,21 @@ export async function uploadImagesBatchToGitHub(params: {
   publicUploadPrefix?: string;
   commitMessage?: string;
 }): Promise<{ commitUrl?: string; results: UploadedImageResult[] }> {
-  const response = await fetch('/api/github/upload-images-batch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      owner: params.owner,
-      repo: params.repo,
-      branch: params.branch || 'main',
-      isAstroRepo: Boolean(params.isAstroRepo),
-      uploadDir: params.uploadDir,
-      publicUploadPrefix: params.publicUploadPrefix,
-      commitMessage: params.commitMessage,
-      images: params.items.map((item) => ({
-        filename: item.filename,
-        base64Data: item.base64Data,
-      })),
-    }),
+  const data = await ghUploadImagesBatch({
+    owner: params.owner,
+    repo: params.repo,
+    branch: params.branch || 'main',
+    isAstroRepo: Boolean(params.isAstroRepo),
+    uploadDir: params.uploadDir,
+    publicUploadPrefix: params.publicUploadPrefix,
+    commitMessage: params.commitMessage,
+    images: params.items.map((item) => ({
+      filename: item.filename,
+      base64Data: item.base64Data,
+    })),
   });
 
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.error || 'Tải loạt ảnh lên GitHub thất bại.');
-  }
-
-  const results: UploadedImageResult[] = (data.results || []).map((r: any, idx: number) => ({
+  const results: UploadedImageResult[] = (data.results || []).map((r, idx) => ({
     repoPath: r.repoPath,
     publicPath: r.publicPath,
     previewUrl: r.previewUrl,
@@ -202,7 +186,7 @@ export async function uploadImagesBatchToGitHub(params: {
   }));
 
   return {
-    commitUrl: data.commit?.htmlUrl,
+    commitUrl: data.commitUrl,
     results,
   };
 }

@@ -52,6 +52,7 @@ import {
   type UploadedImageResult,
 } from '../utils/imageUpload';
 import { evaluatePostSeo } from '../utils/siteGenerators';
+import { ghCreateSchedule, ghSavePost } from '../utils/githubClient';
 import { ImageBatchModal, type BatchInsertLayout } from './ImageBatchModal';
 import { ResilientImage } from './ResilientImage';
 
@@ -158,7 +159,6 @@ export function MarkdownEditor({
   const [seoDescription, setSeoDescription] = useState('');
   const [canonicalUrl, setCanonicalUrl] = useState('');
   const [noindex, setNoindex] = useState(false);
-  const [commentsDisabled, setCommentsDisabled] = useState(false);
   const [copiedJsonLd, setCopiedJsonLd] = useState(false);
 
   const [showPublishModal, setShowPublishModal] = useState(false);
@@ -202,7 +202,6 @@ export function MarkdownEditor({
       setSeoDescription(initialPost.seoDescription || '');
       setCanonicalUrl(initialPost.canonicalUrl || '');
       setNoindex(Boolean(initialPost.noindex));
-      setCommentsDisabled(Boolean(initialPost.commentsDisabled));
     } else {
       const today = new Date().toISOString().slice(0, 10);
       setCollection(defaultCollection);
@@ -247,7 +246,6 @@ export function MarkdownEditor({
       setSeoDescription('');
       setCanonicalUrl('');
       setNoindex(false);
-      setCommentsDisabled(false);
     }
     setPublishError(null);
     setUploadError(null);
@@ -589,7 +587,6 @@ export function MarkdownEditor({
       seoDescription: seoDescription.trim() || undefined,
       canonicalUrl: canonicalUrl.trim() || undefined,
       noindex,
-      commentsDisabled,
     };
   };
 
@@ -697,45 +694,33 @@ export function MarkdownEditor({
       seoDescription: seoDescription.trim() || undefined,
       canonicalUrl: canonicalUrl.trim() || undefined,
       noindex,
-      commentsDisabled,
     };
 
     try {
       if (publishMode === 'schedule') {
-        const res = await fetch('/api/schedules', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'publish',
-            owner: config.githubOwner,
-            repo: config.githubRepo,
-            branch: defaultBranch || 'main',
-            filePath: computedPath,
-            title: title.trim(),
-            scheduledAt: new Date(publishAtMs).toISOString(),
-            autoDeleteAt: autoDeleteIso,
-            postPayload,
-          }),
+        const res = await ghCreateSchedule({
+          type: 'publish',
+          owner: config.githubOwner,
+          repo: config.githubRepo,
+          branch: defaultBranch || 'main',
+          filePath: computedPath,
+          title: title.trim(),
+          scheduledAt: new Date(publishAtMs).toISOString(),
+          autoDeleteAt: autoDeleteIso,
+          postPayload,
         });
-        const data = await res.json();
-        if (!res.ok) {
-          setPublishError(data.error || 'Không thể lưu lịch đăng bài.');
+        if (!res.ok || !res.task) {
+          setPublishError(res.error || 'Không thể lưu lịch đăng bài.');
           return;
         }
         onSaveLocalDraft(buildCurrentPostObject('local'));
         setShowPublishModal(false);
-        onScheduledSuccess?.(data.task, true);
+        onScheduledSuccess?.(res.task, true);
         return;
       }
 
-      const response = await fetch('/api/github/posts', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(postPayload),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
+      const data = await ghSavePost(postPayload);
+      if (!data.ok || !data.post) {
         setPublishError(
           data.error || 'Không thể đăng bài lên GitHub. Vui lòng kiểm tra kết nối.'
         );
@@ -743,22 +728,17 @@ export function MarkdownEditor({
       }
 
       if (autoDeleteIso) {
-        const delRes = await fetch('/api/schedules', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'delete',
-            owner: config.githubOwner,
-            repo: config.githubRepo,
-            branch: defaultBranch || 'main',
-            filePath: data.post?.path || computedPath,
-            title: title.trim(),
-            scheduledAt: autoDeleteIso,
-          }),
+        const delRes = await ghCreateSchedule({
+          type: 'delete',
+          owner: config.githubOwner,
+          repo: config.githubRepo,
+          branch: defaultBranch || 'main',
+          filePath: data.post.path || computedPath,
+          title: title.trim(),
+          scheduledAt: autoDeleteIso,
         });
-        if (delRes.ok) {
-          const delData = await delRes.json();
-          onScheduledSuccess?.(delData.task, false);
+        if (delRes.ok && delRes.task) {
+          onScheduledSuccess?.(delRes.task, false);
         }
       }
 
@@ -767,7 +747,7 @@ export function MarkdownEditor({
       setShowPublishModal(false);
       onPublishSuccess(data.post, data.commit?.html_url);
     } catch {
-      setPublishError('Lỗi mạng khi kết nối tới máy chủ xuất bản GitHub.');
+      setPublishError('Lỗi mạng khi kết nối tới GitHub API.');
     } finally {
       setIsPublishing(false);
     }
@@ -1588,15 +1568,6 @@ export function MarkdownEditor({
                     </label>
                   )}
 
-                  <label className="inline-flex items-center gap-2 min-h-[36px] cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={!commentsDisabled}
-                      onChange={(e) => setCommentsDisabled(!e.target.checked)}
-                      className="w-4 h-4 rounded"
-                    />
-                    <span style={{ color: palette.textSecondary }}>Mở bình luận bài viết này</span>
-                  </label>
                 </div>
 
                 {/* Expandable SEO Studio Drawer */}
@@ -2040,8 +2011,8 @@ export function MarkdownEditor({
               >
                 <div className="font-semibold">Chưa có quyền ghi vào GitHub Repository</div>
                 <p style={{ color: palette.textSecondary }} className="text-xs leading-relaxed">
-                  Vui lòng kết nối GitHub OAuth hoặc cấu hình biến môi trường{' '}
-                  <code>GITHUB_TOKEN</code> trong tab GitHub &amp; App.
+                  Vui lòng nhập GitHub Personal Access Token (PAT) hoặc kết nối GitHub OAuth trong tab{' '}
+                  <strong>GitHub &amp; App</strong>.
                 </p>
                 <button
                   type="button"

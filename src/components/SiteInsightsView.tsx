@@ -18,6 +18,7 @@ import type {
   RepoInsightsData,
 } from '../types/blog';
 import { estimateReadingStats, formatDisplayDate } from '../utils/markdown';
+import { ghGetInsights } from '../utils/githubClient';
 import { ResilientImage } from './ResilientImage';
 
 interface SiteInsightsViewProps {
@@ -46,18 +47,13 @@ export function SiteInsightsView({
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/github/insights?owner=${encodeURIComponent(config.githubOwner)}&repo=${encodeURIComponent(
-          config.githubRepo
-        )}`
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Không thể tải dữ liệu Site Insights từ GitHub API.');
+      const res = await ghGetInsights(config.githubOwner, config.githubRepo);
+      if (!res.ok || !res.data) {
+        setError(res.error || 'Không thể tải dữ liệu Site Insights từ GitHub API.');
         setInsights(null);
         return;
       }
-      setInsights(data);
+      setInsights(res.data);
     } catch {
       setError('Lỗi mạng khi kết nối tới GitHub API.');
     } finally {

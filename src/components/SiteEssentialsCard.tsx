@@ -28,6 +28,7 @@ import {
   generateRssXml,
   generateSitemapXml,
 } from '../utils/siteGenerators';
+import { ghGetSiteEssentials, ghPublishFiles } from '../utils/githubClient';
 
 interface SiteEssentialsCardProps {
   theme: BlogTheme;
@@ -72,15 +73,14 @@ export function SiteEssentialsCard({
     if (!config.githubOwner || !config.githubRepo) return;
     setIsChecking(true);
     try {
-      const res = await fetch(
-        `/api/github/site-essentials?owner=${encodeURIComponent(config.githubOwner)}&repo=${encodeURIComponent(
-          config.githubRepo
-        )}&branch=${encodeURIComponent(branch)}&framework=${encodeURIComponent(framework)}`
+      const data = await ghGetSiteEssentials(
+        config.githubOwner,
+        config.githubRepo,
+        branch,
+        framework
       );
-      if (res.ok) {
-        const data: SiteEssentialsReport = await res.json();
+      if (data) {
         setReport(data);
-        // Smart default selection: check missing essential SEO/RSS files automatically
         setSelectedKeys({
           rss: !data.files.find((f) => f.key === 'rss')?.exists,
           sitemap: !data.files.find((f) => f.key === 'sitemap')?.exists,
@@ -158,28 +158,24 @@ export function SiteEssentialsCard({
           content: generatedContents[f.key] ?? '',
         }));
 
-      const res = await fetch('/api/github/site-essentials/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          owner: config.githubOwner,
-          repo: config.githubRepo,
-          branch,
-          files: filesToPublish,
-        }),
+      const res = await ghPublishFiles({
+        owner: config.githubOwner,
+        repo: config.githubRepo,
+        branch,
+        files: filesToPublish,
+        message: `BlogVN: Cập nhật ${filesToPublish.length} tệp SEO & RSS`,
       });
-      const data = await res.json();
       if (!res.ok) {
-        setPublishError(data.error || 'Không thể đồng bộ RSS/Sitemap lên GitHub.');
+        setPublishError(res.error || 'Không thể đồng bộ RSS/Sitemap lên GitHub.');
         return;
       }
 
       setPublishResult({
         message: `Đã đẩy ${filesToPublish.length} tệp SEO & RSS lên ${config.githubOwner}/${config.githubRepo} trong 1 commit.`,
-        url: data.commit?.htmlUrl,
+        url: res.commit?.htmlUrl,
       });
       await fetchReport();
-      onPublished?.(data.commit?.htmlUrl);
+      onPublished?.(res.commit?.htmlUrl);
     } catch {
       setPublishError('Lỗi mạng khi xuất bản tệp SEO/RSS lên GitHub.');
     } finally {

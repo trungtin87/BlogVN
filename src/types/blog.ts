@@ -44,23 +44,6 @@ export interface SiteNavLink {
   url: string;
 }
 
-export type CommentStatus = 'pending' | 'approved' | 'rejected';
-
-export interface PostComment {
-  id: string;
-  owner: string;
-  repo: string;
-  postPath: string;
-  postSlug: string;
-  postTitle: string;
-  authorName: string;
-  authorEmail?: string;
-  content: string;
-  status: CommentStatus;
-  createdAt: string;
-  moderatedAt?: string;
-}
-
 export interface BlogPost {
   id: string;
   collection: BlogCollection;
@@ -85,8 +68,6 @@ export interface BlogPost {
   seoDescription?: string;
   canonicalUrl?: string;
   noindex?: boolean;
-  // Optional per-post comment override (defaults to site config.commentsEnabled)
-  commentsDisabled?: boolean;
   // Collection-specific optional fields matching src/content/config.ts
   authorName?: string;
   price?: string;
@@ -116,9 +97,6 @@ export interface BlogConfig {
   pagesUrl: string;
   themeMode: ThemeMode;
   postsDirectory: string;
-  commentsEnabled?: boolean;
-  commentsRequireApproval?: boolean;
-  commentsHeading?: string;
 }
 
 export interface GitHubUser {
@@ -131,8 +109,9 @@ export interface GitHubUser {
 
 export interface AuthStatus {
   authenticated: boolean;
-  mode: 'oauth' | 'env_token' | 'readonly';
+  mode: 'oauth' | 'pat' | 'env_token' | 'readonly';
   oauthConfigured: boolean;
+  backendAvailable?: boolean;
   user: GitHubUser | null;
   targetRepo: {
     owner: string;
@@ -331,7 +310,6 @@ export interface ScheduledPostPayload {
   seoDescription?: string;
   canonicalUrl?: string;
   noindex?: boolean;
-  commentsDisabled?: boolean;
 }
 
 export interface ScheduledTask {

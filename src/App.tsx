@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ExternalLink, X } from 'lucide-react';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { CheckCircle2, ExternalLink, Loader2, X } from 'lucide-react';
 import type {
   AuthStatus,
   BlogCollection,
@@ -8,22 +9,38 @@ import type {
   BuildStatusInfo,
   GitHubRepoInfo,
   GitHubRepoSummary,
-  PostComment,
   RepoStructureInfo,
   ScheduledTask,
   ThemeMode,
   WorkspaceTab,
 } from './types/blog';
 import { AM_DUONG_THEMES, DEFAULT_BLOG_CONFIG } from './data/themes';
+import { auth, signOutGoogle } from './firebase';
+import {
+  getStoredGitHubPat,
+  getUserStorageKey,
+  ghCreateSchedule,
+  ghDeletePost,
+  ghGetAuthStatus,
+  ghGetBuildStatus,
+  ghGetRepoInfo,
+  ghGetRepoPosts,
+  ghGetSchedules,
+  ghGetUserRepos,
+  ghRunDueSchedules,
+  isBackendAvailable,
+  setActiveSessionUid,
+  setStoredGitHubPat,
+} from './utils/githubClient';
 import { TopBar } from './components/TopBar';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { BlogShowcase } from './components/BlogShowcase';
 import { MarkdownEditor } from './components/MarkdownEditor';
 import { GitHubSyncPanel } from './components/GitHubSyncPanel';
+import { GoogleAuthGate } from './components/GoogleAuthGate';
 import { OfflineIndicator } from './components/PWAInstallButton';
 
-const STORAGE_CONFIG_KEY = 'blogvn_config_v1';
-const STORAGE_DRAFTS_KEY = 'blogvn_drafts_v1';
+const GATE_THEME_KEY = 'blogvn_gate_theme_mode';
 
 interface ToastBanner {
   message: string;
@@ -31,55 +48,74 @@ interface ToastBanner {
   linkLabel?: string;
 }
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>('blog');
-  const [config, setConfig] = useState<BlogConfig>(() => {
-    try {
-      const saved =
-        localStorage.getItem(STORAGE_CONFIG_KEY) ||
-        localStorage.getItem('trungtin87_blog_config_v2');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          ...DEFAULT_BLOG_CONFIG,
-          ...parsed,
-          themeMode: parsed?.themeMode === 'dark' ? 'dark' : 'light',
-        };
-      }
-      const prefersDark =
-        typeof window !== 'undefined' &&
-        window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+function getPreferredThemeMode(): ThemeMode {
+  if (typeof window === 'undefined') return 'light';
+  try {
+    const saved = localStorage.getItem(GATE_THEME_KEY);
+    if (saved === 'dark' || saved === 'light') return saved;
+    if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark';
+  } catch {
+    // ignore
+  }
+  return 'light';
+}
+
+function loadConfigForUid(user: User): BlogConfig {
+  try {
+    const raw = localStorage.getItem(getUserStorageKey(user.uid, 'config_v1'));
+    if (raw) {
+      const parsed = JSON.parse(raw);
       return {
         ...DEFAULT_BLOG_CONFIG,
-        themeMode: prefersDark ? 'dark' : 'light',
+        ...parsed,
+        themeMode: parsed?.themeMode === 'dark' ? 'dark' : 'light',
       };
-    } catch {
-      // ignore storage errors
     }
-    return DEFAULT_BLOG_CONFIG;
-  });
+  } catch {
+    // ignore storage errors
+  }
+  return {
+    ...DEFAULT_BLOG_CONFIG,
+    themeMode: getPreferredThemeMode(),
+    authorName: user.displayName || DEFAULT_BLOG_CONFIG.authorName,
+    authorAvatar: user.photoURL || DEFAULT_BLOG_CONFIG.authorAvatar,
+  };
+}
 
-  const [localDrafts, setLocalDrafts] = useState<BlogPost[]>(() => {
-    try {
-      const saved =
-        localStorage.getItem(STORAGE_DRAFTS_KEY) ||
-        localStorage.getItem('trungtin87_blog_drafts_v1');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // ignore storage errors
+function loadDraftsForUid(uid: string): BlogPost[] {
+  try {
+    const raw = localStorage.getItem(getUserStorageKey(uid, 'drafts_v1'));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
     }
-    return [];
-  });
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+export default function App() {
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [authInitializing, setAuthInitializing] = useState(true);
+  const [gateThemeMode, setGateThemeMode] = useState<ThemeMode>(getPreferredThemeMode);
+
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>('blog');
+  const [config, setConfig] = useState<BlogConfig>(() => ({
+    ...DEFAULT_BLOG_CONFIG,
+    themeMode: getPreferredThemeMode(),
+  }));
+  const [localDrafts, setLocalDrafts] = useState<BlogPost[]>([]);
+  const [hasPersonalPat, setHasPersonalPat] = useState(false);
 
   const [githubPosts, setGithubPosts] = useState<BlogPost[]>([]);
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
-  const [comments, setComments] = useState<PostComment[]>([]);
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [userRepos, setUserRepos] = useState<GitHubRepoSummary[]>([]);
   const [repoInfo, setRepoInfo] = useState<GitHubRepoInfo | null>(null);
   const [repoStructure, setRepoStructure] = useState<RepoStructureInfo | null>(null);
   const [buildStatus, setBuildStatus] = useState<BuildStatusInfo | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [repoError, setRepoError] = useState<string | null>(null);
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
   const [editorDefaultCollection, setEditorDefaultCollection] =
@@ -87,7 +123,42 @@ export default function App() {
   const [toast, setToast] = useState<ToastBanner | null>(null);
   const isRunningDueRef = useRef(false);
 
-  const activeTheme = AM_DUONG_THEMES[config.themeMode] || AM_DUONG_THEMES.light;
+  const activeUid = firebaseUser?.uid || '';
+  const activeTheme =
+    AM_DUONG_THEMES[firebaseUser ? config.themeMode : gateThemeMode] || AM_DUONG_THEMES.light;
+
+  // Listen to Firebase Google Sign-In state and isolate all device data per UID
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      setActiveSessionUid(user?.uid || '');
+
+      // Clear transient state on account switch / sign-out
+      setGithubPosts([]);
+      setScheduledTasks([]);
+      setUserRepos([]);
+      setRepoInfo(null);
+      setRepoStructure(null);
+      setBuildStatus(null);
+      setEditingPost(null);
+      setRepoError(null);
+      setAuthStatus(null);
+
+      if (user) {
+        const userCfg = loadConfigForUid(user);
+        setConfig(userCfg);
+        setLocalDrafts(loadDraftsForUid(user.uid));
+        setHasPersonalPat(Boolean(getStoredGitHubPat(user.uid)));
+        setActiveTab('blog');
+      } else {
+        setConfig({ ...DEFAULT_BLOG_CONFIG, themeMode: getPreferredThemeMode() });
+        setLocalDrafts([]);
+        setHasPersonalPat(false);
+      }
+      setAuthInitializing(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Synchronize <html> .dark class, color-scheme, body bg, and mobile theme-color meta tag
   useEffect(() => {
@@ -102,9 +173,13 @@ export default function App() {
 
   // Synchronize Website Identity (document.title, description, favicon, apple-touch-icon) with config
   useEffect(() => {
+    if (!firebaseUser) {
+      document.title = 'BlogVN — Đăng nhập';
+      return;
+    }
     const title = (config.siteTitle || 'BlogVN').trim();
     const desc = (config.tagline || '').trim();
-    const icon = (config.siteIcon || '/icon.svg').trim();
+    const icon = (config.siteIcon || './icon.svg').trim();
     const appTitle = (config.headerTitle || title || 'BlogVN').trim();
 
     document.title = title;
@@ -121,25 +196,27 @@ export default function App() {
     if (iconLink && icon) iconLink.setAttribute('href', icon);
     const touchLink = document.querySelector('link[rel="apple-touch-icon"]');
     if (touchLink && icon) touchLink.setAttribute('href', icon);
-  }, [config.siteTitle, config.tagline, config.siteIcon, config.headerTitle]);
+  }, [firebaseUser, config.siteTitle, config.tagline, config.siteIcon, config.headerTitle]);
 
-  // Persist config locally
+  // Persist config isolated to the active Google account UID
   useEffect(() => {
+    if (!activeUid) return;
     try {
-      localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(config));
+      localStorage.setItem(getUserStorageKey(activeUid, 'config_v1'), JSON.stringify(config));
     } catch {
       // ignore
     }
-  }, [config]);
+  }, [activeUid, config]);
 
-  // Persist local drafts
+  // Persist drafts isolated to the active Google account UID
   useEffect(() => {
+    if (!activeUid) return;
     try {
-      localStorage.setItem(STORAGE_DRAFTS_KEY, JSON.stringify(localDrafts));
+      localStorage.setItem(getUserStorageKey(activeUid, 'drafts_v1'), JSON.stringify(localDrafts));
     } catch {
       // ignore
     }
-  }, [localDrafts]);
+  }, [activeUid, localDrafts]);
 
   const showBanner = (banner: ToastBanner) => {
     setToast(banner);
@@ -148,129 +225,90 @@ export default function App() {
     }, 6000);
   };
 
-  const fetchBuildStatus = useCallback(async (owner: string, repo: string) => {
-    try {
-      const res = await fetch(
-        `/api/github/build-status?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`
-      );
-      if (res.ok) {
-        const data: BuildStatusInfo = await res.json();
+  const fetchBuildStatus = useCallback(
+    async (owner: string, repo: string) => {
+      if (!activeUid) return;
+      try {
+        const data = await ghGetBuildStatus(owner, repo, activeUid);
         setBuildStatus(data);
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
-    }
-  }, []);
+    },
+    [activeUid]
+  );
 
   const fetchUserRepos = useCallback(async (): Promise<GitHubRepoSummary[]> => {
+    if (!activeUid) return [];
     try {
-      const res = await fetch('/api/github/user-repos');
-      if (res.ok) {
-        const data = await res.json();
-        const repos: GitHubRepoSummary[] = data.repos || [];
-        setUserRepos(repos);
-        return repos;
-      }
+      const repos = await ghGetUserRepos(activeUid);
+      setUserRepos(repos);
+      return repos;
     } catch {
-      // ignore
+      return [];
     }
-    return [];
-  }, []);
+  }, [activeUid]);
 
-  const fetchAuthStatus = useCallback(async () => {
+  const fetchAuthStatus = useCallback(async (): Promise<AuthStatus | null> => {
+    if (!activeUid) return null;
     try {
-      const res = await fetch('/api/auth/status');
-      if (res.ok) {
-        const data: AuthStatus = await res.json();
-        setAuthStatus(data);
-        if (data.authenticated) {
-          fetchUserRepos();
-        } else {
-          setUserRepos([]);
-        }
-        return data;
+      const data = await ghGetAuthStatus(activeUid);
+      setAuthStatus(data);
+      setHasPersonalPat(Boolean(getStoredGitHubPat(activeUid)));
+      if (data.authenticated) {
+        fetchUserRepos();
+      } else {
+        setUserRepos([]);
       }
+      return data;
     } catch {
-      // ignore
+      return null;
     }
-    return null;
-  }, [fetchUserRepos]);
+  }, [activeUid, fetchUserRepos]);
 
   const fetchSchedules = useCallback(
     async (ownerOverride?: string, repoOverride?: string) => {
+      if (!activeUid) return;
       const targetOwner = ownerOverride || config.githubOwner;
       const targetRepo = repoOverride || config.githubRepo;
       try {
-        const res = await fetch(
-          `/api/schedules?owner=${encodeURIComponent(targetOwner)}&repo=${encodeURIComponent(targetRepo)}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setScheduledTasks(data.tasks || []);
-        }
+        const tasks = await ghGetSchedules(targetOwner, targetRepo, activeUid);
+        setScheduledTasks(tasks);
       } catch {
         // ignore
       }
     },
-    [config.githubOwner, config.githubRepo]
-  );
-
-  const fetchComments = useCallback(
-    async (ownerOverride?: string, repoOverride?: string) => {
-      const targetOwner = ownerOverride || config.githubOwner;
-      const targetRepo = repoOverride || config.githubRepo;
-      try {
-        const res = await fetch(
-          `/api/comments?owner=${encodeURIComponent(targetOwner)}&repo=${encodeURIComponent(
-            targetRepo
-          )}&includePending=true`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setComments(data.comments || []);
-        }
-      } catch {
-        // ignore
-      }
-    },
-    [config.githubOwner, config.githubRepo]
+    [activeUid, config.githubOwner, config.githubRepo]
   );
 
   const syncFromGitHub = useCallback(
     async (ownerOverride?: string, repoOverride?: string) => {
+      if (!activeUid) return;
       const targetOwner = ownerOverride || config.githubOwner;
       const targetRepo = repoOverride || config.githubRepo;
       setIsLoading(true);
       setRepoError(null);
 
       try {
-        const repoRes = await fetch(
-          `/api/github/repo?owner=${encodeURIComponent(targetOwner)}&repo=${encodeURIComponent(targetRepo)}`
-        );
-        const repoJson = await repoRes.json();
+        const repoRes = await ghGetRepoInfo(targetOwner, targetRepo, activeUid);
 
-        if (!repoRes.ok) {
-          setRepoError(repoJson.error || `Không thể truy cập ${targetOwner}/${targetRepo}`);
+        if (!repoRes.ok || !repoRes.data) {
+          setRepoError(repoRes.error || `Không thể truy cập ${targetOwner}/${targetRepo}`);
           setRepoInfo(null);
           setGithubPosts([]);
           setBuildStatus(null);
           return;
         }
 
+        const repoJson = repoRes.data;
         setRepoInfo(repoJson);
         fetchBuildStatus(targetOwner, targetRepo);
         fetchSchedules(targetOwner, targetRepo);
-        fetchComments(targetOwner, targetRepo);
         const branch = repoJson.defaultBranch || 'main';
 
-        const postsRes = await fetch(
-          `/api/github/posts?owner=${encodeURIComponent(targetOwner)}&repo=${encodeURIComponent(targetRepo)}&branch=${encodeURIComponent(branch)}`
-        );
-        const postsJson = await postsRes.json();
-
-        if (postsRes.ok) {
-          const loadedPosts: BlogPost[] = postsJson.posts || [];
-          setGithubPosts(loadedPosts);
+        const postsJson = await ghGetRepoPosts(targetOwner, targetRepo, branch, activeUid);
+        if (postsJson.ok) {
+          setGithubPosts(postsJson.posts || []);
           setRepoStructure(postsJson.structure || null);
 
           setConfig((prev) => ({
@@ -295,20 +333,20 @@ export default function App() {
         setIsLoading(false);
       }
     },
-    [config.githubOwner, config.githubRepo, fetchBuildStatus, fetchSchedules, fetchComments]
+    [activeUid, config.githubOwner, config.githubRepo, fetchBuildStatus, fetchSchedules]
   );
 
-  // Initial load
+  // Load workspace data whenever a verified Google user session becomes active
   useEffect(() => {
+    if (!activeUid) return;
     fetchAuthStatus();
     syncFromGitHub();
     fetchSchedules();
-    fetchComments();
-  }, [fetchAuthStatus, syncFromGitHub, fetchSchedules, fetchComments]);
+  }, [activeUid, fetchAuthStatus, syncFromGitHub, fetchSchedules]);
 
   // Background 20s ticker executing due scheduled publish/auto-delete tasks while signed in
   useEffect(() => {
-    if (!authStatus?.authenticated) return;
+    if (!activeUid || !authStatus?.authenticated) return;
 
     const runDueIfNeeded = async () => {
       if (isRunningDueRef.current) return;
@@ -323,16 +361,13 @@ export default function App() {
 
       isRunningDueRef.current = true;
       try {
-        const res = await fetch('/api/schedules/run-due', { method: 'POST' });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.executedCount > 0) {
-            await fetchSchedules();
-            syncFromGitHub();
-            showBanner({
-              message: `Đã tự động thực thi ${data.executedCount} lịch trình đến hạn trên GitHub.`,
-            });
-          }
+        const data = await ghRunDueSchedules(config.githubOwner, config.githubRepo, activeUid);
+        if (data.executedCount > 0) {
+          await fetchSchedules();
+          syncFromGitHub();
+          showBanner({
+            message: `Đã tự động thực thi ${data.executedCount} lịch trình đến hạn trên GitHub.`,
+          });
         }
       } catch {
         // ignore network errors during background poll
@@ -344,10 +379,19 @@ export default function App() {
     runDueIfNeeded();
     const timer = window.setInterval(runDueIfNeeded, 20000);
     return () => window.clearInterval(timer);
-  }, [authStatus?.authenticated, scheduledTasks, fetchSchedules, syncFromGitHub]);
+  }, [
+    activeUid,
+    authStatus?.authenticated,
+    scheduledTasks,
+    config.githubOwner,
+    config.githubRepo,
+    fetchSchedules,
+    syncFromGitHub,
+  ]);
 
   // Listen for OAuth popup completion and auto-select user's <login>.github.io repo if present
   useEffect(() => {
+    if (!activeUid) return;
     const onMessage = async (event: MessageEvent) => {
       const origin = event.origin || '';
       if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
@@ -376,14 +420,14 @@ export default function App() {
         }
         showBanner({
           message: userLogin
-            ? `Đã đăng nhập BlogVN với tài khoản @${userLogin}.`
+            ? `Đã đăng nhập GitHub với tài khoản @${userLogin}.`
             : 'Đã kết nối tài khoản GitHub thành công.',
         });
       }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [fetchAuthStatus, fetchUserRepos, syncFromGitHub]);
+  }, [activeUid, fetchAuthStatus, fetchUserRepos, syncFromGitHub]);
 
   const handleConnectOAuth = async () => {
     try {
@@ -405,23 +449,92 @@ export default function App() {
   };
 
   const handleLogoutOAuth = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    const hasBackend = await isBackendAvailable();
+    if (hasBackend) {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    }
     await fetchAuthStatus();
     showBanner({ message: 'Đã đăng xuất phiên GitHub OAuth.' });
   };
 
+  const handleSavePersonalPat = async (token: string) => {
+    if (!activeUid) return;
+    setStoredGitHubPat(activeUid, token);
+    setHasPersonalPat(Boolean(token.trim()));
+
+    if (!token.trim()) {
+      await fetchAuthStatus();
+      showBanner({ message: 'Đã gỡ GitHub Token cá nhân khỏi thiết bị.' });
+      return;
+    }
+
+    const status = await fetchAuthStatus();
+    if (!status?.authenticated) {
+      setStoredGitHubPat(activeUid, '');
+      setHasPersonalPat(false);
+      await fetchAuthStatus();
+      showBanner({ message: 'GitHub Token không hợp lệ hoặc đã hết hạn.' });
+      return;
+    }
+
+    const repos = await fetchUserRepos();
+    const userLogin = status.user?.login;
+    const userSiteRepo = repos.find(
+      (r) =>
+        r.isUserSite &&
+        (!userLogin || r.owner.toLowerCase() === userLogin.toLowerCase())
+    );
+
+    if (userSiteRepo) {
+      setConfig((prev) => ({
+        ...prev,
+        githubOwner: userSiteRepo.owner,
+        githubRepo: userSiteRepo.name,
+        pagesUrl: userSiteRepo.pagesUrl,
+      }));
+      syncFromGitHub(userSiteRepo.owner, userSiteRepo.name);
+    } else {
+      syncFromGitHub();
+    }
+
+    showBanner({
+      message: userLogin
+        ? `Đã kết nối GitHub cá nhân (@${userLogin}) cho tài khoản Google này.`
+        : 'Đã lưu GitHub Token cá nhân.',
+    });
+  };
+
+  const handleSignOutGoogle = async () => {
+    const hasBackend = await isBackendAvailable();
+    if (hasBackend) {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    }
+    await signOutGoogle();
+  };
+
   const handleClearLocalData = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    localStorage.removeItem(STORAGE_CONFIG_KEY);
-    localStorage.removeItem(STORAGE_DRAFTS_KEY);
-    localStorage.removeItem('trungtin87_blog_config_v2');
-    localStorage.removeItem('trungtin87_blog_drafts_v1');
+    if (activeUid) {
+      localStorage.removeItem(getUserStorageKey(activeUid, 'config_v1'));
+      localStorage.removeItem(getUserStorageKey(activeUid, 'drafts_v1'));
+      localStorage.removeItem(getUserStorageKey(activeUid, 'gh_pat'));
+      localStorage.removeItem(getUserStorageKey(activeUid, 'schedules_v1'));
+    }
+    const hasBackend = await isBackendAvailable();
+    if (hasBackend) {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    }
     setLocalDrafts([]);
-    await fetchAuthStatus();
-    showBanner({ message: 'Đã đăng xuất và xoá toàn bộ dữ liệu cục bộ trên thiết bị.' });
+    setHasPersonalPat(false);
+    await signOutGoogle();
   };
 
   const handleToggleThemeMode = (themeMode: ThemeMode) => {
+    setGateThemeMode(themeMode);
+    try {
+      localStorage.setItem(GATE_THEME_KEY, themeMode);
+    } catch {
+      // ignore
+    }
     setConfig((prev) => ({ ...prev, themeMode }));
   };
 
@@ -447,38 +560,33 @@ export default function App() {
       linkLabel: commitUrl ? 'Xem Commit' : 'Mở GitHub Pages',
     });
 
-    // Poll GitHub Actions/Pages build status after publishing
     setTimeout(() => fetchBuildStatus(config.githubOwner, config.githubRepo), 4000);
     setTimeout(() => fetchBuildStatus(config.githubOwner, config.githubRepo), 15000);
   };
 
   const handleDeletePost = async (post: BlogPost) => {
     if (!post.sha) return;
-    const res = await fetch('/api/github/posts', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const res = await ghDeletePost(
+      {
         owner: config.githubOwner,
         repo: config.githubRepo,
         branch: repoInfo?.defaultBranch || 'main',
         filePath: post.path,
         sha: post.sha,
-      }),
-    });
+      },
+      activeUid
+    );
     if (res.ok) {
       setGithubPosts((prev) => prev.filter((p) => p.path !== post.path));
       showBanner({ message: `Đã xoá tệp ${post.path} khỏi GitHub.` });
     } else {
-      const err = await res.json();
-      showBanner({ message: err.error || 'Không thể xoá mục này.' });
+      showBanner({ message: res.error || 'Không thể xoá mục này.' });
     }
   };
 
   const handleScheduleDeletePost = async (post: BlogPost, scheduledAtIso: string) => {
-    const res = await fetch('/api/schedules', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const res = await ghCreateSchedule(
+      {
         type: 'delete',
         owner: config.githubOwner,
         repo: config.githubRepo,
@@ -486,11 +594,11 @@ export default function App() {
         filePath: post.path,
         title: post.title,
         scheduledAt: scheduledAtIso,
-      }),
-    });
-    const data = await res.json();
+      },
+      activeUid
+    );
     if (!res.ok) {
-      throw new Error(data.error || 'Không thể đặt lịch xoá bài.');
+      throw new Error(res.error || 'Không thể đặt lịch xoá bài.');
     }
     await fetchSchedules();
     const formatted = new Date(scheduledAtIso).toLocaleString('vi-VN', {
@@ -571,6 +679,26 @@ export default function App() {
     return [...localDrafts, ...githubPosts].sort((a, b) => b.date.localeCompare(a.date));
   }, [localDrafts, githubPosts]);
 
+  if (authInitializing) {
+    return (
+      <div
+        style={{
+          backgroundColor: activeTheme.palette.canvas,
+          color: activeTheme.palette.textPrimary,
+          fontFamily: activeTheme.fonts.body,
+        }}
+        className="min-h-screen flex flex-col items-center justify-center gap-3 p-6"
+      >
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: activeTheme.palette.link }} />
+        <div className="text-sm font-medium">Đang kiểm tra phiên đăng nhập Google...</div>
+      </div>
+    );
+  }
+
+  if (!firebaseUser) {
+    return <GoogleAuthGate theme={activeTheme} onToggleTheme={handleToggleThemeMode} />;
+  }
+
   return (
     <div
       style={{
@@ -647,7 +775,6 @@ export default function App() {
             onCreateNewPost={handleCreateNewPost}
             onRefreshGitHub={() => syncFromGitHub()}
             onOpenGitHubTab={() => setActiveTab('github')}
-            onCommentsUpdated={() => fetchComments()}
           />
         )}
 
@@ -672,6 +799,8 @@ export default function App() {
           <GitHubSyncPanel
             theme={activeTheme}
             config={config}
+            firebaseUser={firebaseUser}
+            hasPersonalPat={hasPersonalPat}
             authStatus={authStatus}
             repoInfo={repoInfo}
             repoStructure={repoStructure}
@@ -679,12 +808,10 @@ export default function App() {
             userRepos={userRepos}
             posts={[...localDrafts, ...githubPosts]}
             scheduledTasks={scheduledTasks}
-            comments={comments}
             isLoading={isLoading}
             repoError={repoError}
             onRefresh={() => syncFromGitHub()}
             onRefreshSchedules={() => fetchSchedules()}
-            onRefreshComments={() => fetchComments()}
             onUpdateConfig={(next) => setConfig(next)}
             onDeployedToGitHub={(message, commitUrl) => {
               showBanner({
@@ -699,6 +826,8 @@ export default function App() {
             onDeletePost={handleDeletePost}
             onConnectOAuth={handleConnectOAuth}
             onLogoutOAuth={handleLogoutOAuth}
+            onSavePersonalPat={handleSavePersonalPat}
+            onSignOutGoogle={handleSignOutGoogle}
             onUpdateTargetRepo={handleUpdateTargetRepo}
             onSiteCreated={handleSiteCreated}
             onClearLocalData={handleClearLocalData}
