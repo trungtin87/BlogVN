@@ -19,6 +19,10 @@ import type {
   SiteEssentialsReport,
 } from '../types/blog';
 import { slugifyVietnamese } from './markdown';
+import {
+  buildAstroSiteConfigModule,
+  buildVietnameseAstroTemplateFiles,
+} from './astroTemplate';
 
 // Strictly isolated per Firebase Google UID in browser localStorage
 export function getUserStorageKey(uid: string, suffix: string): string {
@@ -525,12 +529,39 @@ async function commitMultipleFilesClient(params: {
   files: Array<{ path: string; content: string; isBase64?: boolean }>;
   message: string;
   token: string;
+  replaceAllFiles?: boolean;
 }): Promise<{ ok: boolean; status: number; commitSha?: string; commitHtmlUrl?: string; error?: string }> {
-  const refResp = await ghApiRequest<any>(
+  let refResp = await ghApiRequest<any>(
     `/repos/${params.owner}/${params.repo}/git/ref/heads/${encodeURIComponent(params.branch)}`,
     {},
     params.token
   );
+
+  // If repository is completely empty (no commits yet), bootstrap initial commit first
+  if (!refResp.ok || !refResp.data?.object?.sha) {
+    if (refResp.status === 404 || refResp.status === 409) {
+      await ghApiRequest<any>(
+        `/repos/${params.owner}/${params.repo}/contents/.blogvn-init`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: 'Initialize repository',
+            content: utf8ToBase64('BlogVN\n'),
+            branch: params.branch,
+          }),
+        },
+        params.token
+      );
+      await new Promise((r) => setTimeout(r, 600));
+      refResp = await ghApiRequest<any>(
+        `/repos/${params.owner}/${params.repo}/git/ref/heads/${encodeURIComponent(params.branch)}`,
+        {},
+        params.token
+      );
+    }
+  }
+
   if (!refResp.ok || !refResp.data?.object?.sha) {
     return {
       ok: false,
@@ -575,20 +606,25 @@ async function commitMultipleFilesClient(params: {
     };
   }
 
+  // Omitting base_tree replaces the entire branch tree atomically (wiping all old files)
+  const treePayload: Record<string, any> = {
+    tree: blobResults.map((b) => ({
+      path: b.path,
+      mode: '100644',
+      type: 'blob',
+      sha: b.blobResp.data.sha,
+    })),
+  };
+  if (!params.replaceAllFiles) {
+    treePayload.base_tree = commitResp.data.tree.sha;
+  }
+
   const treeResp = await ghApiRequest<any>(
     `/repos/${params.owner}/${params.repo}/git/trees`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        base_tree: commitResp.data.tree.sha,
-        tree: blobResults.map((b) => ({
-          path: b.path,
-          mode: '100644',
-          type: 'blob',
-          sha: b.blobResp.data.sha,
-        })),
-      }),
+      body: JSON.stringify(treePayload),
     },
     params.token
   );
@@ -868,7 +904,7 @@ export async function ghGetRepoPosts(
 
   if (isAstroVn) {
     framework = 'astro-vn';
-    frameworkLabel = 'Astro (Huyền Không)';
+    frameworkLabel = 'Astro Blog Việt';
     postsDir = 'src/content/bai_viet';
     assetsPrefix = 'public';
     uploadDir = 'public/tainguyen/hinhanh/uploads';
@@ -1945,6 +1981,30 @@ export async function ghSaveSiteConfig(
     },
   ];
 
+  // If this repo uses the Vietnamese Astro template, keep src/cau_hinh/trang_web.ts synced too
+  const existingAstroCfg = await ghApiRequest<any>(
+    `/repos/${params.owner}/${params.repo}/contents/src/cau_hinh/trang_web.ts?ref=${encodeURIComponent(params.branch)}`,
+    {},
+    pat
+  );
+  if (existingAstroCfg.ok) {
+    files.push({
+      path: 'src/cau_hinh/trang_web.ts',
+      content: buildAstroSiteConfigModule({
+        owner: params.owner,
+        repo: params.repo,
+        config: params.config,
+      }),
+    });
+    if (params.config.siteIcon?.startsWith('data:image/')) {
+      files.push({
+        path: 'public/favicon.png',
+        content: params.config.siteIcon.replace(/^data:[^;]+;base64,/, ''),
+        isBase64: true,
+      });
+    }
+  }
+
   if (params.publishWebApp) {
     const title = params.config.siteTitle || params.repo;
     const tagline = params.config.tagline || `Blog ${title}`;
@@ -2010,4 +2070,113 @@ export async function ghSaveSiteConfig(
   if (!commitRes.ok) return { ok: false, error: commitRes.error };
   return { ok: true, commitUrl: commitRes.commitHtmlUrl };
 }
+
+export async function ghDeployAstroTemplate(
+  params: {
+    owner: string;
+    repo: string;
+    branch?: string;
+    config: BlogConfig;
+  },
+  uid = activeUid
+): Promise<{
+  ok: boolean;
+  commitUrl?: string;
+  actionsUrl?: string;
+  pagesUrl?: string;
+  error?: string;
+}> {
+  const pat = getStoredGitHubPat(uid);
+  const hasBackend = await isBackendAvailable();
+  if (hasBackend && !pat) {
+    const res = await fetch('/api/github/deploy-astro-template', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    if (!res.ok) return { ok: false, error: data.error || 'Không thể triển khai template Astro.' };
+    return {
+      ok: true,
+      commitUrl: data.commit?.htmlUrl,
+      actionsUrl: data.actionsUrl,
+      pagesUrl: data.pagesUrl,
+    };
+  }
+
+  if (!pat) return { ok: false, error: 'Chưa kết nối GitHub Token cá nhân.' };
+
+  let targetBranch = params.branch || '';
+  if (!targetBranch) {
+    const repoResp = await ghApiRequest<any>(`/repos/${params.owner}/${params.repo}`, {}, pat);
+    targetBranch = repoResp.ok && repoResp.data?.default_branch ? repoResp.data.default_branch : 'main';
+  }
+
+  const files = buildVietnameseAstroTemplateFiles({
+    owner: params.owner,
+    repo: params.repo,
+    config: params.config,
+  });
+
+  const commitRes = await commitMultipleFilesClient({
+    owner: params.owner,
+    repo: params.repo,
+    branch: targetBranch,
+    files,
+    message: `BlogVN: Triển khai Template Astro Blog Việt sạch & nhận dạng web (${params.config.siteTitle || params.repo})`,
+    token: pat,
+    replaceAllFiles: true,
+  });
+
+  if (!commitRes.ok) {
+    const rawErr = commitRes.error || '';
+    if (rawErr.toLowerCase().includes('workflow')) {
+      return {
+        ok: false,
+        error:
+          'Token GitHub của bạn chưa có quyền "workflow" để tạo file GitHub Actions (.github/workflows/deploy-astro.yml). Hãy tạo Token mới có tick cả "repo" và "workflow" rồi kết nối lại.',
+      };
+    }
+    return { ok: false, error: rawErr || 'Không thể đẩy template Astro lên GitHub.' };
+  }
+
+  // Ensure GitHub Pages uses GitHub Actions workflow build_type
+  const pagesGet = await ghApiRequest<any>(`/repos/${params.owner}/${params.repo}/pages`, {}, pat);
+  if (pagesGet.ok) {
+    if (pagesGet.data?.build_type !== 'workflow') {
+      await ghApiRequest<any>(
+        `/repos/${params.owner}/${params.repo}/pages`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ build_type: 'workflow' }),
+        },
+        pat
+      );
+    }
+  } else {
+    await ghApiRequest<any>(
+      `/repos/${params.owner}/${params.repo}/pages`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ build_type: 'workflow' }),
+      },
+      pat
+    );
+  }
+
+  const isUserSite = params.repo.toLowerCase() === `${params.owner.toLowerCase()}.github.io`;
+  const pagesUrl =
+    params.config.pagesUrl ||
+    (isUserSite ? `https://${params.repo}` : `https://${params.owner}.github.io/${params.repo}`);
+
+  return {
+    ok: true,
+    commitUrl: commitRes.commitHtmlUrl,
+    actionsUrl: `https://github.com/${params.owner}/${params.repo}/actions`,
+    pagesUrl,
+  };
+}
+
 

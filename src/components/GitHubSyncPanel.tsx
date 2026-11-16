@@ -36,7 +36,7 @@ import type {
 } from '../types/blog';
 import { COLLECTION_LABELS } from '../data/themes';
 import { formatDisplayDate } from '../utils/markdown';
-import { ghCreateStarterPagesSite } from '../utils/githubClient';
+import { ghCreateStarterPagesSite, ghDeployAstroTemplate } from '../utils/githubClient';
 import { ResilientImage } from './ResilientImage';
 import { PWAInstallButton } from './PWAInstallButton';
 import { SiteEssentialsCard } from './SiteEssentialsCard';
@@ -69,7 +69,7 @@ interface GitHubSyncPanelProps {
   onSavePersonalPat: (token: string) => Promise<void>;
   onSignOutGoogle: () => Promise<void>;
   onUpdateTargetRepo: (owner: string, repo: string) => void;
-  onSiteCreated: (owner: string, repo: string, pagesUrl: string) => void;
+  onSiteCreated: (owner: string, repo: string, pagesUrl: string, postsDirectory?: string) => void;
   onClearLocalData: () => Promise<void>;
 }
 
@@ -129,6 +129,7 @@ export function GitHubSyncPanel({
   const [newSiteTitle, setNewSiteTitle] = useState('');
   const [newRepoName, setNewRepoName] = useState('');
   const [newTagline, setNewTagline] = useState('');
+  const [useAstroVnTemplate, setUseAstroVnTemplate] = useState(true);
   const [isCreatingSite, setIsCreatingSite] = useState(false);
   const [createSiteError, setCreateSiteError] = useState<string | null>(null);
 
@@ -189,7 +190,35 @@ export function GitHubSyncPanel({
         setCreateSiteError(data.error || 'Không thể khởi tạo blog mới trên GitHub.');
         return;
       }
-      onSiteCreated(data.owner, data.repo, data.pagesUrl);
+
+      let postsDir = '_posts';
+      if (useAstroVnTemplate) {
+        const nextCfg: BlogConfig = {
+          ...config,
+          siteTitle: newSiteTitle.trim() || config.siteTitle,
+          tagline: newTagline.trim() || config.tagline,
+          githubOwner: data.owner,
+          githubRepo: data.repo,
+          pagesUrl: data.pagesUrl,
+          postsDirectory: 'src/content/bai_viet',
+        };
+        const astroRes = await ghDeployAstroTemplate({
+          owner: data.owner,
+          repo: data.repo,
+          config: nextCfg,
+        });
+        if (!astroRes.ok) {
+          setCreateSiteError(
+            astroRes.error ||
+              'Đã tạo repo nhưng chưa đẩy được Template Astro Việt. Bạn có thể bấm Triển khai lại ở mục 4 bên dưới.'
+          );
+          return;
+        }
+        onUpdateConfig(nextCfg);
+        postsDir = 'src/content/bai_viet';
+      }
+
+      onSiteCreated(data.owner, data.repo, data.pagesUrl, postsDir);
     } catch {
       setCreateSiteError('Lỗi mạng khi tạo repository GitHub Pages.');
     } finally {
@@ -463,13 +492,13 @@ export function GitHubSyncPanel({
                   GitHub Personal Access Token (Lưu riêng trên máy theo Google UID)
                 </span>
                 <a
-                  href="https://github.com/settings/tokens/new?scopes=repo&description=BlogVN"
+                  href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=BlogVN"
                   target="_blank"
                   rel="noreferrer"
                   style={{ color: palette.link }}
                   className="text-[11px] font-medium underline underline-offset-4 whitespace-nowrap"
                 >
-                  Tạo Token (quyền repo)
+                  Tạo Token (repo + workflow)
                 </a>
               </div>
               <p style={{ color: palette.textMuted }} className="text-[11px] leading-relaxed">
@@ -738,7 +767,7 @@ export function GitHubSyncPanel({
                 2. Tạo Blog GitHub Pages mới trong 1 chạm (Dành cho người mới)
               </h2>
               <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
-                Chưa có trang web? BlogVN sẽ tự tạo repository, cấu hình giao diện Jekyll tối giản, thêm bài chào mừng và bật GitHub Pages cho bạn.
+                Chưa có trang web? BlogVN sẽ tự tạo repository, nạp Template Blog chuẩn tiếng Việt kết hợp nhận dạng cá nhân và tự bật GitHub Pages cho bạn.
               </p>
             </div>
           </div>
@@ -821,6 +850,18 @@ export function GitHubSyncPanel({
             </div>
           </form>
 
+          <label className="inline-flex items-center gap-2 text-xs cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={useAstroVnTemplate}
+              onChange={(e) => setUseAstroVnTemplate(e.target.checked)}
+              className="rounded"
+            />
+            <span style={{ color: palette.textSecondary }}>
+              Dùng <strong>Template Web Blog Astro 5 tiếng Việt</strong> (xoá dữ liệu cũ nếu repo đã tồn tại &amp; nhúng nhận dạng web cá nhân)
+            </span>
+          </label>
+
           {createSiteError && (
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs">
               {createSiteError}
@@ -848,6 +889,7 @@ export function GitHubSyncPanel({
           repoInfo={repoInfo}
           onUpdateConfig={onUpdateConfig}
           onDeployedToGitHub={onDeployedToGitHub}
+          onRefreshRepo={onRefresh}
         />
 
         {/* Scheduled Post Publishing & Auto-Delete Queue */}

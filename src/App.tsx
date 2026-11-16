@@ -657,13 +657,18 @@ export default function App() {
     syncFromGitHub(owner, repo);
   };
 
-  const handleSiteCreated = (owner: string, repo: string, pagesUrl: string) => {
+  const handleSiteCreated = (
+    owner: string,
+    repo: string,
+    pagesUrl: string,
+    postsDirectory = '_posts'
+  ) => {
     setConfig((prev) => ({
       ...prev,
       githubOwner: owner,
       githubRepo: repo,
       pagesUrl,
-      postsDirectory: '_posts',
+      postsDirectory,
     }));
     fetchUserRepos();
     syncFromGitHub(owner, repo);

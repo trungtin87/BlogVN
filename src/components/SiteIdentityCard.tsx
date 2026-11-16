@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   CheckCircle2,
   ExternalLink,
   Globe,
@@ -8,6 +9,7 @@ import {
   Plus,
   Rocket,
   Save,
+  Sparkles,
   Trash2,
   UploadCloud,
 } from 'lucide-react';
@@ -19,7 +21,7 @@ import type {
   GitHubRepoInfo,
   SiteNavLink,
 } from '../types/blog';
-import { ghSaveSiteConfig } from '../utils/githubClient';
+import { ghDeployAstroTemplate, ghSaveSiteConfig } from '../utils/githubClient';
 
 interface SiteIdentityCardProps {
   theme: BlogTheme;
@@ -29,6 +31,7 @@ interface SiteIdentityCardProps {
   repoInfo: GitHubRepoInfo | null;
   onUpdateConfig: (next: BlogConfig) => void;
   onDeployedToGitHub?: (message: string, commitUrl?: string) => void;
+  onRefreshRepo?: () => void;
 }
 
 function resizeImageToFaviconDataUrl(file: File): Promise<string> {
@@ -69,6 +72,7 @@ export function SiteIdentityCard({
   repoInfo,
   onUpdateConfig,
   onDeployedToGitHub,
+  onRefreshRepo,
 }: SiteIdentityCardProps) {
   const { palette, fonts } = theme;
   const iconFileRef = useRef<HTMLInputElement | null>(null);
@@ -87,6 +91,8 @@ export function SiteIdentityCard({
 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeployingApp, setIsDeployingApp] = useState(false);
+  const [isDeployingAstro, setIsDeployingAstro] = useState(false);
+  const [confirmWipeAstro, setConfirmWipeAstro] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; url?: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -173,6 +179,44 @@ export function SiteIdentityCard({
     } finally {
       setIsSaving(false);
       setIsDeployingApp(false);
+    }
+  };
+
+  const handleDeployCleanAstroTemplate = async () => {
+    const nextCfg: BlogConfig = {
+      ...buildDraftConfig(),
+      postsDirectory: 'src/content/bai_viet',
+    };
+    onUpdateConfig(nextCfg);
+    setErrorMessage(null);
+    setStatusMessage(null);
+    setIsDeployingAstro(true);
+
+    try {
+      const result = await ghDeployAstroTemplate({
+        owner: config.githubOwner,
+        repo: config.githubRepo,
+        branch: repoInfo?.defaultBranch || 'main',
+        config: nextCfg,
+      });
+
+      if (!result.ok) {
+        setErrorMessage(result.error || 'Không thể triển khai Template Astro Việt.');
+        return;
+      }
+
+      setConfirmWipeAstro(false);
+      const msg = `Đã xoá dữ liệu cũ và triển khai Template Web Blog Astro Việt kèm nhận dạng cá nhân lên ${config.githubOwner}/${config.githubRepo}! GitHub Actions đang build trang của bạn.`;
+      setStatusMessage({
+        text: msg,
+        url: result.actionsUrl || result.commitUrl || config.pagesUrl,
+      });
+      onDeployedToGitHub?.(msg, result.actionsUrl || result.commitUrl);
+      onRefreshRepo?.();
+    } catch {
+      setErrorMessage('Lỗi kết nối khi triển khai Template Astro Việt.');
+    } finally {
+      setIsDeployingAstro(false);
     }
   };
 
@@ -576,12 +620,12 @@ export function SiteIdentityCard({
       )}
 
       {/* Action Buttons + GitHub Pages Web App Deployment Info */}
-      <div className="space-y-3 pt-1">
+      <div className="space-y-4 pt-1">
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
             onClick={() => persistConfig({ syncToGitHub: false, publishWebApp: false })}
-            disabled={isSaving || isDeployingApp}
+            disabled={isSaving || isDeployingApp || isDeployingAstro}
             style={{
               borderColor: palette.border,
               backgroundColor: palette.canvas,
@@ -596,7 +640,7 @@ export function SiteIdentityCard({
           <button
             type="button"
             onClick={() => persistConfig({ syncToGitHub: true, publishWebApp: false })}
-            disabled={isSaving || isDeployingApp || !authStatus?.authenticated}
+            disabled={isSaving || isDeployingApp || isDeployingAstro || !authStatus?.authenticated}
             style={{
               borderColor: palette.border,
               backgroundColor: palette.canvas,
@@ -611,25 +655,103 @@ export function SiteIdentityCard({
           <button
             type="button"
             onClick={() => persistConfig({ syncToGitHub: true, publishWebApp: true })}
-            disabled={isSaving || isDeployingApp || !authStatus?.authenticated}
+            disabled={isSaving || isDeployingApp || isDeployingAstro || !authStatus?.authenticated}
             style={{
-              backgroundColor: palette.accent,
-              color: palette.accentText,
+              borderColor: palette.border,
+              backgroundColor: palette.canvas,
+              color: palette.textPrimary,
             }}
-            className="inline-flex items-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-45"
+            className="inline-flex items-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-medium rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-45"
           >
             {isDeployingApp ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Rocket className="w-4 h-4" />
             )}
-            Xuất bản Web App lên GitHub Pages
+            Xuất bản Web tĩnh nhanh
           </button>
         </div>
 
-        <p style={{ color: palette.textMuted }} className="text-xs leading-relaxed">
-          Lưu ý lưu trữ &amp; GitHub Pages: Toàn bộ bài viết và cấu hình nhận dạng (<code>.blogvn/site-config.json</code>) được lưu riêng trên thiết bị theo tài khoản Google và đồng bộ trực tiếp lên Git repository của bạn. Nút <strong>Xuất bản Web App</strong> đẩy bộ giao diện PWA đọc blog tĩnh (<code>index.html</code> + <code>manifest.webmanifest</code> + <code>posts-manifest.json</code>) lên GitHub Pages.
-        </p>
+        {/* Dedicated Vietnamese Astro Template Clean Wipe & Deploy Box */}
+        <div
+          style={{
+            borderColor: palette.border,
+            backgroundColor: palette.canvas,
+          }}
+          className="p-4 rounded-xl border space-y-3"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="text-sm font-semibold flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4" style={{ color: palette.link }} />
+                Template Web Blog Astro 5 chuẩn tiếng Việt (Xoá sạch dữ liệu cũ)
+              </div>
+              <p style={{ color: palette.textSecondary }} className="text-xs leading-relaxed">
+                Khắc phục lỗi build do repo đã có dữ liệu cũ xung đột: thay thế toàn bộ cây tệp trên{' '}
+                <code>{config.githubOwner}/{config.githubRepo}</code> bằng mẫu Blog Astro 5 hoàn chỉnh cho người Việt (Bài viết, Dự án, Sách, Cửa hàng, RSS, Sitemap, tìm kiếm, Âm/Dương) kết hợp trực tiếp với <strong>nhận dạng web cá nhân</strong> ở trên và tự động bật GitHub Actions Pages.
+              </p>
+            </div>
+
+            {!confirmWipeAstro && (
+              <button
+                type="button"
+                onClick={() => setConfirmWipeAstro(true)}
+                disabled={isSaving || isDeployingApp || isDeployingAstro || !authStatus?.authenticated}
+                style={{
+                  backgroundColor: palette.accent,
+                  color: palette.accentText,
+                }}
+                className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-45 whitespace-nowrap shrink-0"
+              >
+                <Sparkles className="w-4 h-4" />
+                Triển khai Template Astro Việt
+              </button>
+            )}
+          </div>
+
+          {confirmWipeAstro && (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/35 space-y-3">
+              <div className="flex items-start gap-2.5 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div>
+                  <strong>Xác nhận làm mới hoàn toàn repository:</strong> Thao tác này sẽ{' '}
+                  <strong>xoá toàn bộ tệp &amp; dữ liệu cũ</strong> trên nhánh mặc định của{' '}
+                  <code>{config.githubOwner}/{config.githubRepo}</code>, sau đó đẩy bộ Template Astro Blog Việt kèm Icon, Tiêu đề, Header, Footer, Mô tả bạn vừa thiết lập và tự chạy GitHub Actions build.
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDeployCleanAstroTemplate}
+                  disabled={isDeployingAstro}
+                  className="inline-flex items-center gap-2 px-4 min-h-[40px] text-xs font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 cursor-pointer disabled:opacity-50"
+                >
+                  {isDeployingAstro ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Đang xoá dữ liệu cũ &amp; đẩy Template Astro...
+                    </>
+                  ) : (
+                    'Xác nhận xoá cũ & Triển khai Astro Việt'
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmWipeAstro(false)}
+                  disabled={isDeployingAstro}
+                  style={{
+                    borderColor: palette.border,
+                    backgroundColor: palette.surface,
+                    color: palette.textPrimary,
+                  }}
+                  className="px-3.5 min-h-[40px] text-xs font-medium rounded-lg border cursor-pointer"
+                >
+                  Huỷ bỏ
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );

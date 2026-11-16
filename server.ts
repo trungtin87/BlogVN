@@ -29,6 +29,10 @@ import {
   generateRssXml,
   generateSitemapXml,
 } from './src/utils/siteGenerators.ts';
+import {
+  buildAstroSiteConfigModule,
+  buildVietnameseAstroTemplateFiles,
+} from './src/utils/astroTemplate.ts';
 
 dotenv.config();
 
@@ -701,12 +705,39 @@ async function commitMultipleFilesAtomic(params: {
   files: Array<{ path: string; content: string; isBase64?: boolean }>;
   message: string;
   token: string;
+  replaceAllFiles?: boolean;
 }): Promise<{ ok: boolean; status: number; commitSha?: string; commitHtmlUrl?: string; error?: string }> {
-  const refResp = await githubRequest<any>(
+  let refResp = await githubRequest<any>(
     `/repos/${params.owner}/${params.repo}/git/ref/heads/${encodeURIComponent(params.branch)}`,
     {},
     params.token
   );
+
+  // Bootstrap empty repository if needed
+  if (!refResp.ok || !refResp.data?.object?.sha) {
+    if (refResp.status === 404 || refResp.status === 409) {
+      await githubRequest<any>(
+        `/repos/${params.owner}/${params.repo}/contents/.blogvn-init`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: 'Initialize repository',
+            content: Buffer.from('BlogVN\n', 'utf8').toString('base64'),
+            branch: params.branch,
+          }),
+        },
+        params.token
+      );
+      await new Promise((r) => setTimeout(r, 600));
+      refResp = await githubRequest<any>(
+        `/repos/${params.owner}/${params.repo}/git/ref/heads/${encodeURIComponent(params.branch)}`,
+        {},
+        params.token
+      );
+    }
+  }
+
   if (!refResp.ok || !refResp.data?.object?.sha) {
     return {
       ok: false,
@@ -758,20 +789,24 @@ async function commitMultipleFilesAtomic(params: {
     };
   }
 
+  const treePayload: Record<string, any> = {
+    tree: blobResults.map((b) => ({
+      path: b.path,
+      mode: '100644',
+      type: 'blob',
+      sha: b.blobResp.data.sha,
+    })),
+  };
+  if (!params.replaceAllFiles) {
+    treePayload.base_tree = baseTreeSha;
+  }
+
   const treeResp = await githubRequest<any>(
     `/repos/${params.owner}/${params.repo}/git/trees`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        base_tree: baseTreeSha,
-        tree: blobResults.map((b) => ({
-          path: b.path,
-          mode: '100644',
-          type: 'blob',
-          sha: b.blobResp.data.sha,
-        })),
-      }),
+      body: JSON.stringify(treePayload),
     },
     params.token
   );
@@ -1553,7 +1588,7 @@ async function startServer() {
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
-      scope: 'repo read:user',
+      scope: 'repo workflow read:user',
       state,
     });
 
@@ -3320,7 +3355,7 @@ async function startServer() {
     }
 
     try {
-      const filesToCommit = publishWebApp
+      const filesToCommit: Array<{ path: string; content: string; isBase64?: boolean }> = publishWebApp
         ? buildStandaloneWebAppFiles({
             owner,
             repo,
@@ -3334,6 +3369,28 @@ async function startServer() {
               isBase64: false,
             },
           ];
+
+      if (!publishWebApp) {
+        const astroCfgCheck = await githubRequest<any>(
+          `/repos/${owner}/${repo}/contents/src/cau_hinh/trang_web.ts?ref=${encodeURIComponent(branch)}`,
+          {},
+          token
+        );
+        if (astroCfgCheck.ok) {
+          filesToCommit.push({
+            path: 'src/cau_hinh/trang_web.ts',
+            content: buildAstroSiteConfigModule({ owner, repo, config: cleanCfg }),
+            isBase64: false,
+          });
+          if (cleanCfg.siteIcon?.startsWith('data:image/')) {
+            filesToCommit.push({
+              path: 'public/favicon.png',
+              content: cleanCfg.siteIcon.replace(/^data:[^;]+;base64,/, ''),
+              isBase64: true,
+            });
+          }
+        }
+      }
 
       const commitRes = await commitMultipleFilesAtomic({
         owner,
@@ -3365,6 +3422,97 @@ async function startServer() {
     } catch (error) {
       console.error('Save site config error:', error);
       res.status(500).json({ error: 'Lỗi máy chủ khi đẩy cấu hình web lên GitHub.' });
+    }
+  });
+
+  // 10b. Deploy Clean Vietnamese Astro Blog Template (wipe old files & combine with Site Identity)
+  app.post('/api/github/deploy-astro-template', async (req: Request, res: Response) => {
+    const token = getSessionToken(req);
+    if (!token) {
+      res.status(401).json({
+        requiresAuth: true,
+        error: 'Vui lòng kết nối GitHub trước khi triển khai template Astro.',
+      });
+      return;
+    }
+
+    const { owner = DEFAULT_OWNER, repo = DEFAULT_REPO, branch, config = {} } = req.body || {};
+
+    try {
+      let targetBranch = branch ? String(branch) : '';
+      if (!targetBranch) {
+        const repoResp = await githubRequest<any>(`/repos/${owner}/${repo}`, {}, token);
+        targetBranch = repoResp.ok && repoResp.data?.default_branch ? repoResp.data.default_branch : 'main';
+      }
+
+      const files = buildVietnameseAstroTemplateFiles({
+        owner,
+        repo,
+        config,
+      });
+
+      const commitRes = await commitMultipleFilesAtomic({
+        owner,
+        repo,
+        branch: targetBranch,
+        files,
+        message: `BlogVN: Triển khai Template Astro Blog Việt sạch & nhận dạng web (${config.siteTitle || repo})`,
+        token,
+        replaceAllFiles: true,
+      });
+
+      if (!commitRes.ok) {
+        const rawErr = commitRes.error || '';
+        const friendlyErr = rawErr.toLowerCase().includes('workflow')
+          ? 'Token GitHub chưa có quyền "workflow" để tạo file GitHub Actions (.github/workflows/deploy-astro.yml). Hãy cấp lại token với quyền repo + workflow.'
+          : rawErr || 'Không thể đẩy template Astro lên GitHub.';
+        res.status(commitRes.status || 400).json({ error: friendlyErr });
+        return;
+      }
+
+      // Switch GitHub Pages source to GitHub Actions workflow build_type
+      const pagesGet = await githubRequest<any>(`/repos/${owner}/${repo}/pages`, {}, token);
+      if (pagesGet.ok) {
+        if (pagesGet.data?.build_type !== 'workflow') {
+          await githubRequest<any>(
+            `/repos/${owner}/${repo}/pages`,
+            {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ build_type: 'workflow' }),
+            },
+            token
+          );
+        }
+      } else {
+        await githubRequest<any>(
+          `/repos/${owner}/${repo}/pages`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ build_type: 'workflow' }),
+          },
+          token
+        );
+      }
+
+      const isUserSite = String(repo).toLowerCase() === `${String(owner).toLowerCase()}.github.io`;
+      const pagesUrl =
+        config.pagesUrl ||
+        (isUserSite ? `https://${repo}` : `https://${owner}.github.io/${repo}`);
+
+      res.json({
+        ok: true,
+        pagesUrl,
+        actionsUrl: `https://github.com/${owner}/${repo}/actions`,
+        commit: {
+          sha: commitRes.commitSha,
+          htmlUrl: commitRes.commitHtmlUrl,
+        },
+      });
+    } catch (error) {
+      console.error('Deploy Astro template error:', error);
+      res.status(500).json({ error: 'Lỗi máy chủ khi triển khai template Astro Việt.' });
     }
   });
 
