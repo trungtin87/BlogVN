@@ -8,6 +8,7 @@ import type {
   BuildStatusInfo,
   GitHubRepoInfo,
   GitHubRepoSummary,
+  PostComment,
   RepoStructureInfo,
   ScheduledTask,
   ThemeMode,
@@ -72,6 +73,7 @@ export default function App() {
 
   const [githubPosts, setGithubPosts] = useState<BlogPost[]>([]);
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
+  const [comments, setComments] = useState<PostComment[]>([]);
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [userRepos, setUserRepos] = useState<GitHubRepoSummary[]>([]);
   const [repoInfo, setRepoInfo] = useState<GitHubRepoInfo | null>(null);
@@ -97,6 +99,29 @@ export default function App() {
       themeColorMeta.setAttribute('content', activeTheme.palette.canvas);
     }
   }, [activeTheme]);
+
+  // Synchronize Website Identity (document.title, description, favicon, apple-touch-icon) with config
+  useEffect(() => {
+    const title = (config.siteTitle || 'BlogVN').trim();
+    const desc = (config.tagline || '').trim();
+    const icon = (config.siteIcon || '/icon.svg').trim();
+    const appTitle = (config.headerTitle || title || 'BlogVN').trim();
+
+    document.title = title;
+    const descMeta = document.querySelector('meta[name="description"]');
+    if (descMeta && desc) descMeta.setAttribute('content', desc);
+    const ogTitle = document.querySelector('meta[property="og:title"]');
+    if (ogTitle) ogTitle.setAttribute('content', title);
+    const ogDesc = document.querySelector('meta[property="og:description"]');
+    if (ogDesc && desc) ogDesc.setAttribute('content', desc);
+    const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (appleTitle) appleTitle.setAttribute('content', appTitle);
+
+    const iconLink = document.querySelector('link[rel="icon"]');
+    if (iconLink && icon) iconLink.setAttribute('href', icon);
+    const touchLink = document.querySelector('link[rel="apple-touch-icon"]');
+    if (touchLink && icon) touchLink.setAttribute('href', icon);
+  }, [config.siteTitle, config.tagline, config.siteIcon, config.headerTitle]);
 
   // Persist config locally
   useEffect(() => {
@@ -190,6 +215,27 @@ export default function App() {
     [config.githubOwner, config.githubRepo]
   );
 
+  const fetchComments = useCallback(
+    async (ownerOverride?: string, repoOverride?: string) => {
+      const targetOwner = ownerOverride || config.githubOwner;
+      const targetRepo = repoOverride || config.githubRepo;
+      try {
+        const res = await fetch(
+          `/api/comments?owner=${encodeURIComponent(targetOwner)}&repo=${encodeURIComponent(
+            targetRepo
+          )}&includePending=true`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setComments(data.comments || []);
+        }
+      } catch {
+        // ignore
+      }
+    },
+    [config.githubOwner, config.githubRepo]
+  );
+
   const syncFromGitHub = useCallback(
     async (ownerOverride?: string, repoOverride?: string) => {
       const targetOwner = ownerOverride || config.githubOwner;
@@ -214,6 +260,7 @@ export default function App() {
         setRepoInfo(repoJson);
         fetchBuildStatus(targetOwner, targetRepo);
         fetchSchedules(targetOwner, targetRepo);
+        fetchComments(targetOwner, targetRepo);
         const branch = repoJson.defaultBranch || 'main';
 
         const postsRes = await fetch(
@@ -248,7 +295,7 @@ export default function App() {
         setIsLoading(false);
       }
     },
-    [config.githubOwner, config.githubRepo, fetchBuildStatus, fetchSchedules]
+    [config.githubOwner, config.githubRepo, fetchBuildStatus, fetchSchedules, fetchComments]
   );
 
   // Initial load
@@ -256,7 +303,8 @@ export default function App() {
     fetchAuthStatus();
     syncFromGitHub();
     fetchSchedules();
-  }, [fetchAuthStatus, syncFromGitHub, fetchSchedules]);
+    fetchComments();
+  }, [fetchAuthStatus, syncFromGitHub, fetchSchedules, fetchComments]);
 
   // Background 20s ticker executing due scheduled publish/auto-delete tasks while signed in
   useEffect(() => {
@@ -538,6 +586,8 @@ export default function App() {
         onToggleThemeMode={handleToggleThemeMode}
         theme={activeTheme}
         siteTitle={config.siteTitle}
+        headerTitle={config.headerTitle}
+        siteIcon={config.siteIcon}
       />
 
       <OfflineIndicator theme={activeTheme} />
@@ -597,6 +647,7 @@ export default function App() {
             onCreateNewPost={handleCreateNewPost}
             onRefreshGitHub={() => syncFromGitHub()}
             onOpenGitHubTab={() => setActiveTab('github')}
+            onCommentsUpdated={() => fetchComments()}
           />
         )}
 
@@ -628,10 +679,21 @@ export default function App() {
             userRepos={userRepos}
             posts={[...localDrafts, ...githubPosts]}
             scheduledTasks={scheduledTasks}
+            comments={comments}
             isLoading={isLoading}
             repoError={repoError}
             onRefresh={() => syncFromGitHub()}
             onRefreshSchedules={() => fetchSchedules()}
+            onRefreshComments={() => fetchComments()}
+            onUpdateConfig={(next) => setConfig(next)}
+            onDeployedToGitHub={(message, commitUrl) => {
+              showBanner({
+                message,
+                linkUrl: commitUrl || config.pagesUrl,
+                linkLabel: commitUrl ? 'Xem Commit' : 'Mở trang web',
+              });
+              syncFromGitHub();
+            }}
             onScheduleDeletePost={handleScheduleDeletePost}
             onEditPost={handleEditPost}
             onDeletePost={handleDeletePost}
@@ -654,16 +716,30 @@ export default function App() {
       >
         <div className="max-w-[1360px] mx-auto flex flex-wrap items-center justify-between gap-4">
           <span>
-            BlogVN · {config.githubOwner}/{config.githubRepo}
+            {config.footerText?.trim() ||
+              `${config.headerTitle || 'BlogVN'} · ${config.githubOwner}/${config.githubRepo}`}
           </span>
-          <a
-            href={config.pagesUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="hover:underline underline-offset-4"
-          >
-            {config.pagesUrl}
-          </a>
+          <div className="flex flex-wrap items-center gap-4">
+            {config.footerLinks?.map((item, idx) => (
+              <a
+                key={`${item.url}-${idx}`}
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:underline underline-offset-4"
+              >
+                {item.label}
+              </a>
+            ))}
+            <a
+              href={config.pagesUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:underline underline-offset-4"
+            >
+              {config.pagesUrl}
+            </a>
+          </div>
         </div>
       </footer>
 

@@ -30,6 +30,7 @@ import { resolveGitHubAssetPreviewUrl } from '../utils/imageUpload';
 import { ResilientImage } from './ResilientImage';
 import { PWAInstallButton } from './PWAInstallButton';
 import { SiteInsightsView } from './SiteInsightsView';
+import { PostCommentsSection } from './PostCommentsSection';
 
 interface BlogShowcaseProps {
   theme: BlogTheme;
@@ -47,6 +48,7 @@ interface BlogShowcaseProps {
   onCreateNewPost: (collection?: BlogCollection) => void;
   onRefreshGitHub: () => void;
   onOpenGitHubTab: () => void;
+  onCommentsUpdated?: () => void;
 }
 
 const COLLECTION_TABS: Array<{ id: 'all' | BlogCollection; label: string }> = [
@@ -73,6 +75,7 @@ export function BlogShowcase({
   onCreateNewPost,
   onRefreshGitHub,
   onOpenGitHubTab,
+  onCommentsUpdated,
 }: BlogShowcaseProps) {
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [activeCollection, setActiveCollection] = useState<'all' | BlogCollection | 'insights'>('all');
@@ -260,6 +263,20 @@ export function BlogShowcase({
               </p>
             </div>
           </div>
+
+          {config.commentsEnabled !== false && !activePost.commentsDisabled ? (
+            <PostCommentsSection
+              theme={theme}
+              config={config}
+              post={activePost}
+              authStatus={authStatus}
+              onCommentsUpdated={onCommentsUpdated}
+            />
+          ) : (
+            <p style={{ color: palette.textMuted }} className="mt-8 text-xs">
+              Tính năng bình luận đang tạm tắt cho bài viết này.
+            </p>
+          )}
         </div>
       </div>
     );
@@ -314,6 +331,21 @@ export function BlogShowcase({
               <Rss className="w-3.5 h-3.5" />
               RSS
             </a>
+            {config.headerNavLinks &&
+              config.headerNavLinks.map((navLink, idx) => (
+                <span key={`${navLink.url}-${idx}`} className="inline-flex items-center gap-2">
+                  <span aria-hidden="true">·</span>
+                  <a
+                    href={navLink.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: palette.textPrimary }}
+                    className="font-medium hover:underline underline-offset-4"
+                  >
+                    {navLink.label}
+                  </a>
+                </span>
+              ))}
           </div>
 
           <div className="flex items-center gap-2">

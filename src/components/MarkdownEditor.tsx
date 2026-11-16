@@ -158,6 +158,7 @@ export function MarkdownEditor({
   const [seoDescription, setSeoDescription] = useState('');
   const [canonicalUrl, setCanonicalUrl] = useState('');
   const [noindex, setNoindex] = useState(false);
+  const [commentsDisabled, setCommentsDisabled] = useState(false);
   const [copiedJsonLd, setCopiedJsonLd] = useState(false);
 
   const [showPublishModal, setShowPublishModal] = useState(false);
@@ -201,6 +202,7 @@ export function MarkdownEditor({
       setSeoDescription(initialPost.seoDescription || '');
       setCanonicalUrl(initialPost.canonicalUrl || '');
       setNoindex(Boolean(initialPost.noindex));
+      setCommentsDisabled(Boolean(initialPost.commentsDisabled));
     } else {
       const today = new Date().toISOString().slice(0, 10);
       setCollection(defaultCollection);
@@ -245,6 +247,7 @@ export function MarkdownEditor({
       setSeoDescription('');
       setCanonicalUrl('');
       setNoindex(false);
+      setCommentsDisabled(false);
     }
     setPublishError(null);
     setUploadError(null);
@@ -586,6 +589,7 @@ export function MarkdownEditor({
       seoDescription: seoDescription.trim() || undefined,
       canonicalUrl: canonicalUrl.trim() || undefined,
       noindex,
+      commentsDisabled,
     };
   };
 
@@ -693,6 +697,7 @@ export function MarkdownEditor({
       seoDescription: seoDescription.trim() || undefined,
       canonicalUrl: canonicalUrl.trim() || undefined,
       noindex,
+      commentsDisabled,
     };
 
     try {
@@ -1582,6 +1587,16 @@ export function MarkdownEditor({
                       <span style={{ color: palette.textSecondary }}>Còn hàng (con_hang)</span>
                     </label>
                   )}
+
+                  <label className="inline-flex items-center gap-2 min-h-[36px] cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={!commentsDisabled}
+                      onChange={(e) => setCommentsDisabled(!e.target.checked)}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span style={{ color: palette.textSecondary }}>Mở bình luận bài viết này</span>
+                  </label>
                 </div>
 
                 {/* Expandable SEO Studio Drawer */}

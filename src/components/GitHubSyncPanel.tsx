@@ -28,6 +28,7 @@ import type {
   BuildStatusInfo,
   GitHubRepoInfo,
   GitHubRepoSummary,
+  PostComment,
   RepoStructureInfo,
   ScheduledTask,
 } from '../types/blog';
@@ -36,7 +37,9 @@ import { formatDisplayDate } from '../utils/markdown';
 import { ResilientImage } from './ResilientImage';
 import { PWAInstallButton } from './PWAInstallButton';
 import { SiteEssentialsCard } from './SiteEssentialsCard';
+import { SiteIdentityCard } from './SiteIdentityCard';
 import { ScheduleManagerCard } from './ScheduleManagerCard';
+import { CommentModerationCard } from './CommentModerationCard';
 
 interface GitHubSyncPanelProps {
   theme: BlogTheme;
@@ -48,10 +51,14 @@ interface GitHubSyncPanelProps {
   userRepos: GitHubRepoSummary[];
   posts: BlogPost[];
   scheduledTasks: ScheduledTask[];
+  comments: PostComment[];
   isLoading: boolean;
   repoError: string | null;
   onRefresh: () => void;
   onRefreshSchedules: () => Promise<void>;
+  onRefreshComments: () => Promise<void>;
+  onUpdateConfig: (next: BlogConfig) => void;
+  onDeployedToGitHub?: (message: string, commitUrl?: string) => void;
   onScheduleDeletePost: (post: BlogPost, scheduledAtIso: string) => Promise<void>;
   onEditPost: (post: BlogPost) => void;
   onDeletePost: (post: BlogPost) => Promise<void>;
@@ -80,10 +87,14 @@ export function GitHubSyncPanel({
   userRepos,
   posts,
   scheduledTasks,
+  comments,
   isLoading,
   repoError,
   onRefresh,
   onRefreshSchedules,
+  onRefreshComments,
+  onUpdateConfig,
+  onDeployedToGitHub,
   onScheduleDeletePost,
   onEditPost,
   onDeletePost,
@@ -708,6 +719,17 @@ export function GitHubSyncPanel({
           onPublished={() => onRefresh()}
         />
 
+        {/* Website Identity, Favicon/Icon, Header, Footer & Standalone Web App Deploy */}
+        <SiteIdentityCard
+          theme={theme}
+          config={config}
+          posts={posts}
+          authStatus={authStatus}
+          repoInfo={repoInfo}
+          onUpdateConfig={onUpdateConfig}
+          onDeployedToGitHub={onDeployedToGitHub}
+        />
+
         {/* Scheduled Post Publishing & Auto-Delete Queue */}
         <ScheduleManagerCard
           theme={theme}
@@ -717,6 +739,17 @@ export function GitHubSyncPanel({
           tasks={scheduledTasks}
           onRefreshTasks={onRefreshSchedules}
           onTasksExecuted={onRefresh}
+        />
+
+        {/* Post Comment Moderation Queue & Approved Export */}
+        <CommentModerationCard
+          theme={theme}
+          config={config}
+          authStatus={authStatus}
+          repoInfo={repoInfo}
+          comments={comments}
+          onRefreshComments={onRefreshComments}
+          onCommentsSynced={onDeployedToGitHub}
         />
 
         {/* Mobile App Install & App Store / APK Publishing Card */}

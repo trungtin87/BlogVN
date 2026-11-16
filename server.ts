@@ -12,11 +12,13 @@ import type {
   BlogConfig,
   BlogPost,
   BuildStatusInfo,
+  CommentStatus,
   EngagementEvent,
   FrameworkId,
   FrontmatterSchemaHint,
   GitHubRepoInfo,
   GitHubUser,
+  PostComment,
   RepoInsightsData,
   RepoStructureInfo,
   ScheduledPostPayload,
@@ -346,6 +348,7 @@ function parseMarkdownFile(
       ? String(frontmatter.canonical)
       : undefined,
     noindex: frontmatter.noindex !== undefined ? Boolean(frontmatter.noindex) : undefined,
+    commentsDisabled: frontmatter.comments === false || frontmatter.binh_luan === false,
     authorName: frontmatter.tac_gia
       ? String(frontmatter.tac_gia)
       : frontmatter.author
@@ -500,6 +503,7 @@ function serializePostMarkdown(
     seoDescription?: string;
     canonicalUrl?: string;
     noindex?: boolean;
+    commentsDisabled?: boolean;
   },
   options: {
     framework: FrameworkId;
@@ -566,6 +570,7 @@ function serializePostMarkdown(
         ngay: input.date,
         anh_bia: safeCover,
         nhap: Boolean(input.draft),
+        ...(input.commentsDisabled ? { binh_luan: false, comments: false } : {}),
       };
     }
     return `---\n${dumpYaml(fm, { lineWidth: -1 }).trim()}\n---\n\n${input.markdownBody.trim()}\n`;
@@ -619,6 +624,11 @@ function serializePostMarkdown(
     fm.noindex = true;
   } else {
     delete fm.noindex;
+  }
+  if (input.commentsDisabled) {
+    fm.comments = false;
+  } else {
+    delete fm.comments;
   }
 
   return `---\n${dumpYaml(fm, { lineWidth: -1 }).trim()}\n---\n\n${input.markdownBody.trim()}\n`;
@@ -895,6 +905,7 @@ function buildSerializedPayload(payload: ScheduledPostPayload): string {
       seoDescription: payload.seoDescription,
       canonicalUrl: payload.canonicalUrl,
       noindex: Boolean(payload.noindex),
+      commentsDisabled: Boolean(payload.commentsDisabled),
     },
     {
       framework,
@@ -903,6 +914,303 @@ function buildSerializedPayload(payload: ScheduledPostPayload): string {
       isAstroVnPath,
     }
   );
+}
+
+// Per-Repo Website Identity & Moderated Comments Persistence
+const SITE_CONFIGS_FILE = path.join(SCHEDULES_DIR, 'site-configs.json');
+const COMMENTS_FILE = path.join(SCHEDULES_DIR, 'comments.json');
+
+function ensureDataDir() {
+  if (!fs.existsSync(SCHEDULES_DIR)) {
+    fs.mkdirSync(SCHEDULES_DIR, { recursive: true });
+  }
+}
+
+function repoConfigKey(owner: string, repo: string): string {
+  return `${String(owner || DEFAULT_OWNER).toLowerCase()}/${String(repo || DEFAULT_REPO).toLowerCase()}`;
+}
+
+function loadSiteConfigsFromDisk(): Record<string, Partial<BlogConfig>> {
+  try {
+    if (!fs.existsSync(SITE_CONFIGS_FILE)) return {};
+    const raw = fs.readFileSync(SITE_CONFIGS_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSiteConfigsToDisk(configs: Record<string, Partial<BlogConfig>>) {
+  try {
+    ensureDataDir();
+    fs.writeFileSync(SITE_CONFIGS_FILE, JSON.stringify(configs, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to persist site configs:', err);
+  }
+}
+
+function loadCommentsFromDisk(): PostComment[] {
+  try {
+    if (!fs.existsSync(COMMENTS_FILE)) return [];
+    const raw = fs.readFileSync(COMMENTS_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCommentsToDisk(comments: PostComment[]) {
+  try {
+    ensureDataDir();
+    fs.writeFileSync(COMMENTS_FILE, JSON.stringify(comments, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to persist comments:', err);
+  }
+}
+
+function escapeHtmlAttr(str: string): string {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function buildStandaloneWebAppFiles(params: {
+  owner: string;
+  repo: string;
+  siteConfig: Partial<BlogConfig>;
+  posts: BlogPost[];
+  approvedComments: PostComment[];
+}): Array<{ path: string; content: string; isBase64?: boolean }> {
+  const { owner, repo, siteConfig, posts, approvedComments } = params;
+  const title = siteConfig.siteTitle || repo || 'BlogVN';
+  const headerBrand = siteConfig.headerTitle || title;
+  const tagline = siteConfig.tagline || `Trang blog cá nhân ${title}`;
+  const footerText =
+    siteConfig.footerText || `© ${new Date().getFullYear()} ${title} · Xuất bản từ BlogVN.`;
+  const iconHref = siteConfig.siteIcon || './icon.svg';
+  const headerLinks = Array.isArray(siteConfig.headerNavLinks) ? siteConfig.headerNavLinks : [];
+  const footerLinks = Array.isArray(siteConfig.footerLinks) ? siteConfig.footerLinks : [];
+  const commentsEnabled = siteConfig.commentsEnabled !== false;
+  const commentsHeading = siteConfig.commentsHeading || 'Bình luận đã duyệt';
+
+  const cleanPosts = posts
+    .filter((p) => !p.draft)
+    .map((p) => ({
+      id: p.id,
+      path: p.path,
+      slug: p.slug,
+      title: p.title,
+      date: p.date,
+      category: p.category,
+      tags: p.tags,
+      excerpt: p.excerpt,
+      cover: p.cover,
+      markdownBody: p.markdownBody,
+      commentsDisabled: Boolean(p.commentsDisabled),
+    }));
+
+  const cleanApproved = approvedComments.map((c) => ({
+    id: c.id,
+    postPath: c.postPath,
+    postSlug: c.postSlug,
+    authorName: c.authorName,
+    content: c.content,
+    createdAt: c.createdAt,
+  }));
+
+  const manifest = {
+    name: title,
+    short_name: headerBrand.slice(0, 24),
+    description: tagline,
+    start_url: './',
+    display: 'standalone',
+    background_color: '#FAFAFA',
+    theme_color: '#111827',
+    icons: [
+      {
+        src: iconHref.startsWith('data:') ? './favicon.png' : iconHref,
+        sizes: '512x512',
+        type: 'image/png',
+      },
+    ],
+  };
+
+  const swJs = `const CACHE_NAME = 'blogvn-site-v1';
+const ASSETS = ['./', './index.html', './manifest.webmanifest', './posts-manifest.json'];
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', (e) => {
+  e.waitUntil(self.clients.claim());
+});
+self.addEventListener('fetch', (e) => {
+  if (e.request.method !== 'GET') return;
+  e.respondWith(
+    fetch(e.request).then((res) => {
+      const copy = res.clone();
+      caches.open(CACHE_NAME).then((c) => c.put(e.request, copy));
+      return res;
+    }).catch(() => caches.match(e.request))
+  );
+});
+`;
+
+  const indexHtml = `<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtmlAttr(title)}</title>
+  <meta name="description" content="${escapeHtmlAttr(tagline)}" />
+  <meta property="og:title" content="${escapeHtmlAttr(title)}" />
+  <meta property="og:description" content="${escapeHtmlAttr(tagline)}" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="${escapeHtmlAttr(headerBrand)}" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="${escapeHtmlAttr(iconHref)}" />
+  <link rel="apple-touch-icon" href="${escapeHtmlAttr(iconHref)}" />
+  <link rel="alternate" type="application/rss+xml" title="${escapeHtmlAttr(title)} RSS" href="./rss.xml" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root { --bg:#fafafa; --surface:#f3f4f6; --card:#ffffff; --border:#e5e7eb; --text:#111827; --muted:#6b7280; --link:#2563eb; --accent:#111827; --accent-text:#ffffff; }
+    html.dark { --bg:#0b0d12; --surface:#141720; --card:#1b202c; --border:#272d3d; --text:#f3f4f6; --muted:#9ca3af; --link:#60a5fa; --accent:#f3f4f6; --accent-text:#0b0d12; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); line-height:1.65; }
+    a { color:var(--link); text-decoration:none; } a:hover { text-decoration:underline; }
+    header { position:sticky; top:0; z-index:20; background:var(--bg); border-bottom:1px solid var(--border); }
+    .wrap { max-width:960px; margin:0 auto; padding:0 18px; }
+    .nav { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:60px; }
+    .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:18px; color:var(--text); }
+    .brand img { width:28px; height:28px; border-radius:8px; object-fit:cover; }
+    .links { display:flex; align-items:center; gap:16px; flex-wrap:wrap; font-size:14px; }
+    .btn { background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:8px 12px; font-size:13px; cursor:pointer; }
+    .hero { padding:42px 0 28px; border-bottom:1px solid var(--border); }
+    .hero h1 { font-size:clamp(28px, 4vw, 42px); line-height:1.15; margin:0 0 10px; }
+    .hero p { color:var(--muted); margin:0; max-width:65ch; }
+    .search { margin:24px 0 10px; width:100%; padding:11px 14px; border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--text); font-size:14px; }
+    .post { padding:26px 0; border-bottom:1px solid var(--border); cursor:pointer; }
+    .meta { font-size:12px; color:var(--muted); margin-bottom:6px; font-family:ui-monospace, monospace; }
+    .post h2 { margin:0 0 6px; font-size:22px; }
+    .post p { margin:0; color:var(--muted); font-size:15px; }
+    .prose img { max-width:100%; border-radius:12px; margin:16px 0; }
+    .prose pre { background:var(--surface); padding:14px; border-radius:10px; overflow:auto; border:1px solid var(--border); }
+    .prose blockquote { margin:18px 0; padding:12px 16px; background:var(--surface); border-radius:10px; border:1px solid var(--border); }
+    .comments { margin-top:40px; padding-top:24px; border-top:1px solid var(--border); }
+    .comment-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
+    footer { border-top:1px solid var(--border); padding:28px 0; margin-top:48px; font-size:13px; color:var(--muted); }
+    .foot-flex { display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; align-items:center; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap nav">
+      <a class="brand" href="#/">
+        <img src="${escapeHtmlAttr(iconHref)}" alt="${escapeHtmlAttr(headerBrand)}" onerror="this.style.display='none'" />
+        <span>${escapeHtmlAttr(headerBrand)}</span>
+      </a>
+      <div class="links">
+        ${headerLinks.map((l) => `<a href="${escapeHtmlAttr(l.url)}">${escapeHtmlAttr(l.label)}</a>`).join('')}
+        <a href="./rss.xml">RSS</a>
+        <button class="btn" id="themeBtn" type="button">Đổi Sáng/Tối</button>
+      </div>
+    </div>
+  </header>
+  <main class="wrap" id="app"></main>
+  <footer>
+    <div class="wrap foot-flex">
+      <span>${escapeHtmlAttr(footerText)}</span>
+      <div class="links">
+        ${footerLinks.map((l) => `<a href="${escapeHtmlAttr(l.url)}">${escapeHtmlAttr(l.label)}</a>`).join('')}
+      </div>
+    </div>
+  </footer>
+  <script>
+    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js').catch(() => {}); }
+    const savedTheme = localStorage.getItem('blogvn_site_theme');
+    if (savedTheme === 'dark') document.documentElement.classList.add('dark');
+    document.getElementById('themeBtn').onclick = () => {
+      const dark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('blogvn_site_theme', dark ? 'dark' : 'light');
+    };
+    const SITE_META = ${JSON.stringify({ title, tagline, commentsEnabled, commentsHeading })};
+    let POSTS = []; let COMMENTS = []; let query = ''; let activeSlug = null;
+    function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function render() {
+      const root = document.getElementById('app');
+      const post = activeSlug ? POSTS.find(p => p.slug === activeSlug) : null;
+      if (post) {
+        const htmlBody = window.marked ? window.marked.parse(post.markdownBody || '') : '<pre>' + esc(post.markdownBody) + '</pre>';
+        const list = COMMENTS.filter(c => c.postPath === post.path || c.postSlug === post.slug);
+        root.innerHTML = '<div style="padding:28px 0">' +
+          '<button class="btn" onclick="activeSlug=null;location.hash=\'#/\';render()">← Quay lại danh sách</button>' +
+          '<div class="meta" style="margin-top:20px">' + esc(post.date) + ' · ' + esc(post.category) + '</div>' +
+          '<h1 style="font-size:34px;line-height:1.2;margin:6px 0 18px">' + esc(post.title) + '</h1>' +
+          (post.cover ? '<img src="' + esc(post.cover) + '" alt="' + esc(post.title) + '" style="width:100%;max-height:420px;object-fit:cover;border-radius:14px;margin-bottom:24px" />' : '') +
+          '<div class="prose">' + htmlBody + '</div>' +
+          (SITE_META.commentsEnabled && !post.commentsDisabled ? (
+            '<section class="comments"><h3 style="margin:0 0 14px">' + esc(SITE_META.commentsHeading) + ' (' + list.length + ')</h3>' +
+            (list.length ? list.map(c => '<div class="comment-card"><div style="font-weight:600;font-size:14px">' + esc(c.authorName) + ' <span style="font-weight:400;color:var(--muted);font-size:12px">· ' + new Date(c.createdAt).toLocaleDateString('vi-VN') + '</span></div><div style="margin-top:6px;font-size:14px">' + esc(c.content) + '</div></div>').join('') : '<p style="color:var(--muted);font-size:14px">Chưa có bình luận nào được duyệt hiển thị.</p>') +
+            '</section>'
+          ) : '') +
+          '</div>';
+        return;
+      }
+      const filtered = POSTS.filter(p => !query || (p.title + ' ' + p.excerpt + ' ' + p.category).toLowerCase().includes(query.toLowerCase()));
+      root.innerHTML = '<section class="hero"><h1>' + esc(SITE_META.title) + '</h1><p>' + esc(SITE_META.tagline) + '</p>' +
+        '<input class="search" placeholder="Tìm bài viết..." value="' + esc(query) + '" oninput="query=this.value;render()" /></section>' +
+        '<div>' + (filtered.length ? filtered.map(p => '<article class="post" onclick="activeSlug=\'' + esc(p.slug) + '\';location.hash=\'#/post/' + encodeURIComponent(p.slug) + '\';render()">' +
+        '<div class="meta">' + esc(p.date) + ' · ' + esc(p.category) + '</div>' +
+        '<h2>' + esc(p.title) + '</h2><p>' + esc(p.excerpt) + '</p></article>').join('') : '<p style="padding:36px 0;color:var(--muted)">Không có bài viết nào phù hợp.</p>') + '</div>';
+    }
+    window.addEventListener('hashchange', () => {
+      const m = location.hash.match(/^#\\/post\\/(.+)$/);
+      activeSlug = m ? decodeURIComponent(m[1]) : null;
+      render();
+    });
+    Promise.all([
+      fetch('./posts-manifest.json').then(r => r.json()).catch(() => ({ posts: [] })),
+      fetch('./.blogvn/approved-comments.json').then(r => r.json()).catch(() => ({ comments: [] }))
+    ]).then(([pData, cData]) => {
+      POSTS = Array.isArray(pData.posts) ? pData.posts : [];
+      COMMENTS = Array.isArray(cData.comments) ? cData.comments : [];
+      const m = location.hash.match(/^#\\/post\\/(.+)$/);
+      if (m) activeSlug = decodeURIComponent(m[1]);
+      render();
+    });
+  </script>
+</body>
+</html>
+`;
+
+  const files: Array<{ path: string; content: string; isBase64?: boolean }> = [
+    { path: '.nojekyll', content: '', isBase64: false },
+    { path: '.blogvn/site-config.json', content: JSON.stringify(siteConfig, null, 2) + '\n', isBase64: false },
+    {
+      path: '.blogvn/approved-comments.json',
+      content: JSON.stringify({ updatedAt: new Date().toISOString(), comments: cleanApproved }, null, 2) + '\n',
+      isBase64: false,
+    },
+    {
+      path: 'posts-manifest.json',
+      content: JSON.stringify({ owner, repo, updatedAt: new Date().toISOString(), posts: cleanPosts }, null, 2) + '\n',
+      isBase64: false,
+    },
+    { path: 'manifest.webmanifest', content: JSON.stringify(manifest, null, 2) + '\n', isBase64: false },
+    { path: 'sw.js', content: swJs, isBase64: false },
+    { path: 'index.html', content: indexHtml, isBase64: false },
+  ];
+
+  // If siteIcon is a data URL image uploaded from device, also store it cleanly as favicon.png inside repo
+  if (siteConfig.siteIcon && siteConfig.siteIcon.startsWith('data:image/')) {
+    const cleanB64 = siteConfig.siteIcon.replace(/^data:[^;]+;base64,/, '');
+    files.push({ path: 'favicon.png', content: cleanB64, isBase64: true });
+  }
+
+  return files;
 }
 
 async function executeScheduledPublish(
@@ -1768,6 +2076,41 @@ async function startServer() {
 
       const frontmatterSchema = inferFrontmatterSchema(framework, posts);
 
+      // Merge .blogvn/site-config.json from repository if present
+      const blogvnCfgBlob = blobs.find((b) => b.path === '.blogvn/site-config.json');
+      if (blogvnCfgBlob) {
+        const cfgResp = await githubRequest<any>(
+          `/repos/${owner}/${repo}/contents/.blogvn/site-config.json?ref=${encodeURIComponent(branch)}`,
+          {},
+          token
+        );
+        if (cfgResp.ok && cfgResp.data?.content) {
+          try {
+            const parsedJson = JSON.parse(Buffer.from(cfgResp.data.content, 'base64').toString('utf8'));
+            if (parsedJson && typeof parsedJson === 'object') {
+              remoteConfig = {
+                ...(remoteConfig || {}),
+                ...parsedJson,
+                postsDirectory: postsDir,
+              };
+            }
+          } catch {
+            // ignore malformed JSON
+          }
+        }
+      }
+
+      // Also overlay local server saved config overrides for this repo
+      const localSiteConfigs = loadSiteConfigsFromDisk();
+      const savedRepoCfg = localSiteConfigs[repoConfigKey(owner, repo)];
+      if (savedRepoCfg) {
+        remoteConfig = {
+          ...(remoteConfig || {}),
+          ...savedRepoCfg,
+          postsDirectory: postsDir,
+        };
+      }
+
       const structure: RepoStructureInfo = {
         framework,
         frameworkLabel,
@@ -2076,6 +2419,7 @@ async function startServer() {
       seoDescription,
       canonicalUrl,
       noindex,
+      commentsDisabled,
     } = req.body || {};
 
     if (!title || !filePath) {
@@ -2118,6 +2462,7 @@ async function startServer() {
           seoDescription,
           canonicalUrl,
           noindex: Boolean(noindex),
+          commentsDisabled: Boolean(commentsDisabled),
         },
         {
           framework: framework as FrameworkId,
@@ -2976,6 +3321,320 @@ async function startServer() {
     } catch (error) {
       console.error('Sync workflow error:', error);
       res.status(500).json({ error: 'Lỗi máy chủ khi đồng bộ GitHub Actions Scheduler.' });
+    }
+  });
+
+  // 10d. Per-Repo Website Identity & Deploy Standalone GitHub Pages PWA
+  app.get('/api/site-config', (req: Request, res: Response) => {
+    const owner = String(req.query.owner || DEFAULT_OWNER);
+    const repo = String(req.query.repo || DEFAULT_REPO);
+    const all = loadSiteConfigsFromDisk();
+    res.json({ config: all[repoConfigKey(owner, repo)] || null });
+  });
+
+  app.put('/api/site-config', async (req: Request, res: Response) => {
+    const {
+      owner = DEFAULT_OWNER,
+      repo = DEFAULT_REPO,
+      branch = 'main',
+      config: incomingCfg = {},
+      syncToGitHub = false,
+      publishWebApp = false,
+      posts = [],
+    } = req.body || {};
+
+    const cleanCfg: Partial<BlogConfig> = {
+      siteTitle: String(incomingCfg.siteTitle || '').trim() || undefined,
+      tagline: String(incomingCfg.tagline || '').trim() || undefined,
+      siteIcon: incomingCfg.siteIcon ? String(incomingCfg.siteIcon).trim() : undefined,
+      headerTitle: String(incomingCfg.headerTitle || '').trim() || undefined,
+      headerNavLinks: Array.isArray(incomingCfg.headerNavLinks)
+        ? incomingCfg.headerNavLinks
+            .filter((l: any) => l?.label && l?.url)
+            .map((l: any) => ({ label: String(l.label).trim(), url: String(l.url).trim() }))
+        : [],
+      footerText: String(incomingCfg.footerText || '').trim() || undefined,
+      footerLinks: Array.isArray(incomingCfg.footerLinks)
+        ? incomingCfg.footerLinks
+            .filter((l: any) => l?.label && l?.url)
+            .map((l: any) => ({ label: String(l.label).trim(), url: String(l.url).trim() }))
+        : [],
+      authorName: String(incomingCfg.authorName || '').trim() || undefined,
+      authorBio: String(incomingCfg.authorBio || '').trim() || undefined,
+      authorAvatar: incomingCfg.authorAvatar ? String(incomingCfg.authorAvatar).trim() : undefined,
+      commentsEnabled: incomingCfg.commentsEnabled !== false,
+      commentsRequireApproval: incomingCfg.commentsRequireApproval !== false,
+      commentsHeading: String(incomingCfg.commentsHeading || '').trim() || undefined,
+    };
+
+    const all = loadSiteConfigsFromDisk();
+    all[repoConfigKey(owner, repo)] = cleanCfg;
+    saveSiteConfigsToDisk(all);
+
+    if (!syncToGitHub && !publishWebApp) {
+      res.json({ ok: true, config: cleanCfg });
+      return;
+    }
+
+    const token = getSessionToken(req);
+    if (!token) {
+      res.status(401).json({
+        requiresAuth: true,
+        error: 'Cần xác thực GitHub để đẩy cấu hình lên repository.',
+        config: cleanCfg,
+      });
+      return;
+    }
+
+    try {
+      const approvedComments = loadCommentsFromDisk().filter(
+        (c) =>
+          c.owner.toLowerCase() === String(owner).toLowerCase() &&
+          c.repo.toLowerCase() === String(repo).toLowerCase() &&
+          c.status === 'approved'
+      );
+
+      const filesToCommit = publishWebApp
+        ? buildStandaloneWebAppFiles({
+            owner,
+            repo,
+            siteConfig: cleanCfg,
+            posts: Array.isArray(posts) ? posts : [],
+            approvedComments,
+          })
+        : [
+            {
+              path: '.blogvn/site-config.json',
+              content: JSON.stringify(cleanCfg, null, 2) + '\n',
+              isBase64: false,
+            },
+          ];
+
+      const commitRes = await commitMultipleFilesAtomic({
+        owner,
+        repo,
+        branch,
+        files: filesToCommit,
+        message: publishWebApp
+          ? `BlogVN: Xuất bản Web App GitHub Pages & cấu hình nhận dạng (${cleanCfg.siteTitle || repo})`
+          : `BlogVN: Cập nhật cấu hình nhận dạng web (${cleanCfg.siteTitle || repo})`,
+        token,
+      });
+
+      if (!commitRes.ok) {
+        res.status(commitRes.status || 400).json({
+          error: commitRes.error || 'Không thể đẩy cấu hình lên GitHub.',
+          config: cleanCfg,
+        });
+        return;
+      }
+
+      res.json({
+        ok: true,
+        config: cleanCfg,
+        commit: {
+          sha: commitRes.commitSha,
+          htmlUrl: commitRes.commitHtmlUrl,
+        },
+      });
+    } catch (error) {
+      console.error('Save site config error:', error);
+      res.status(500).json({ error: 'Lỗi máy chủ khi đẩy cấu hình web lên GitHub.' });
+    }
+  });
+
+  // 10e. Post Comments with Owner Approval Moderation (Hidden until approved in BlogVN)
+  app.get('/api/comments', (req: Request, res: Response) => {
+    const owner = String(req.query.owner || DEFAULT_OWNER).toLowerCase();
+    const repo = String(req.query.repo || DEFAULT_REPO).toLowerCase();
+    const postPath = req.query.postPath ? String(req.query.postPath) : '';
+    const postSlug = req.query.postSlug ? String(req.query.postSlug) : '';
+    const includePending = req.query.includePending === 'true';
+
+    const canModerate = includePending && Boolean(getSessionToken(req));
+    const all = loadCommentsFromDisk();
+
+    const filtered = all
+      .filter((c) => {
+        if (c.owner.toLowerCase() !== owner || c.repo.toLowerCase() !== repo) return false;
+        if (postPath && c.postPath !== postPath && c.postSlug !== postSlug) return false;
+        if (!canModerate && c.status !== 'approved') return false;
+        return true;
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((c) => {
+        if (canModerate) return c;
+        const { authorEmail: _hiddenEmail, ...publicComment } = c;
+        return publicComment;
+      });
+
+    res.json({ comments: filtered, canModerate });
+  });
+
+  app.post('/api/comments', (req: Request, res: Response) => {
+    const body = req.body || {};
+    const owner = String(body.owner || DEFAULT_OWNER);
+    const repo = String(body.repo || DEFAULT_REPO);
+    const postPath = String(body.postPath || '').trim();
+    const postSlug = String(body.postSlug || postPath || 'bai-viet').trim();
+    const postTitle = String(body.postTitle || postSlug).trim();
+    const authorName = String(body.authorName || '').trim().slice(0, 80);
+    const authorEmail = body.authorEmail ? String(body.authorEmail).trim().slice(0, 120) : undefined;
+    const content = String(body.content || '').trim().slice(0, 2000);
+
+    if (!postPath || !authorName || !content) {
+      res.status(400).json({ error: 'Vui lòng nhập đầy đủ tên và nội dung bình luận.' });
+      return;
+    }
+
+    const siteCfgs = loadSiteConfigsFromDisk();
+    const repoCfg = siteCfgs[repoConfigKey(owner, repo)];
+    if (repoCfg && repoCfg.commentsEnabled === false) {
+      res.status(403).json({ error: 'Chức năng bình luận hiện đang tắt trên blog này.' });
+      return;
+    }
+
+    // Strict moderation rule: default requires owner approval inside BlogVN before public display
+    const requireApproval = repoCfg?.commentsRequireApproval !== false;
+    const initialStatus: CommentStatus = requireApproval ? 'pending' : 'approved';
+
+    const newComment: PostComment = {
+      id: `cmt-${crypto.randomBytes(5).toString('hex')}`,
+      owner,
+      repo,
+      postPath,
+      postSlug,
+      postTitle,
+      authorName,
+      ...(authorEmail ? { authorEmail } : {}),
+      content,
+      status: initialStatus,
+      createdAt: new Date().toISOString(),
+    };
+
+    const existing = loadCommentsFromDisk();
+    saveCommentsToDisk([newComment, ...existing]);
+
+    res.json({
+      ok: true,
+      requireApproval,
+      comment: initialStatus === 'approved' ? newComment : { id: newComment.id, status: 'pending' },
+      message:
+        initialStatus === 'pending'
+          ? 'Bình luận đã được gửi! Nội dung sẽ hiển thị công khai sau khi chủ blog duyệt trên ứng dụng.'
+          : 'Bình luận của bạn đã được đăng.',
+    });
+  });
+
+  app.patch('/api/comments/:id', (req: Request, res: Response) => {
+    const token = getSessionToken(req);
+    if (!token) {
+      res.status(401).json({
+        requiresAuth: true,
+        error: 'Chỉ chủ blog đã đăng nhập GitHub mới có quyền duyệt bình luận.',
+      });
+      return;
+    }
+
+    const { id } = req.params;
+    const status = req.body?.status;
+    if (status !== 'approved' && status !== 'rejected' && status !== 'pending') {
+      res.status(400).json({ error: 'Trạng thái duyệt không hợp lệ.' });
+      return;
+    }
+
+    const comments = loadCommentsFromDisk();
+    const idx = comments.findIndex((c) => c.id === id);
+    if (idx === -1) {
+      res.status(404).json({ error: 'Không tìm thấy bình luận.' });
+      return;
+    }
+
+    comments[idx] = {
+      ...comments[idx],
+      status,
+      moderatedAt: new Date().toISOString(),
+    };
+    saveCommentsToDisk(comments);
+    res.json({ ok: true, comment: comments[idx] });
+  });
+
+  app.delete('/api/comments/:id', (req: Request, res: Response) => {
+    const token = getSessionToken(req);
+    if (!token) {
+      res.status(401).json({
+        requiresAuth: true,
+        error: 'Chỉ chủ blog đã đăng nhập GitHub mới có quyền xoá bình luận.',
+      });
+      return;
+    }
+
+    const { id } = req.params;
+    const comments = loadCommentsFromDisk();
+    saveCommentsToDisk(comments.filter((c) => c.id !== id));
+    res.json({ ok: true });
+  });
+
+  app.post('/api/comments/sync-github', async (req: Request, res: Response) => {
+    const token = getSessionToken(req);
+    if (!token) {
+      res.status(401).json({
+        requiresAuth: true,
+        error: 'Cần xác thực GitHub để đồng bộ bình luận đã duyệt lên repository.',
+      });
+      return;
+    }
+
+    const { owner = DEFAULT_OWNER, repo = DEFAULT_REPO, branch = 'main' } = req.body || {};
+
+    try {
+      // STRICT: Only export APPROVED comments to the public GitHub repository
+      const approved = loadCommentsFromDisk()
+        .filter(
+          (c) =>
+            c.owner.toLowerCase() === String(owner).toLowerCase() &&
+            c.repo.toLowerCase() === String(repo).toLowerCase() &&
+            c.status === 'approved'
+        )
+        .map((c) => ({
+          id: c.id,
+          postPath: c.postPath,
+          postSlug: c.postSlug,
+          postTitle: c.postTitle,
+          authorName: c.authorName,
+          content: c.content,
+          createdAt: c.createdAt,
+          moderatedAt: c.moderatedAt,
+        }));
+
+      const result = await upsertRepoFile({
+        owner,
+        repo,
+        branch,
+        filePath: '.blogvn/approved-comments.json',
+        content: JSON.stringify({ updatedAt: new Date().toISOString(), comments: approved }, null, 2) + '\n',
+        message: `BlogVN: Đồng bộ ${approved.length} bình luận đã duyệt`,
+        token,
+      });
+
+      if (!result.ok) {
+        res.status(result.status || 400).json({
+          error: result.error || 'Không thể đồng bộ bình luận lên GitHub.',
+        });
+        return;
+      }
+
+      res.json({
+        ok: true,
+        approvedCount: approved.length,
+        commit: {
+          sha: result.data?.commit?.sha,
+          htmlUrl: result.data?.commit?.html_url,
+        },
+      });
+    } catch (error) {
+      console.error('Sync comments error:', error);
+      res.status(500).json({ error: 'Lỗi máy chủ khi đồng bộ bình luận lên GitHub.' });
     }
   });
 

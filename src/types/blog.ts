@@ -331,6 +331,7 @@ export interface ScheduledPostPayload {
   seoDescription?: string;
   canonicalUrl?: string;
   noindex?: boolean;
+  commentsDisabled?: boolean;
 }
 
 export interface ScheduledTask {

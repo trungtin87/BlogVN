@@ -8,6 +8,8 @@ interface TopBarProps {
   onToggleThemeMode: (mode: ThemeMode) => void;
   theme: BlogTheme;
   siteTitle: string;
+  headerTitle?: string;
+  siteIcon?: string;
 }
 
 const NAV_ITEMS: Array<{ id: WorkspaceTab; label: string }> = [
@@ -23,8 +25,11 @@ export function TopBar({
   onToggleThemeMode,
   theme,
   siteTitle,
+  headerTitle,
+  siteIcon,
 }: TopBarProps) {
   const { palette, fonts, isDark } = theme;
+  const brandLabel = (headerTitle || siteTitle || 'BlogVN').trim();
 
   return (
     <header
@@ -41,9 +46,19 @@ export function TopBar({
           type="button"
           onClick={() => onSelectTab('blog')}
           style={{ fontFamily: fonts.display, color: palette.textPrimary }}
-          className="text-lg md:text-xl font-bold tracking-tight whitespace-nowrap shrink-0 min-h-[44px] flex items-center cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4"
+          className="text-lg md:text-xl font-bold tracking-tight whitespace-nowrap shrink-0 min-h-[44px] flex items-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 max-w-[200px] sm:max-w-xs"
         >
-          BlogVN
+          {siteIcon && (
+            <img
+              src={siteIcon}
+              alt=""
+              className="w-6 h-6 rounded-md object-cover shrink-0"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          )}
+          <span className="truncate">{brandLabel}</span>
         </button>
 
         {/* Zone 2: 3 Single-line Navigation Links (desktop) */}
