@@ -5,6 +5,7 @@ interface MobileBottomNavProps {
   activeTab: WorkspaceTab;
   onSelectTab: (tab: WorkspaceTab) => void;
   theme: BlogTheme;
+  hidden?: boolean;
 }
 
 const MOBILE_TABS: Array<{ id: WorkspaceTab; label: string; icon: typeof BookOpen }> = [
@@ -17,7 +18,10 @@ export function MobileBottomNav({
   activeTab,
   onSelectTab,
   theme,
+  hidden = false,
 }: MobileBottomNavProps) {
+  if (hidden) return null;
+
   const { palette, isDark } = theme;
 
   return (

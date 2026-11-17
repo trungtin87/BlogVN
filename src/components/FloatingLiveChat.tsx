@@ -21,6 +21,7 @@ interface FloatingLiveChatProps {
   config: BlogConfig;
   onUpdateConfig: (next: BlogConfig) => void;
   onOpenSettings?: () => void;
+  hideOnMobile?: boolean;
 }
 
 function buildChannelHref(ch: LiveChatChannelConfig): string {
@@ -74,6 +75,7 @@ export function FloatingLiveChat({
   config,
   onUpdateConfig,
   onOpenSettings,
+  hideOnMobile = false,
 }: FloatingLiveChatProps) {
   const { palette, fonts } = theme;
   const [open, setOpen] = useState(false);
@@ -184,7 +186,11 @@ export function FloatingLiveChat({
   };
 
   return (
-    <div className="fixed bottom-20 md:bottom-5 right-4 z-40 flex flex-col items-end gap-2.5">
+    <div
+      className={`${
+        hideOnMobile ? 'hidden md:flex' : 'flex'
+      } fixed bottom-20 md:bottom-5 right-4 z-40 flex-col items-end gap-2.5`}
+    >
       {open && (
         <div
           style={{

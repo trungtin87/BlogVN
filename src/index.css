@@ -29,6 +29,15 @@
   text-wrap: balance;
 }
 
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .blog-prose {
   font-size: 1.0625rem;
   line-height: 1.75;

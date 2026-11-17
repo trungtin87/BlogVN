@@ -1,30 +1,37 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Bold,
   CalendarClock,
   Check,
   CheckCircle2,
+  CheckSquare,
   CircleAlert,
   Clock,
   Code,
+  Code2,
   Copy,
   Download,
   ExternalLink,
   FileText,
-  Heading2,
+  Heading,
   ImagePlus,
   Images,
   Italic,
   Link2,
   List,
+  ListOrdered,
   Loader2,
+  Minus,
   Quote,
+  Redo2,
   Save,
   Search,
   Send,
   SlidersHorizontal,
+  Strikethrough,
   Table,
   Trash2,
+  Undo2,
   Upload,
   X,
   Youtube,
@@ -62,7 +69,21 @@ import {
   loadSocialCredentials,
   publishToSocialPlatform,
 } from '../utils/socialPublisher';
+import {
+  type ActiveFormatsState,
+  type FormatEditResult,
+  cycleHeadingPrefix,
+  getActiveFormatsAtCursor,
+  handleSmartEnter,
+  indentSelection,
+  insertBlockElement,
+  insertSmartLink,
+  toggleCheckboxPrefix,
+  toggleInlineFormat,
+  toggleLinePrefix,
+} from '../utils/obsidianFormat';
 import { ImageBatchModal, type BatchInsertLayout } from './ImageBatchModal';
+import { ObsidianMobileToolbar } from './ObsidianMobileToolbar';
 import { ResilientImage } from './ResilientImage';
 import { SocialSharePanel } from './SocialSharePanel';
 
@@ -82,6 +103,7 @@ interface MarkdownEditorProps {
   onPublishSuccess: (publishedPost: BlogPost, commitUrl?: string, socialNote?: string) => void;
   onScheduledSuccess?: (task: ScheduledTask, focusGitHubTab?: boolean) => void;
   onOpenGitHubTab: () => void;
+  onMobileFocusChange?: (focused: boolean) => void;
 }
 
 type EditorPaneMode = 'write' | 'optimize' | 'split' | 'preview';
@@ -117,11 +139,27 @@ export function MarkdownEditor({
   onPublishSuccess,
   onScheduledSuccess,
   onOpenGitHubTab,
+  onMobileFocusChange,
 }: MarkdownEditorProps) {
   const { palette, fonts, isDark } = theme;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const coverFileInputRef = useRef<HTMLInputElement | null>(null);
   const bodyImageInputRef = useRef<HTMLInputElement | null>(null);
+
+  const pendingSelectionRef = useRef<{
+    start: number;
+    end: number;
+    scrollTop: number;
+    winX: number;
+    winY: number;
+    refocus?: boolean;
+  } | null>(null);
+  const lastSelectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
+  const blurTimerRef = useRef<number | null>(null);
+  const historyRef = useRef<{
+    past: Array<{ text: string; start: number; end: number }>;
+    future: Array<{ text: string; start: number; end: number }>;
+  }>({ past: [], future: [] });
 
   const [paneMode, setPaneMode] = useState<EditorPaneMode>(() =>
     typeof window !== 'undefined' && window.innerWidth < 1024 ? 'write' : 'split'
@@ -193,6 +231,19 @@ export function MarkdownEditor({
   const [localSavedMessage, setLocalSavedMessage] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const skipDirtyRef = useRef(true);
+  const [editorFocused, setEditorFocused] = useState(false);
+  const [historyMeta, setHistoryMeta] = useState({ canUndo: false, canRedo: false });
+  const [activeFormats, setActiveFormats] = useState<ActiveFormatsState>({
+    bold: false,
+    italic: false,
+    strike: false,
+    code: false,
+    headingLevel: 0,
+    bullet: false,
+    ordered: false,
+    checkbox: false,
+    quote: false,
+  });
 
   useEffect(() => {
     if (initialPost) {
@@ -275,7 +326,17 @@ export function MarkdownEditor({
     setIsDirty(false);
     onDirtyChange?.(false);
     skipDirtyRef.current = true;
+    historyRef.current = { past: [], future: [] };
+    setHistoryMeta({ canUndo: false, canRedo: false });
+    lastSelectionRef.current = { start: 0, end: 0 };
   }, [initialPost?.id, defaultCollection]);
+
+  useEffect(() => {
+    return () => {
+      if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current);
+      onMobileFocusChange?.(false);
+    };
+  }, [onMobileFocusChange]);
 
   useEffect(() => {
     if (!slugEdited && title.trim()) {
@@ -458,23 +519,179 @@ export function MarkdownEditor({
     );
   }, [cover, sessionImagePreviews, config.githubOwner, config.githubRepo, repoStructure?.assetsPrefix, isAstroRepo]);
 
-  const insertSnippet = (before: string, after = '', placeholder = '') => {
+  // Lock caret selection & both textarea/window scroll synchronously before paint (zero mobile jump/jitter)
+  useLayoutEffect(() => {
+    const pending = pendingSelectionRef.current;
     const el = textareaRef.current;
-    if (!el) {
-      setMarkdownBody((prev) => prev + before + placeholder + after);
+    if (!pending || !el) return;
+    pendingSelectionRef.current = null;
+
+    if (pending.refocus && document.activeElement !== el) {
+      el.focus({ preventScroll: true });
+    }
+    if (document.activeElement === el) {
+      el.setSelectionRange(pending.start, pending.end);
+    }
+    el.scrollTop = pending.scrollTop;
+    if (window.scrollX !== pending.winX || window.scrollY !== pending.winY) {
+      window.scrollTo(pending.winX, pending.winY);
+    }
+  }, [markdownBody]);
+
+  const getCursorBounds = () => {
+    const el = textareaRef.current;
+    if (el && document.activeElement === el) {
+      return {
+        start: el.selectionStart ?? 0,
+        end: el.selectionEnd ?? 0,
+      };
+    }
+    return {
+      start: Math.min(lastSelectionRef.current.start, markdownBody.length),
+      end: Math.min(lastSelectionRef.current.end, markdownBody.length),
+    };
+  };
+
+  const syncCursorState = (textOverride?: string) => {
+    const el = textareaRef.current;
+    const text = textOverride ?? markdownBody;
+    const start = el ? Math.min(el.selectionStart ?? 0, text.length) : 0;
+    const end = el ? Math.min(el.selectionEnd ?? start, text.length) : start;
+    lastSelectionRef.current = { start, end };
+    setActiveFormats(getActiveFormatsAtCursor(text, start, end));
+  };
+
+  const syncHistoryMeta = () => {
+    setHistoryMeta({
+      canUndo: historyRef.current.past.length > 0,
+      canRedo: historyRef.current.future.length > 0,
+    });
+  };
+
+  const applyFormatEdit = (
+    transform: (text: string, start: number, end: number) => FormatEditResult | null
+  ): boolean => {
+    const el = textareaRef.current;
+    const { start, end } = getCursorBounds();
+    const result = transform(markdownBody, start, end);
+    if (!result) return false;
+
+    historyRef.current.past.push({ text: markdownBody, start, end });
+    if (historyRef.current.past.length > 60) {
+      historyRef.current.past.shift();
+    }
+    historyRef.current.future = [];
+    syncHistoryMeta();
+
+    pendingSelectionRef.current = {
+      start: result.selectionStart,
+      end: result.selectionEnd,
+      scrollTop: el ? el.scrollTop : 0,
+      winX: window.scrollX,
+      winY: window.scrollY,
+      refocus: Boolean(el && document.activeElement !== el),
+    };
+    lastSelectionRef.current = {
+      start: result.selectionStart,
+      end: result.selectionEnd,
+    };
+    setMarkdownBody(result.text);
+    setActiveFormats(
+      getActiveFormatsAtCursor(result.text, result.selectionStart, result.selectionEnd)
+    );
+    return true;
+  };
+
+  const handleUndo = () => {
+    const prev = historyRef.current.past.pop();
+    if (!prev) return;
+    const el = textareaRef.current;
+    const { start, end } = getCursorBounds();
+    historyRef.current.future.push({ text: markdownBody, start, end });
+    syncHistoryMeta();
+
+    pendingSelectionRef.current = {
+      start: prev.start,
+      end: prev.end,
+      scrollTop: el ? el.scrollTop : 0,
+      winX: window.scrollX,
+      winY: window.scrollY,
+      refocus: Boolean(el && document.activeElement !== el),
+    };
+    lastSelectionRef.current = { start: prev.start, end: prev.end };
+    setMarkdownBody(prev.text);
+    setActiveFormats(getActiveFormatsAtCursor(prev.text, prev.start, prev.end));
+  };
+
+  const handleRedo = () => {
+    const next = historyRef.current.future.pop();
+    if (!next) return;
+    const el = textareaRef.current;
+    const { start, end } = getCursorBounds();
+    historyRef.current.past.push({ text: markdownBody, start, end });
+    syncHistoryMeta();
+
+    pendingSelectionRef.current = {
+      start: next.start,
+      end: next.end,
+      scrollTop: el ? el.scrollTop : 0,
+      winX: window.scrollX,
+      winY: window.scrollY,
+      refocus: Boolean(el && document.activeElement !== el),
+    };
+    lastSelectionRef.current = { start: next.start, end: next.end };
+    setMarkdownBody(next.text);
+    setActiveFormats(getActiveFormatsAtCursor(next.text, next.start, next.end));
+  };
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing) return;
+
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const handled = applyFormatEdit((t, s, en) => handleSmartEnter(t, s, en));
+      if (handled) {
+        e.preventDefault();
+      }
       return;
     }
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = markdownBody.slice(start, end) || placeholder;
-    const next =
-      markdownBody.slice(0, start) + before + selected + after + markdownBody.slice(end);
-    setMarkdownBody(next);
-    requestAnimationFrame(() => {
-      el.focus();
+
+    if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+      const lower = e.key.toLowerCase();
+      if (lower === 'b') {
+        e.preventDefault();
+        applyFormatEdit((t, s, en) => toggleInlineFormat(t, s, en, '**'));
+      } else if (lower === 'i') {
+        e.preventDefault();
+        applyFormatEdit((t, s, en) => toggleInlineFormat(t, s, en, '*'));
+      } else if (lower === 'z') {
+        if (e.shiftKey && historyRef.current.future.length > 0) {
+          e.preventDefault();
+          handleRedo();
+        } else if (!e.shiftKey && historyRef.current.past.length > 0) {
+          e.preventDefault();
+          handleUndo();
+        }
+      }
+    }
+  };
+
+  const handleDismissKeyboard = () => {
+    textareaRef.current?.blur();
+    setEditorFocused(false);
+    onMobileFocusChange?.(false);
+  };
+
+  const insertSnippet = (before: string, after = '', placeholder = '') => {
+    applyFormatEdit((text, start, end) => {
+      const selected = text.slice(start, end) || placeholder;
+      const nextText = text.slice(0, start) + before + selected + after + text.slice(end);
       const cursorStart = start + before.length;
       const cursorEnd = cursorStart + selected.length;
-      el.setSelectionRange(cursorStart, cursorEnd);
+      return {
+        text: nextText,
+        selectionStart: cursorStart,
+        selectionEnd: cursorEnd,
+      };
     });
   };
 
@@ -1177,23 +1394,24 @@ export function MarkdownEditor({
               }}
               className="flex-1 flex flex-col rounded-2xl border overflow-hidden min-h-[58vh] lg:min-h-[540px]"
             >
-              {/* Horizontally scrollable single-row toolbar on mobile with 44px touch targets */}
+              {/* Desktop/Tablet Formatting Bar (Hidden on mobile where Obsidian accessory bar docks above keyboard) */}
               <div
                 style={{
                   borderColor: palette.border,
                   backgroundColor: palette.surface,
                 }}
-                className="px-2.5 py-1.5 border-b flex items-center gap-1 overflow-x-auto flex-nowrap"
+                className="hidden md:flex px-2.5 py-1.5 border-b items-center gap-1 overflow-x-auto flex-nowrap"
               >
                 <button
                   type="button"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => bodyImageInputRef.current?.click()}
                   disabled={isUploadingBodyImage}
                   style={{
                     backgroundColor: palette.accent,
                     color: palette.accentText,
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-xs font-semibold rounded-lg cursor-pointer whitespace-nowrap shrink-0 mr-1 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[38px] text-xs font-semibold rounded-lg cursor-pointer whitespace-nowrap shrink-0 mr-1 disabled:opacity-50"
                 >
                   {isUploadingBodyImage ? (
                     <>
@@ -1210,6 +1428,7 @@ export function MarkdownEditor({
 
                 <button
                   type="button"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     setBatchDropFiles([]);
                     setShowBatchModal(true);
@@ -1219,29 +1438,126 @@ export function MarkdownEditor({
                     backgroundColor: palette.canvas,
                     color: palette.textPrimary,
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-xs font-semibold rounded-lg border cursor-pointer whitespace-nowrap shrink-0 mr-1 hover:opacity-85"
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[38px] text-xs font-semibold rounded-lg border cursor-pointer whitespace-nowrap shrink-0 mr-1 hover:opacity-85"
                 >
                   <Images className="w-4 h-4" />
                   Loạt ảnh
                 </button>
 
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={handleUndo}
+                  disabled={!historyMeta.canUndo}
+                  title="Hoàn tác"
+                  aria-label="Hoàn tác"
+                  style={{ color: palette.textSecondary }}
+                  className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-black/5 cursor-pointer disabled:opacity-30 shrink-0"
+                >
+                  <Undo2 className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={handleRedo}
+                  disabled={!historyMeta.canRedo}
+                  title="Làm lại"
+                  aria-label="Làm lại"
+                  style={{ color: palette.textSecondary }}
+                  className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-black/5 cursor-pointer disabled:opacity-30 shrink-0"
+                >
+                  <Redo2 className="w-4 h-4" />
+                </button>
+
+                <span
+                  style={{ backgroundColor: palette.border }}
+                  className="w-px h-5 mx-1 shrink-0"
+                  aria-hidden="true"
+                />
+
                 {[
-                  { icon: Heading2, label: 'Tiêu đề H2', action: () => insertSnippet('## ', '', 'Tiêu đề mục') },
-                  { icon: Bold, label: 'In đậm', action: () => insertSnippet('**', '**', 'chữ đậm') },
-                  { icon: Italic, label: 'In nghiêng', action: () => insertSnippet('*', '*', 'chữ nghiêng') },
-                  { icon: Quote, label: 'Trích dẫn', action: () => insertSnippet('> ', '', 'Nội dung trích dẫn') },
-                  { icon: List, label: 'Danh sách', action: () => insertSnippet('- ', '', 'Mục danh sách') },
-                  { icon: Code, label: 'Khối mã nguồn', action: () => insertSnippet('```typescript\n', '\n```', '// mã nguồn') },
-                  { icon: Link2, label: 'Chèn liên kết', action: () => insertSnippet('[', '](https://trungtin87.github.io)', 'tiêu đề liên kết') },
+                  {
+                    icon: Heading,
+                    label: 'Đổi cấp tiêu đề (H2/H3/H4/H1)',
+                    active: activeFormats.headingLevel > 0,
+                    badge:
+                      activeFormats.headingLevel > 0 ? String(activeFormats.headingLevel) : undefined,
+                    action: () => applyFormatEdit((t, s, en) => cycleHeadingPrefix(t, s, en)),
+                  },
+                  {
+                    icon: Bold,
+                    label: 'In đậm',
+                    active: activeFormats.bold,
+                    action: () => applyFormatEdit((t, s, en) => toggleInlineFormat(t, s, en, '**')),
+                  },
+                  {
+                    icon: Italic,
+                    label: 'In nghiêng',
+                    active: activeFormats.italic,
+                    action: () => applyFormatEdit((t, s, en) => toggleInlineFormat(t, s, en, '*')),
+                  },
+                  {
+                    icon: Strikethrough,
+                    label: 'Gạch ngang',
+                    active: activeFormats.strike,
+                    action: () => applyFormatEdit((t, s, en) => toggleInlineFormat(t, s, en, '~~')),
+                  },
+                  {
+                    icon: Code,
+                    label: 'Mã nội tuyến',
+                    active: activeFormats.code,
+                    action: () => applyFormatEdit((t, s, en) => toggleInlineFormat(t, s, en, '`')),
+                  },
+                  {
+                    icon: Quote,
+                    label: 'Trích dẫn',
+                    active: activeFormats.quote,
+                    action: () => applyFormatEdit((t, s, en) => toggleLinePrefix(t, s, en, 'quote')),
+                  },
+                  {
+                    icon: List,
+                    label: 'Danh sách',
+                    active: activeFormats.bullet,
+                    action: () => applyFormatEdit((t, s, en) => toggleLinePrefix(t, s, en, 'bullet')),
+                  },
+                  {
+                    icon: ListOrdered,
+                    label: 'Danh sách số',
+                    active: activeFormats.ordered,
+                    action: () =>
+                      applyFormatEdit((t, s, en) => toggleLinePrefix(t, s, en, 'ordered')),
+                  },
+                  {
+                    icon: CheckSquare,
+                    label: 'Checkbox công việc',
+                    active: activeFormats.checkbox,
+                    action: () => applyFormatEdit((t, s, en) => toggleCheckboxPrefix(t, s, en)),
+                  },
+                  {
+                    icon: Link2,
+                    label: 'Chèn liên kết',
+                    active: false,
+                    action: () => applyFormatEdit((t, s, en) => insertSmartLink(t, s, en)),
+                  },
+                  {
+                    icon: Code2,
+                    label: 'Khối mã nguồn',
+                    active: false,
+                    action: () =>
+                      applyFormatEdit((t, s, en) => insertBlockElement(t, s, en, 'codeblock')),
+                  },
                   {
                     icon: Table,
                     label: 'Chèn bảng',
+                    active: false,
                     action: () =>
-                      insertSnippet(
-                        '\n| Cột 1 | Cột 2 |\n| --- | --- |\n| Giá trị A | Giá trị B |\n',
-                        '',
-                        ''
-                      ),
+                      applyFormatEdit((t, s, en) => insertBlockElement(t, s, en, 'table')),
+                  },
+                  {
+                    icon: Minus,
+                    label: 'Đường phân cách',
+                    active: false,
+                    action: () => applyFormatEdit((t, s, en) => insertBlockElement(t, s, en, 'hr')),
                   },
                 ].map((tool) => {
                   const Icon = tool.icon;
@@ -1249,13 +1565,27 @@ export function MarkdownEditor({
                     <button
                       key={tool.label}
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={tool.action}
                       title={tool.label}
                       aria-label={tool.label}
-                      style={{ color: palette.textSecondary }}
-                      className="min-w-[44px] min-h-[44px] sm:min-w-[38px] sm:min-h-[38px] flex items-center justify-center rounded-lg hover:bg-black/5 cursor-pointer transition-colors shrink-0"
+                      aria-pressed={tool.active}
+                      style={{
+                        color: tool.active ? palette.accent : palette.textSecondary,
+                        backgroundColor: tool.active
+                          ? isDark
+                            ? 'rgba(255,255,255,0.1)'
+                            : 'rgba(15,23,42,0.07)'
+                          : 'transparent',
+                      }}
+                      className="min-w-[38px] min-h-[38px] px-1.5 flex items-center justify-center rounded-lg hover:bg-black/5 cursor-pointer transition-colors shrink-0"
                     >
                       <Icon className="w-4 h-4" />
+                      {tool.badge && (
+                        <span className="ml-0.5 text-[10px] font-bold leading-none tabular-nums">
+                          {tool.badge}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -1264,16 +1594,42 @@ export function MarkdownEditor({
               <textarea
                 ref={textareaRef}
                 value={markdownBody}
-                onChange={(e) => setMarkdownBody(e.target.value)}
+                onChange={(e) => {
+                  const nextVal = e.target.value;
+                  const start = e.currentTarget.selectionStart ?? 0;
+                  const end = e.currentTarget.selectionEnd ?? start;
+                  setMarkdownBody(nextVal);
+                  lastSelectionRef.current = { start, end };
+                  setActiveFormats(getActiveFormatsAtCursor(nextVal, start, end));
+                }}
+                onFocus={() => {
+                  if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current);
+                  setEditorFocused(true);
+                  onMobileFocusChange?.(true);
+                  syncCursorState();
+                }}
+                onBlur={() => {
+                  if (blurTimerRef.current) window.clearTimeout(blurTimerRef.current);
+                  blurTimerRef.current = window.setTimeout(() => {
+                    if (document.activeElement !== textareaRef.current) {
+                      setEditorFocused(false);
+                      onMobileFocusChange?.(false);
+                    }
+                  }, 80);
+                }}
+                onSelect={() => syncCursorState()}
+                onKeyUp={() => syncCursorState()}
+                onClick={() => syncCursorState()}
+                onKeyDown={handleTextareaKeyDown}
                 onPaste={handleTextareaPaste}
                 onDrop={handleTextareaDrop}
-                placeholder="Viết nội dung bài blog tại đây (hỗ trợ dán hoặc kéo thả ảnh trực tiếp)..."
+                placeholder="Viết nội dung bài blog tại đây (hỗ trợ định dạng Obsidian, dán hoặc kéo thả ảnh)..."
                 style={{
                   backgroundColor: palette.surfaceElevated,
                   color: palette.textPrimary,
                   fontFamily: fonts.mono,
                 }}
-                className="flex-1 w-full p-4 sm:p-5 text-sm sm:text-[15px] leading-relaxed resize-none focus:outline-none min-h-[48vh] lg:min-h-[450px]"
+                className="flex-1 w-full p-4 sm:p-5 pb-20 md:pb-5 text-[16px] sm:text-[15px] leading-[1.7] resize-none focus:outline-none min-h-[54vh] md:min-h-[450px]"
               />
 
               <div
@@ -2503,6 +2859,42 @@ export function MarkdownEditor({
           setBatchDropFiles([]);
         }}
         onUploadedAndInsert={handleBatchUploaded}
+      />
+
+      {/* Mobile Obsidian Accessory Toolbar (Docked flush above soft keyboard via visualViewport) */}
+      <ObsidianMobileToolbar
+        theme={theme}
+        visible={paneMode === 'write' || paneMode === 'split'}
+        editorFocused={editorFocused}
+        canUndo={historyMeta.canUndo}
+        canRedo={historyMeta.canRedo}
+        activeFormats={activeFormats}
+        isUploadingImage={isUploadingBodyImage}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onCycleHeading={() => applyFormatEdit((t, s, en) => cycleHeadingPrefix(t, s, en))}
+        onToggleBold={() => applyFormatEdit((t, s, en) => toggleInlineFormat(t, s, en, '**'))}
+        onToggleItalic={() => applyFormatEdit((t, s, en) => toggleInlineFormat(t, s, en, '*'))}
+        onToggleStrike={() => applyFormatEdit((t, s, en) => toggleInlineFormat(t, s, en, '~~'))}
+        onToggleCode={() => applyFormatEdit((t, s, en) => toggleInlineFormat(t, s, en, '`'))}
+        onToggleBullet={() => applyFormatEdit((t, s, en) => toggleLinePrefix(t, s, en, 'bullet'))}
+        onToggleOrdered={() => applyFormatEdit((t, s, en) => toggleLinePrefix(t, s, en, 'ordered'))}
+        onToggleCheckbox={() => applyFormatEdit((t, s, en) => toggleCheckboxPrefix(t, s, en))}
+        onToggleQuote={() => applyFormatEdit((t, s, en) => toggleLinePrefix(t, s, en, 'quote'))}
+        onOutdent={() => applyFormatEdit((t, s, en) => indentSelection(t, s, en, -1))}
+        onIndent={() => applyFormatEdit((t, s, en) => indentSelection(t, s, en, 1))}
+        onInsertLink={() => applyFormatEdit((t, s, en) => insertSmartLink(t, s, en))}
+        onInsertCodeBlock={() =>
+          applyFormatEdit((t, s, en) => insertBlockElement(t, s, en, 'codeblock'))
+        }
+        onInsertTable={() => applyFormatEdit((t, s, en) => insertBlockElement(t, s, en, 'table'))}
+        onInsertHr={() => applyFormatEdit((t, s, en) => insertBlockElement(t, s, en, 'hr'))}
+        onPickImage={() => bodyImageInputRef.current?.click()}
+        onPickBatchImages={() => {
+          setBatchDropFiles([]);
+          setShowBatchModal(true);
+        }}
+        onDismissKeyboard={handleDismissKeyboard}
       />
     </div>
   );

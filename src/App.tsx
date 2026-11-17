@@ -147,8 +147,15 @@ export default function App() {
     useState<BlogCollection>('bai_viet');
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [toast, setToast] = useState<ToastBanner | null>(null);
+  const [mobileEditorFocused, setMobileEditorFocused] = useState(false);
   const isRunningDueRef = useRef(false);
   const buildPollTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (activeTab !== 'editor') {
+      setMobileEditorFocused(false);
+    }
+  }, [activeTab]);
 
   const activeUid = firebaseUser?.uid || '';
   const activeTheme = useMemo(
@@ -917,6 +924,7 @@ export default function App() {
             onPublishSuccess={handlePublishSuccess}
             onScheduledSuccess={handleScheduledSuccess}
             onOpenGitHubTab={() => setActiveTab('github')}
+            onMobileFocusChange={setMobileEditorFocused}
           />
         )}
 
@@ -1002,6 +1010,7 @@ export default function App() {
         theme={activeTheme}
         config={config}
         onUpdateConfig={setConfig}
+        hideOnMobile={mobileEditorFocused && activeTab === 'editor'}
         onOpenSettings={() => {
           setActiveTab('github');
           window.setTimeout(() => {
@@ -1014,6 +1023,7 @@ export default function App() {
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         theme={activeTheme}
+        hidden={mobileEditorFocused && activeTab === 'editor'}
       />
     </div>
   );
