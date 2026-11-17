@@ -6,6 +6,7 @@ import {
   Globe,
   ImagePlus,
   Loader2,
+  MessageCircle,
   Plus,
   Rocket,
   Save,
@@ -20,10 +21,76 @@ import type {
   BlogPost,
   BlogTheme,
   GitHubRepoInfo,
+  LiveChatChannelConfig,
+  LiveChatConfig,
+  LiveChatPlatformId,
+  RepoStructureInfo,
   SiteNavLink,
 } from '../types/blog';
-import { ASTRO_TEMPLATE_PRESETS } from '../utils/astroTemplate';
+import {
+  DEFAULT_LIVE_CHAT_CONFIG,
+  EDITORIAL_THEMES,
+  normalizeAstroTemplateId,
+} from '../data/themes';
 import { ghDeployAstroTemplate, ghSaveSiteConfig } from '../utils/githubClient';
+import { ThemeVisualSelector } from './ThemeVisualSelector';
+
+const LIVE_CHAT_CHANNEL_META: Record<
+  LiveChatPlatformId,
+  { name: string; placeholder: string; hint: string }
+> = {
+  zalo: {
+    name: 'Zalo OA / Cá nhân',
+    placeholder: 'Số điện thoại hoặc https://zalo.me/...',
+    hint: 'Nhập SĐT Zalo (VD: 0909123456) hoặc link zalo.me/id',
+  },
+  messenger: {
+    name: 'Facebook Messenger',
+    placeholder: 'Username Fanpage hoặc https://m.me/...',
+    hint: 'Nhập username trang (VD: mypage) hoặc m.me/...',
+  },
+  telegram: {
+    name: 'Telegram',
+    placeholder: '@username hoặc https://t.me/...',
+    hint: 'Nhập @username Telegram của bạn',
+  },
+  whatsapp: {
+    name: 'WhatsApp',
+    placeholder: '84909123456',
+    hint: 'Số điện thoại kèm mã quốc gia (VD: 84...)',
+  },
+  email: {
+    name: 'Email liên hệ',
+    placeholder: 'lienhe@tenmien.com',
+    hint: 'Địa chỉ email nhận tin nhắn từ độc giả',
+  },
+  tawkto: {
+    name: 'Tawk.to Widget',
+    placeholder: 'propertyId/widgetId',
+    hint: 'Dán cặp ID từ embed.tawk.to/<propertyId>/<widgetId>',
+  },
+  crisp: {
+    name: 'Crisp Chat',
+    placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+    hint: 'Website ID lấy từ cài đặt Crisp Chat',
+  },
+};
+
+function mergeLiveChatConfig(raw?: LiveChatConfig): LiveChatConfig {
+  const incoming = raw?.channels || [];
+  const mergedChannels: LiveChatChannelConfig[] = DEFAULT_LIVE_CHAT_CONFIG.channels.map(
+    (def) => {
+      const match = incoming.find((c) => c.id === def.id);
+      return match ? { ...def, ...match } : { ...def };
+    }
+  );
+  return {
+    enabled: Boolean(raw?.enabled),
+    title: raw?.title || DEFAULT_LIVE_CHAT_CONFIG.title,
+    welcomeText: raw?.welcomeText || DEFAULT_LIVE_CHAT_CONFIG.welcomeText,
+    channels: mergedChannels,
+  };
+}
 
 interface SiteIdentityCardProps {
   theme: BlogTheme;
@@ -31,6 +98,7 @@ interface SiteIdentityCardProps {
   posts: BlogPost[];
   authStatus: AuthStatus | null;
   repoInfo: GitHubRepoInfo | null;
+  repoStructure?: RepoStructureInfo | null;
   onUpdateConfig: (next: BlogConfig) => void;
   onDeployedToGitHub?: (message: string, commitUrl?: string) => void;
   onRefreshRepo?: () => void;
@@ -72,12 +140,18 @@ export function SiteIdentityCard({
   posts,
   authStatus,
   repoInfo,
+  repoStructure = null,
   onUpdateConfig,
   onDeployedToGitHub,
   onRefreshRepo,
 }: SiteIdentityCardProps) {
   const { palette, fonts } = theme;
   const iconFileRef = useRef<HTMLInputElement | null>(null);
+
+  const isAstroRepo = Boolean(
+    repoStructure?.hasAstroEngine || repoStructure?.framework === 'astro-vn'
+  );
+  const existingRepoPostCount = posts.filter((p) => p.source === 'github').length;
 
   const [siteTitle, setSiteTitle] = useState(config.siteTitle || '');
   const [tagline, setTagline] = useState(config.tagline || '');
@@ -90,9 +164,13 @@ export function SiteIdentityCard({
   const [footerLinks, setFooterLinks] = useState<SiteNavLink[]>(config.footerLinks || []);
   const [authorName, setAuthorName] = useState(config.authorName || '');
   const [authorBio, setAuthorBio] = useState(config.authorBio || '');
-  const [astroTemplate, setAstroTemplate] = useState<AstroTemplateId>(
-    config.astroTemplate || 'editorial'
+  const [astroTemplate, setAstroTemplate] = useState<AstroTemplateId>(() =>
+    normalizeAstroTemplateId(config.astroTemplate, config.themeMode)
   );
+  const [liveChat, setLiveChat] = useState<LiveChatConfig>(() =>
+    mergeLiveChatConfig(config.liveChat)
+  );
+  const [preservePostsOnDeploy, setPreservePostsOnDeploy] = useState(true);
 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeployingApp, setIsDeployingApp] = useState(false);
@@ -111,22 +189,42 @@ export function SiteIdentityCard({
     setFooterLinks(config.footerLinks || []);
     setAuthorName(config.authorName || '');
     setAuthorBio(config.authorBio || '');
-    setAstroTemplate(config.astroTemplate || 'editorial');
+    setAstroTemplate(normalizeAstroTemplateId(config.astroTemplate, config.themeMode));
+    setLiveChat(mergeLiveChatConfig(config.liveChat));
   }, [config]);
 
-  const buildDraftConfig = (): BlogConfig => ({
-    ...config,
-    siteTitle: siteTitle.trim() || config.siteTitle,
-    tagline: tagline.trim(),
-    siteIcon: siteIcon.trim() || './icon.svg',
-    headerTitle: headerTitle.trim() || 'BlogVN',
-    headerNavLinks: headerNavLinks.filter((l) => l.label.trim() && l.url.trim()),
-    footerText: footerText.trim(),
-    footerLinks: footerLinks.filter((l) => l.label.trim() && l.url.trim()),
-    authorName: authorName.trim() || config.authorName,
-    authorBio: authorBio.trim(),
-    astroTemplate,
-  });
+  const buildDraftConfig = (
+    overrideTemplate?: AstroTemplateId,
+    overrideLiveChat?: LiveChatConfig
+  ): BlogConfig => {
+    const chosenTpl = overrideTemplate || astroTemplate;
+    const chosenPreset = EDITORIAL_THEMES[chosenTpl];
+    const chosenChat = overrideLiveChat || liveChat;
+    return {
+      ...config,
+      siteTitle: siteTitle.trim() || config.siteTitle,
+      tagline: tagline.trim(),
+      siteIcon: siteIcon.trim() || './icon.svg',
+      headerTitle: headerTitle.trim() || 'BlogVN',
+      headerNavLinks: headerNavLinks.filter((l) => l.label.trim() && l.url.trim()),
+      footerText: footerText.trim(),
+      footerLinks: footerLinks.filter((l) => l.label.trim() && l.url.trim()),
+      authorName: authorName.trim() || config.authorName,
+      authorBio: authorBio.trim(),
+      themeMode: chosenPreset ? (chosenPreset.isDark ? 'dark' : 'light') : config.themeMode,
+      astroTemplate: chosenTpl,
+      liveChat: {
+        enabled: chosenChat.enabled,
+        title: (chosenChat.title || '').trim(),
+        welcomeText: (chosenChat.welcomeText || '').trim(),
+        channels: chosenChat.channels.map((ch) => ({
+          ...ch,
+          value: ch.value.trim(),
+          label: (ch.label || '').trim() || undefined,
+        })),
+      },
+    };
+  };
 
   const handleIconFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -173,8 +271,10 @@ export function SiteIdentityCard({
         setStatusMessage({ text: msg, url: result.commitUrl || config.pagesUrl });
         onDeployedToGitHub?.(msg, result.commitUrl);
       } else if (options.syncToGitHub) {
-        const msg = `Đã lưu & đồng bộ cấu hình nhận dạng lên Git (.blogvn/site-config.json).`;
-        setStatusMessage({ text: msg, url: result.commitUrl });
+        const msg = isAstroRepo
+          ? `Đã đồng bộ Nhận dạng, Theme & Live Chat lên Astro (${config.githubOwner}/${config.githubRepo}) và kích hoạt build lại.`
+          : `Đã lưu & đồng bộ cấu hình nhận dạng lên Git (.blogvn/site-config.json).`;
+        setStatusMessage({ text: msg, url: result.commitUrl || config.pagesUrl });
         onDeployedToGitHub?.(msg, result.commitUrl);
       } else {
         setStatusMessage({
@@ -206,6 +306,7 @@ export function SiteIdentityCard({
         branch: repoInfo?.defaultBranch || 'main',
         config: nextCfg,
         templateId: astroTemplate,
+        preservePosts: preservePostsOnDeploy,
       });
 
       if (!result.ok) {
@@ -214,7 +315,11 @@ export function SiteIdentityCard({
       }
 
       setConfirmWipeAstro(false);
-      const msg = `Đã xoá dữ liệu cũ và triển khai Template Web Blog Astro Việt kèm nhận dạng cá nhân lên ${config.githubOwner}/${config.githubRepo}! GitHub Actions đang build trang của bạn.`;
+      const preservedNote =
+        preservePostsOnDeploy && (result.preservedCount || 0) > 0
+          ? ` (đã giữ nguyên ${result.preservedCount} bài viết & ảnh cũ)`
+          : '';
+      const msg = `Đã triển khai Template Astro Blog Việt${preservedNote} lên ${config.githubOwner}/${config.githubRepo}! GitHub Actions đang build trang web.`;
       setStatusMessage({
         text: msg,
         url: result.actionsUrl || result.commitUrl || config.pagesUrl,
@@ -598,6 +703,141 @@ export function SiteIdentityCard({
         </div>
       </div>
 
+      {/* Live Chat Widget Controls (Bottom-Right Toggle & Selectable Platforms) */}
+      <div
+        id="live-chat-settings"
+        style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
+        className="p-4 rounded-xl border space-y-4"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <MessageCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: palette.link }} />
+            <div>
+              <div className="text-xs sm:text-sm font-semibold">
+                Live Chat góc phải màn hình (Bật / Tắt chủ động &amp; Nhúng lên Astro Pages)
+              </div>
+              <p style={{ color: palette.textMuted }} className="text-[11px] mt-0.5">
+                Độc giả có thể bấm nút Chat ở góc dưới bên phải để liên hệ qua các nền tảng bạn chọn.
+              </p>
+            </div>
+          </div>
+
+          <label
+            className="inline-flex items-center gap-2 text-xs font-semibold cursor-pointer select-none min-h-[36px] px-3 rounded-lg border"
+            style={{ borderColor: palette.border, backgroundColor: palette.surface }}
+          >
+            <input
+              type="checkbox"
+              checked={liveChat.enabled}
+              onChange={(e) => {
+                const updated: LiveChatConfig = { ...liveChat, enabled: e.target.checked };
+                setLiveChat(updated);
+                onUpdateConfig(buildDraftConfig(undefined, updated));
+              }}
+              className="w-4 h-4 rounded"
+            />
+            <span>{liveChat.enabled ? 'Đang bật Live Chat' : 'Đang tắt'}</span>
+          </label>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div>
+            <label style={{ color: palette.textMuted }} className="block mb-1 font-medium">
+              Tiêu đề khung chat
+            </label>
+            <input
+              type="text"
+              value={liveChat.title || ''}
+              onChange={(e) => setLiveChat((prev) => ({ ...prev, title: e.target.value }))}
+              placeholder="Trò chuyện với tác giả"
+              style={{
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                color: palette.textPrimary,
+              }}
+              className="w-full px-3 min-h-[38px] text-xs rounded-lg border"
+            />
+          </div>
+          <div>
+            <label style={{ color: palette.textMuted }} className="block mb-1 font-medium">
+              Lời chào mở đầu
+            </label>
+            <input
+              type="text"
+              value={liveChat.welcomeText || ''}
+              onChange={(e) => setLiveChat((prev) => ({ ...prev, welcomeText: e.target.value }))}
+              placeholder="Chọn kênh liên hệ nhanh bên dưới..."
+              style={{
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                color: palette.textPrimary,
+              }}
+              className="w-full px-3 min-h-[38px] text-xs rounded-lg border"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+          {liveChat.channels.map((ch) => {
+            const meta = LIVE_CHAT_CHANNEL_META[ch.id];
+            return (
+              <div
+                key={ch.id}
+                style={{
+                  borderColor: ch.enabled ? palette.link : palette.border,
+                  backgroundColor: palette.surface,
+                }}
+                className="p-3 rounded-xl border space-y-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <label className="inline-flex items-center gap-2 text-xs font-semibold cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={ch.enabled}
+                      onChange={(e) => {
+                        const nextChannels = liveChat.channels.map((item) =>
+                          item.id === ch.id ? { ...item, enabled: e.target.checked } : item
+                        );
+                        setLiveChat((prev) => ({ ...prev, channels: nextChannels }));
+                      }}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span>{meta.name}</span>
+                  </label>
+                </div>
+
+                {ch.enabled && (
+                  <div className="space-y-1">
+                    <input
+                      type="text"
+                      value={ch.value}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const nextChannels = liveChat.channels.map((item) =>
+                          item.id === ch.id ? { ...item, value: val } : item
+                        );
+                        setLiveChat((prev) => ({ ...prev, channels: nextChannels }));
+                      }}
+                      placeholder={meta.placeholder}
+                      style={{
+                        backgroundColor: palette.canvas,
+                        borderColor: palette.border,
+                        color: palette.textPrimary,
+                        fontFamily: fonts.mono,
+                      }}
+                      className="w-full px-2.5 min-h-[36px] text-xs rounded-lg border"
+                    />
+                    <div style={{ color: palette.textMuted }} className="text-[10px]">
+                      {meta.hint}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {errorMessage && (
         <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs">
           {errorMessage}
@@ -657,27 +897,29 @@ export function SiteIdentityCard({
             className="inline-flex items-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-medium rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-45"
           >
             <UploadCloud className="w-4 h-4" />
-            Lưu lên Git (.blogvn/site-config.json)
+            {isAstroRepo ? 'Đồng bộ Nhận dạng & Build lại Astro' : 'Lưu lên Git (.blogvn/site-config.json)'}
           </button>
 
-          <button
-            type="button"
-            onClick={() => persistConfig({ syncToGitHub: true, publishWebApp: true })}
-            disabled={isSaving || isDeployingApp || isDeployingAstro || !authStatus?.authenticated}
-            style={{
-              borderColor: palette.border,
-              backgroundColor: palette.canvas,
-              color: palette.textPrimary,
-            }}
-            className="inline-flex items-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-medium rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-45"
-          >
-            {isDeployingApp ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Rocket className="w-4 h-4" />
-            )}
-            Xuất bản Web tĩnh nhanh
-          </button>
+          {!isAstroRepo && (
+            <button
+              type="button"
+              onClick={() => persistConfig({ syncToGitHub: true, publishWebApp: true })}
+              disabled={isSaving || isDeployingApp || isDeployingAstro || !authStatus?.authenticated}
+              style={{
+                borderColor: palette.border,
+                backgroundColor: palette.canvas,
+                color: palette.textPrimary,
+              }}
+              className="inline-flex items-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-medium rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-45"
+            >
+              {isDeployingApp ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Rocket className="w-4 h-4" />
+              )}
+              Xuất bản Web tĩnh nhanh
+            </button>
+          )}
         </div>
 
         {/* Dedicated Vietnamese Astro Template Clean Wipe & Deploy Box */}
@@ -693,11 +935,11 @@ export function SiteIdentityCard({
               <div className="space-y-1">
                 <div className="text-sm font-semibold flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4" style={{ color: palette.link }} />
-                  Template Web Blog Astro 5 chuẩn tiếng Việt (Xoá sạch dữ liệu cũ)
+                  Giao diện Blog &amp; Template Astro 5 chuẩn tiếng Việt
                 </div>
                 <p style={{ color: palette.textSecondary }} className="text-xs leading-relaxed">
-                  Thay thế toàn bộ tệp cũ xung đột trên{' '}
-                  <code>{config.githubOwner}/{config.githubRepo}</code> bằng mẫu Blog Astro 5 tiếng Việt sạch sẽ: ẩn hoàn toàn khung mục lục tự động &amp; chỉ mục rườm rà trên giao diện, nhưng vẫn giữ nguyên hạ tầng SEO ngầm (<code>sitemap.xml</code>, <code>robots.txt</code>, Schema JSON-LD <code>BlogPosting</code>, OpenGraph, RSS) kèm nhận dạng web cá nhân của bạn.
+                  Mẫu thuần túy phục vụ viết &amp; đọc blog: ẩn khung mục lục rườm rà trên giao diện, giữ nguyên SEO ngầm (<code>sitemap.xml</code>, <code>robots.txt</code>, <code>BlogPosting</code> JSON-LD, RSS) và đẩy sạch lên{' '}
+                  <code>{config.githubOwner}/{config.githubRepo}</code> kèm nhận dạng cá nhân.
                 </p>
               </div>
 
@@ -713,59 +955,61 @@ export function SiteIdentityCard({
                   className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-45 whitespace-nowrap shrink-0"
                 >
                   <Sparkles className="w-4 h-4" />
-                  Triển khai Template Astro Việt
+                  Triển khai Template Astro Blog
                 </button>
               )}
             </div>
 
-            <div className="space-y-2">
-              <div style={{ color: palette.textMuted }} className="text-xs font-medium">
-                Chọn mẫu bố cục Astro Template
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {ASTRO_TEMPLATE_PRESETS.map((preset) => {
-                  const selected = astroTemplate === preset.id;
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => setAstroTemplate(preset.id)}
-                      style={{
-                        backgroundColor: selected ? palette.surface : palette.canvas,
-                        borderColor: selected ? palette.link : palette.border,
-                      }}
-                      className="text-left p-3.5 rounded-xl border transition-colors cursor-pointer space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold">{preset.name}</span>
-                        <span
-                          style={{
-                            color: selected ? palette.link : palette.textMuted,
-                            fontFamily: fonts.mono,
-                          }}
-                          className="text-[11px] font-medium"
-                        >
-                          {preset.badge}
-                        </span>
-                      </div>
-                      <p style={{ color: palette.textSecondary }} className="text-[11px] leading-relaxed">
-                        {preset.description}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <ThemeVisualSelector
+              theme={theme}
+              selectedTemplate={astroTemplate}
+              onSelectTemplate={(tplId) => {
+                setAstroTemplate(tplId);
+                onUpdateConfig(buildDraftConfig(tplId));
+              }}
+              previewSiteTitle={siteTitle}
+              previewHeaderTitle={headerTitle}
+              previewTagline={tagline}
+              previewAuthorName={authorName}
+              previewSiteIcon={siteIcon}
+            />
           </div>
 
           {confirmWipeAstro && (
             <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/35 space-y-3">
               <div className="flex items-start gap-2.5 text-xs leading-relaxed text-amber-800 dark:text-amber-200">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                <div>
-                  <strong>Xác nhận làm mới hoàn toàn repository:</strong> Thao tác này sẽ{' '}
-                  <strong>xoá toàn bộ tệp &amp; dữ liệu cũ</strong> trên nhánh mặc định của{' '}
-                  <code>{config.githubOwner}/{config.githubRepo}</code>, sau đó đẩy bộ Template Astro Blog Việt kèm Icon, Tiêu đề, Header, Footer, Mô tả bạn vừa thiết lập và tự chạy GitHub Actions build.
+                <div className="space-y-1.5">
+                  <div>
+                    <strong>Chọn chế độ triển khai Template Astro 5:</strong>
+                  </div>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="astroDeployMode"
+                      checked={preservePostsOnDeploy}
+                      onChange={() => setPreservePostsOnDeploy(true)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <strong>Cập nhật an toàn (Khuyên dùng):</strong> Xoá code thừa xung đột nhưng{' '}
+                      <strong>giữ nguyên {existingRepoPostCount > 0 ? `${existingRepoPostCount} bài viết` : 'bài viết'} &amp; ảnh tải lên</strong> trong{' '}
+                      <code>src/content/bai_viet/</code> và <code>public/tainguyen/hinhanh/uploads/</code>.
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="astroDeployMode"
+                      checked={!preservePostsOnDeploy}
+                      onChange={() => setPreservePostsOnDeploy(false)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <strong>Reset sạch hoàn toàn:</strong> Xoá toàn bộ tệp cũ trên nhánh mặc định của{' '}
+                      <code>{config.githubOwner}/{config.githubRepo}</code> và tạo lại 3 bài mẫu mới.
+                    </span>
+                  </label>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -778,10 +1022,12 @@ export function SiteIdentityCard({
                   {isDeployingAstro ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Đang xoá dữ liệu cũ &amp; đẩy Template Astro...
+                      Đang đẩy Template Astro 5...
                     </>
+                  ) : preservePostsOnDeploy ? (
+                    'Cập nhật Astro (Giữ nguyên bài viết)'
                   ) : (
-                    'Xác nhận xoá cũ & Triển khai Astro Việt'
+                    'Xác nhận xoá sạch & Triển khai Astro mới'
                   )}
                 </button>
                 <button

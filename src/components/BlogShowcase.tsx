@@ -78,7 +78,7 @@ export function BlogShowcase({
   const [activeCollection, setActiveCollection] = useState<'all' | BlogCollection | 'insights'>('all');
 
   const { palette, fonts, isDark } = theme;
-  const hasMultipleCollections = isAstroRepo || posts.some((p) => p.collection !== 'bai_viet');
+  const hasMultipleCollections = posts.some((p) => p.collection !== 'bai_viet');
 
   const filteredPosts = useMemo(() => {
     if (activeCollection === 'all' || activeCollection === 'insights') return posts;

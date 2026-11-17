@@ -68,6 +68,13 @@ export function SiteEssentialsCard({
 
   const framework = repoStructure?.framework || 'jekyll';
   const branch = repoInfo?.defaultBranch || 'main';
+  const isAstroVn = framework === 'astro-vn' || Boolean(repoStructure?.hasAstroEngine);
+  const basePagesUrl = (
+    config.pagesUrl ||
+    (config.githubRepo.toLowerCase() === `${config.githubOwner.toLowerCase()}.github.io`
+      ? `https://${config.githubRepo}`
+      : `https://${config.githubOwner}.github.io/${config.githubRepo}`)
+  ).replace(/\/+$/, '');
 
   const fetchReport = useCallback(async () => {
     if (!config.githubOwner || !config.githubRepo) return;
@@ -82,11 +89,11 @@ export function SiteEssentialsCard({
       if (data) {
         setReport(data);
         setSelectedKeys({
-          rss: !data.files.find((f) => f.key === 'rss')?.exists,
-          sitemap: !data.files.find((f) => f.key === 'sitemap')?.exists,
-          robots: !data.files.find((f) => f.key === 'robots')?.exists,
+          rss: isAstroVn ? false : !data.files.find((f) => f.key === 'rss')?.exists,
+          sitemap: isAstroVn ? false : !data.files.find((f) => f.key === 'sitemap')?.exists,
+          robots: isAstroVn ? false : !data.files.find((f) => f.key === 'robots')?.exists,
           feedJson: !data.files.find((f) => f.key === 'feedJson')?.exists,
-          notFound: !data.files.find((f) => f.key === 'notFound')?.exists,
+          notFound: isAstroVn ? false : !data.files.find((f) => f.key === 'notFound')?.exists,
           nojekyll: false,
         });
       }
@@ -95,7 +102,7 @@ export function SiteEssentialsCard({
     } finally {
       setIsChecking(false);
     }
-  }, [config.githubOwner, config.githubRepo, branch, framework]);
+  }, [config.githubOwner, config.githubRepo, branch, framework, isAstroVn]);
 
   useEffect(() => {
     fetchReport();
@@ -229,6 +236,39 @@ export function SiteEssentialsCard({
         </button>
       </div>
 
+      {/* Astro 5 Auto-Generated Notice */}
+      {isAstroVn && (
+        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2 text-xs">
+          <div className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            Astro Blog Việt đang tự động sinh Sitemap, RSS, Robots.txt &amp; trang 404 khi build
+          </div>
+          <p style={{ color: palette.textSecondary }} className="leading-relaxed">
+            Các tệp SEO kỹ thuật được Astro 5 biên dịch tự động vào thư mục{' '}
+            <code>dist/</code> mỗi khi GitHub Actions chạy nên không cần tạo thủ công trong <code>public/</code>. Kiểm tra link thực tế trên trang đã xuất bản:
+          </p>
+          <div className="flex flex-wrap gap-3 pt-0.5 font-medium">
+            {[
+              { label: 'sitemap.xml', href: `${basePagesUrl}/sitemap.xml` },
+              { label: 'rss.xml', href: `${basePagesUrl}/rss.xml` },
+              { label: 'robots.txt', href: `${basePagesUrl}/robots.txt` },
+              { label: '404.html', href: `${basePagesUrl}/404.html` },
+            ].map((item) => (
+              <a
+                key={item.label}
+                href={item.href}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: palette.link, fontFamily: fonts.mono }}
+                className="inline-flex items-center gap-1 underline underline-offset-4"
+              >
+                {item.label} <ExternalLink className="w-3 h-3" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Essential Files Checklist & Preview Split */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left: File Checklist */}
@@ -236,6 +276,8 @@ export function SiteEssentialsCard({
           {report?.files.map((file) => {
             const isChecked = selectedKeys[file.key];
             const isPreviewing = previewKey === file.key;
+            const autoHandledByAstro =
+              isAstroVn && ['rss', 'sitemap', 'robots', 'notFound'].includes(file.key);
             return (
               <div
                 key={file.key}
@@ -255,10 +297,10 @@ export function SiteEssentialsCard({
                   <div className="min-w-0">
                     <div className="text-xs sm:text-sm font-semibold flex flex-wrap items-center gap-2">
                       <span>{file.label}</span>
-                      {file.exists ? (
+                      {file.exists || autoHandledByAstro ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          Đã có
+                          {autoHandledByAstro && !file.exists ? 'Astro tự sinh' : 'Đã có'}
                         </span>
                       ) : (
                         <span style={{ color: palette.textMuted }} className="text-[11px] font-normal">

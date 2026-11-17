@@ -531,6 +531,7 @@ async function commitMultipleFilesClient(params: {
   message: string;
   token: string;
   replaceAllFiles?: boolean;
+  preservedTreeEntries?: Array<{ path: string; sha: string; mode?: string }>;
 }): Promise<{ ok: boolean; status: number; commitSha?: string; commitHtmlUrl?: string; error?: string }> {
   let refResp = await ghApiRequest<any>(
     `/repos/${params.owner}/${params.repo}/git/ref/heads/${encodeURIComponent(params.branch)}`,
@@ -607,14 +608,27 @@ async function commitMultipleFilesClient(params: {
     };
   }
 
-  // Omitting base_tree replaces the entire branch tree atomically (wiping all old files)
-  const treePayload: Record<string, any> = {
-    tree: blobResults.map((b) => ({
-      path: b.path,
-      mode: '100644',
+  // Omitting base_tree replaces the entire branch tree atomically (wiping all old files except preservedTreeEntries)
+  const writtenPaths = new Set(blobResults.map((b) => b.path));
+  const preservedNodes = (params.preservedTreeEntries || [])
+    .map((entry) => ({
+      path: entry.path.replace(/^\/+/, ''),
+      mode: entry.mode || '100644',
       type: 'blob',
-      sha: b.blobResp.data.sha,
-    })),
+      sha: entry.sha,
+    }))
+    .filter((entry) => entry.path && entry.sha && !writtenPaths.has(entry.path));
+
+  const treePayload: Record<string, any> = {
+    tree: [
+      ...blobResults.map((b) => ({
+        path: b.path,
+        mode: '100644',
+        type: 'blob',
+        sha: b.blobResp.data.sha,
+      })),
+      ...preservedNodes,
+    ],
   };
   if (!params.replaceAllFiles) {
     treePayload.base_tree = commitResp.data.tree.sha;
@@ -2079,6 +2093,7 @@ export async function ghDeployAstroTemplate(
     branch?: string;
     config: BlogConfig;
     templateId?: AstroTemplateId;
+    preservePosts?: boolean;
   },
   uid = activeUid
 ): Promise<{
@@ -2086,6 +2101,7 @@ export async function ghDeployAstroTemplate(
   commitUrl?: string;
   actionsUrl?: string;
   pagesUrl?: string;
+  preservedCount?: number;
   error?: string;
 }> {
   const pat = getStoredGitHubPat(uid);
@@ -2103,6 +2119,7 @@ export async function ghDeployAstroTemplate(
       commitUrl: data.commit?.htmlUrl,
       actionsUrl: data.actionsUrl,
       pagesUrl: data.pagesUrl,
+      preservedCount: data.preservedCount,
     };
   }
 
@@ -2114,11 +2131,40 @@ export async function ghDeployAstroTemplate(
     targetBranch = repoResp.ok && repoResp.data?.default_branch ? repoResp.data.default_branch : 'main';
   }
 
+  const preservePosts = params.preservePosts !== false;
+  let preservedTreeEntries: Array<{ path: string; sha: string; mode?: string }> = [];
+  let preservedPostsCount = 0;
+
+  if (preservePosts) {
+    const existingTreeResp = await ghApiRequest<any>(
+      `/repos/${params.owner}/${params.repo}/git/trees/${encodeURIComponent(targetBranch)}?recursive=1`,
+      {},
+      pat
+    );
+    if (existingTreeResp.ok && Array.isArray(existingTreeResp.data?.tree)) {
+      const blobs = existingTreeResp.data.tree.filter((i: any) => i.type === 'blob' && i.path && i.sha);
+      for (const blob of blobs) {
+        const p = String(blob.path);
+        const isPost =
+          p.startsWith('src/content/bai_viet/') &&
+          (p.endsWith('.md') || p.endsWith('.mdx') || p.endsWith('.markdown'));
+        const isAsset =
+          p.startsWith('public/tainguyen/hinhanh/uploads/') || p.startsWith('public/images/');
+        const isBlogvnMeta = p.startsWith('.blogvn/') && p !== '.blogvn/site-config.json';
+        if (isPost || isAsset || isBlogvnMeta) {
+          preservedTreeEntries.push({ path: p, sha: blob.sha, mode: blob.mode || '100644' });
+          if (isPost) preservedPostsCount++;
+        }
+      }
+    }
+  }
+
   const files = buildVietnameseAstroTemplateFiles({
     owner: params.owner,
     repo: params.repo,
     config: params.config,
     templateId: params.templateId || params.config.astroTemplate,
+    includeStarterPosts: !preservePosts || preservedPostsCount === 0,
   });
 
   const commitRes = await commitMultipleFilesClient({
@@ -2126,9 +2172,13 @@ export async function ghDeployAstroTemplate(
     repo: params.repo,
     branch: targetBranch,
     files,
-    message: `BlogVN: Triển khai Template Astro Blog Việt sạch & nhận dạng web (${params.config.siteTitle || params.repo})`,
+    message:
+      preservePosts && preservedPostsCount > 0
+        ? `BlogVN: Cập nhật giao diện Astro 5 (giữ nguyên ${preservedPostsCount} bài viết) (${params.config.siteTitle || params.repo})`
+        : `BlogVN: Triển khai Template Astro Blog Việt sạch & nhận dạng web (${params.config.siteTitle || params.repo})`,
     token: pat,
     replaceAllFiles: true,
+    preservedTreeEntries,
   });
 
   if (!commitRes.ok) {
@@ -2179,6 +2229,7 @@ export async function ghDeployAstroTemplate(
     commitUrl: commitRes.commitHtmlUrl,
     actionsUrl: `https://github.com/${params.owner}/${params.repo}/actions`,
     pagesUrl,
+    preservedCount: preservedPostsCount,
   };
 }
 

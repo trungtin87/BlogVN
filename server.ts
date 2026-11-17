@@ -32,6 +32,7 @@ import {
 import {
   buildAstroSiteConfigModule,
   buildVietnameseAstroTemplateFiles,
+  normalizeAstroTemplateId,
 } from './src/utils/astroTemplate.ts';
 
 dotenv.config();
@@ -706,6 +707,7 @@ async function commitMultipleFilesAtomic(params: {
   message: string;
   token: string;
   replaceAllFiles?: boolean;
+  preservedTreeEntries?: Array<{ path: string; sha: string; mode?: string }>;
 }): Promise<{ ok: boolean; status: number; commitSha?: string; commitHtmlUrl?: string; error?: string }> {
   let refResp = await githubRequest<any>(
     `/repos/${params.owner}/${params.repo}/git/ref/heads/${encodeURIComponent(params.branch)}`,
@@ -789,13 +791,26 @@ async function commitMultipleFilesAtomic(params: {
     };
   }
 
-  const treePayload: Record<string, any> = {
-    tree: blobResults.map((b) => ({
-      path: b.path,
-      mode: '100644',
+  const writtenPaths = new Set(blobResults.map((b) => b.path));
+  const preservedNodes = (params.preservedTreeEntries || [])
+    .map((entry) => ({
+      path: entry.path.replace(/^\/+/, ''),
+      mode: entry.mode || '100644',
       type: 'blob',
-      sha: b.blobResp.data.sha,
-    })),
+      sha: entry.sha,
+    }))
+    .filter((entry) => entry.path && entry.sha && !writtenPaths.has(entry.path));
+
+  const treePayload: Record<string, any> = {
+    tree: [
+      ...blobResults.map((b) => ({
+        path: b.path,
+        mode: '100644',
+        type: 'blob',
+        sha: b.blobResp.data.sha,
+      })),
+      ...preservedNodes,
+    ],
   };
   if (!params.replaceAllFiles) {
     treePayload.base_tree = baseTreeSha;
@@ -3333,11 +3348,30 @@ async function startServer() {
       authorName: String(incomingCfg.authorName || '').trim() || undefined,
       authorBio: String(incomingCfg.authorBio || '').trim() || undefined,
       authorAvatar: incomingCfg.authorAvatar ? String(incomingCfg.authorAvatar).trim() : undefined,
-      astroTemplate:
-        incomingCfg.astroTemplate === 'minimal' ||
-        incomingCfg.astroTemplate === 'visual-grid' ||
-        incomingCfg.astroTemplate === 'editorial'
-          ? incomingCfg.astroTemplate
+      themeMode: incomingCfg.themeMode === 'dark' ? 'dark' : 'light',
+      astroTemplate: incomingCfg.astroTemplate
+        ? normalizeAstroTemplateId(
+            String(incomingCfg.astroTemplate),
+            incomingCfg.themeMode === 'dark' ? 'dark' : 'light'
+          )
+        : undefined,
+      liveChat:
+        incomingCfg.liveChat && typeof incomingCfg.liveChat === 'object'
+          ? {
+              enabled: Boolean(incomingCfg.liveChat.enabled),
+              title: incomingCfg.liveChat.title ? String(incomingCfg.liveChat.title).trim() : undefined,
+              welcomeText: incomingCfg.liveChat.welcomeText
+                ? String(incomingCfg.liveChat.welcomeText).trim()
+                : undefined,
+              channels: Array.isArray(incomingCfg.liveChat.channels)
+                ? incomingCfg.liveChat.channels.map((ch: any) => ({
+                    id: ch.id,
+                    enabled: Boolean(ch.enabled),
+                    value: String(ch.value || '').trim(),
+                    label: ch.label ? String(ch.label).trim() : undefined,
+                  }))
+                : [],
+            }
           : undefined,
     };
 
@@ -3448,6 +3482,7 @@ async function startServer() {
       branch,
       config = {},
       templateId,
+      preservePosts = true,
     } = req.body || {};
 
     try {
@@ -3457,11 +3492,39 @@ async function startServer() {
         targetBranch = repoResp.ok && repoResp.data?.default_branch ? repoResp.data.default_branch : 'main';
       }
 
+      const preservedTreeEntries: Array<{ path: string; sha: string; mode?: string }> = [];
+      let preservedPostsCount = 0;
+
+      if (preservePosts !== false) {
+        const existingTreeResp = await githubRequest<any>(
+          `/repos/${owner}/${repo}/git/trees/${encodeURIComponent(targetBranch)}?recursive=1`,
+          {},
+          token
+        );
+        if (existingTreeResp.ok && Array.isArray(existingTreeResp.data?.tree)) {
+          const blobs = existingTreeResp.data.tree.filter((i: any) => i.type === 'blob' && i.path && i.sha);
+          for (const blob of blobs) {
+            const p = String(blob.path);
+            const isPost =
+              p.startsWith('src/content/bai_viet/') &&
+              (p.endsWith('.md') || p.endsWith('.mdx') || p.endsWith('.markdown'));
+            const isAsset =
+              p.startsWith('public/tainguyen/hinhanh/uploads/') || p.startsWith('public/images/');
+            const isBlogvnMeta = p.startsWith('.blogvn/') && p !== '.blogvn/site-config.json';
+            if (isPost || isAsset || isBlogvnMeta) {
+              preservedTreeEntries.push({ path: p, sha: blob.sha, mode: blob.mode || '100644' });
+              if (isPost) preservedPostsCount++;
+            }
+          }
+        }
+      }
+
       const files = buildVietnameseAstroTemplateFiles({
         owner,
         repo,
         config,
         templateId: templateId || config?.astroTemplate,
+        includeStarterPosts: preservePosts === false || preservedPostsCount === 0,
       });
 
       const commitRes = await commitMultipleFilesAtomic({
@@ -3469,9 +3532,13 @@ async function startServer() {
         repo,
         branch: targetBranch,
         files,
-        message: `BlogVN: Triển khai Template Astro Blog Việt sạch & nhận dạng web (${config.siteTitle || repo})`,
+        message:
+          preservePosts !== false && preservedPostsCount > 0
+            ? `BlogVN: Cập nhật giao diện Astro 5 (giữ nguyên ${preservedPostsCount} bài viết) (${config.siteTitle || repo})`
+            : `BlogVN: Triển khai Template Astro Blog Việt sạch & nhận dạng web (${config.siteTitle || repo})`,
         token,
         replaceAllFiles: true,
+        preservedTreeEntries,
       });
 
       if (!commitRes.ok) {
@@ -3517,6 +3584,7 @@ async function startServer() {
       res.json({
         ok: true,
         pagesUrl,
+        preservedCount: preservedPostsCount,
         actionsUrl: `https://github.com/${owner}/${repo}/actions`,
         commit: {
           sha: commitRes.commitSha,
@@ -3573,6 +3641,115 @@ async function startServer() {
       framework: 'static',
     });
     res.type('application/rss+xml').send(xml);
+  });
+
+  // 10c. Official Social API Server-Side Proxy (X API v2 & LinkedIn REST API require server proxy due to browser CORS)
+  app.post('/api/social/publish', async (req: Request, res: Response) => {
+    const { platform, credentials = {}, payload = {} } = req.body || {};
+    const title = String(payload.title || '').trim();
+    const excerpt = String(payload.excerpt || '').trim();
+    const caption = String(payload.caption || title).trim();
+    const url = String(payload.url || '').trim();
+
+    if (!platform || !url) {
+      res.status(400).json({ ok: false, message: 'Thiếu thông tin nền tảng hoặc URL bài viết.' });
+      return;
+    }
+
+    try {
+      if (platform === 'x') {
+        const accessToken = String(credentials.accessToken || '').trim();
+        if (!accessToken) {
+          res.status(400).json({ ok: false, message: 'Thiếu X OAuth 2.0 User Access Token.' });
+          return;
+        }
+        const rawText = caption.includes(url) ? caption : `${caption}\n${url}`;
+        const tweetText = rawText.length > 275 ? `${rawText.slice(0, 240).trim()}…\n${url}` : rawText;
+
+        const apiRes = await fetch('https://api.twitter.com/2/tweets', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text: tweetText }),
+        });
+        const json: any = await apiRes.json().catch(() => ({}));
+        if (!apiRes.ok || !json?.data?.id) {
+          res.status(apiRes.status || 400).json({
+            ok: false,
+            message: json?.detail || json?.title || 'Không thể đăng lên X API v2.',
+          });
+          return;
+        }
+        res.json({
+          ok: true,
+          message: 'Đã đăng bài lên X (Twitter) qua X API v2.',
+          postUrl: `https://x.com/i/web/status/${json.data.id}`,
+        });
+        return;
+      }
+
+      if (platform === 'linkedin') {
+        const accessToken = String(credentials.accessToken || '').trim();
+        const authorUrn = String(credentials.authorUrn || '').trim();
+        if (!accessToken || !authorUrn) {
+          res.status(400).json({ ok: false, message: 'Thiếu LinkedIn Access Token hoặc Author URN.' });
+          return;
+        }
+
+        const commentary = caption.includes(url) ? caption : `${caption}\n\n${url}`;
+        const apiRes = await fetch('https://api.linkedin.com/v2/ugcPosts', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+            'X-Restli-Protocol-Version': '2.0.0',
+          },
+          body: JSON.stringify({
+            author: authorUrn,
+            lifecycleState: 'PUBLISHED',
+            specificContent: {
+              'com.linkedin.ugc.ShareContent': {
+                shareCommentary: { text: commentary },
+                shareMediaCategory: 'ARTICLE',
+                media: [
+                  {
+                    status: 'READY',
+                    originalUrl: url,
+                    title: { text: title || 'Bài viết mới' },
+                    description: { text: excerpt || caption.slice(0, 180) },
+                  },
+                ],
+              },
+            },
+            visibility: {
+              'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
+            },
+          }),
+        });
+        const json: any = await apiRes.json().catch(() => ({}));
+        if (!apiRes.ok) {
+          res.status(apiRes.status || 400).json({
+            ok: false,
+            message: json?.message || 'Không thể chia sẻ qua LinkedIn UGC API.',
+          });
+          return;
+        }
+        const postId = json?.id || apiRes.headers.get('x-restli-id') || '';
+        res.json({
+          ok: true,
+          message: 'Đã đăng bài lên LinkedIn qua REST API.',
+          postUrl: postId ? `https://www.linkedin.com/feed/update/${postId}` : undefined,
+        });
+        return;
+      }
+
+      res.status(400).json({ ok: false, message: `Nền tảng "${platform}" hỗ trợ gọi trực tiếp từ trình duyệt.` });
+    } catch (err: any) {
+      console.error('Social publish proxy error:', err);
+      res.status(500).json({ ok: false, message: err?.message || 'Lỗi kết nối API mạng xã hội.' });
+    }
   });
 
   if (process.env.NODE_ENV !== 'production') {

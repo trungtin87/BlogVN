@@ -14,7 +14,14 @@ import type {
   ThemeMode,
   WorkspaceTab,
 } from './types/blog';
-import { AM_DUONG_THEMES, DEFAULT_BLOG_CONFIG } from './data/themes';
+import {
+  AM_DUONG_THEMES,
+  DEFAULT_BLOG_CONFIG,
+  DEFAULT_LIVE_CHAT_CONFIG,
+  EDITORIAL_THEMES,
+  normalizeAstroTemplateId,
+  resolveBlogTheme,
+} from './data/themes';
 import { auth, signOutGoogle } from './firebase';
 import {
   getStoredGitHubPat,
@@ -40,6 +47,8 @@ import { GitHubSyncPanel } from './components/GitHubSyncPanel';
 import { GoogleAuthGate } from './components/GoogleAuthGate';
 import { OfflineIndicator } from './components/PWAInstallButton';
 import { UserGuideModal } from './components/UserGuideModal';
+import { FloatingLiveChat } from './components/FloatingLiveChat';
+import { clearSocialCredentials } from './utils/socialPublisher';
 
 const GATE_THEME_KEY = 'blogvn_gate_theme_mode';
 
@@ -66,10 +75,25 @@ function loadConfigForUid(user: User): BlogConfig {
     const raw = localStorage.getItem(getUserStorageKey(user.uid, 'config_v1'));
     if (raw) {
       const parsed = JSON.parse(raw);
+      const mode: ThemeMode = parsed?.themeMode === 'dark' ? 'dark' : 'light';
+      const rawChat = parsed?.liveChat;
+      const mergedChannels = DEFAULT_LIVE_CHAT_CONFIG.channels.map((def) => {
+        const match = Array.isArray(rawChat?.channels)
+          ? rawChat.channels.find((c: any) => c?.id === def.id)
+          : null;
+        return match ? { ...def, ...match } : { ...def };
+      });
       return {
         ...DEFAULT_BLOG_CONFIG,
         ...parsed,
-        themeMode: parsed?.themeMode === 'dark' ? 'dark' : 'light',
+        themeMode: mode,
+        astroTemplate: normalizeAstroTemplateId(parsed?.astroTemplate, mode),
+        liveChat: {
+          enabled: Boolean(rawChat?.enabled),
+          title: rawChat?.title || DEFAULT_LIVE_CHAT_CONFIG.title,
+          welcomeText: rawChat?.welcomeText || DEFAULT_LIVE_CHAT_CONFIG.welcomeText,
+          channels: mergedChannels,
+        },
       };
     }
   } catch {
@@ -124,10 +148,16 @@ export default function App() {
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [toast, setToast] = useState<ToastBanner | null>(null);
   const isRunningDueRef = useRef(false);
+  const buildPollTimerRef = useRef<number | null>(null);
 
   const activeUid = firebaseUser?.uid || '';
-  const activeTheme =
-    AM_DUONG_THEMES[firebaseUser ? config.themeMode : gateThemeMode] || AM_DUONG_THEMES.light;
+  const activeTheme = useMemo(
+    () =>
+      firebaseUser
+        ? resolveBlogTheme(config, gateThemeMode)
+        : AM_DUONG_THEMES[gateThemeMode] || AM_DUONG_THEMES.light,
+    [firebaseUser, config, gateThemeMode]
+  );
 
   // Listen to Firebase Google Sign-In state and isolate all device data per UID
   useEffect(() => {
@@ -229,16 +259,78 @@ export default function App() {
 
   const fetchBuildStatus = useCallback(
     async (owner: string, repo: string) => {
-      if (!activeUid) return;
+      if (!activeUid) return null;
       try {
         const data = await ghGetBuildStatus(owner, repo, activeUid);
         setBuildStatus(data);
+        return data;
       } catch {
-        // ignore
+        return null;
       }
     },
     [activeUid]
   );
+
+  // B4: Poll GitHub Actions build progress every 10s up to ~2 minutes after deploy/publish
+  const startBuildProgressPolling = useCallback(
+    (owner: string, repo: string, pagesUrl: string) => {
+      if (buildPollTimerRef.current) {
+        window.clearInterval(buildPollTimerRef.current);
+        buildPollTimerRef.current = null;
+      }
+      let attempts = 0;
+      let sawActiveRun = false;
+
+      const tick = async () => {
+        attempts += 1;
+        const data = await fetchBuildStatus(owner, repo);
+        if (!data) return;
+
+        if (data.status === 'queued' || data.status === 'in_progress') {
+          sawActiveRun = true;
+          return;
+        }
+
+        if (data.status === 'completed' && (sawActiveRun || attempts >= 2)) {
+          if (buildPollTimerRef.current) {
+            window.clearInterval(buildPollTimerRef.current);
+            buildPollTimerRef.current = null;
+          }
+          if (data.conclusion === 'success') {
+            showBanner({
+              message: `GitHub Actions đã build thành công ${owner}/${repo}! Trang web đã sẵn sàng.`,
+              linkUrl: pagesUrl,
+              linkLabel: 'Mở website ngay',
+            });
+          } else if (data.conclusion === 'failure') {
+            showBanner({
+              message: `Quá trình build GitHub Actions gặp lỗi trên ${owner}/${repo}.`,
+              linkUrl: data.htmlUrl,
+              linkLabel: 'Xem log lỗi',
+            });
+          }
+          return;
+        }
+
+        if (attempts >= 12 && buildPollTimerRef.current) {
+          window.clearInterval(buildPollTimerRef.current);
+          buildPollTimerRef.current = null;
+        }
+      };
+
+      window.setTimeout(tick, 4500);
+      buildPollTimerRef.current = window.setInterval(tick, 10000);
+    },
+    [fetchBuildStatus]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (buildPollTimerRef.current) {
+        window.clearInterval(buildPollTimerRef.current);
+      }
+    };
+  }, []);
 
   const fetchUserRepos = useCallback(async (): Promise<GitHubRepoSummary[]> => {
     if (!activeUid) return [];
@@ -520,6 +612,7 @@ export default function App() {
       localStorage.removeItem(getUserStorageKey(activeUid, 'drafts_v1'));
       localStorage.removeItem(getUserStorageKey(activeUid, 'gh_pat'));
       localStorage.removeItem(getUserStorageKey(activeUid, 'schedules_v1'));
+      clearSocialCredentials(activeUid);
     }
     const hasBackend = await isBackendAvailable();
     if (hasBackend) {
@@ -537,7 +630,17 @@ export default function App() {
     } catch {
       // ignore
     }
-    setConfig((prev) => ({ ...prev, themeMode }));
+    setConfig((prev) => {
+      const currentPresetId = normalizeAstroTemplateId(prev.astroTemplate, prev.themeMode);
+      const currentPreset = EDITORIAL_THEMES[currentPresetId];
+      const nextTemplate =
+        currentPreset && currentPreset.isDark === (themeMode === 'dark')
+          ? currentPresetId
+          : themeMode === 'dark'
+          ? 'obsidian-broadsheet'
+          : 'newyorker-light';
+      return { ...prev, themeMode, astroTemplate: nextTemplate };
+    });
   };
 
   const handleSaveLocalDraft = (draftPost: BlogPost) => {
@@ -547,7 +650,11 @@ export default function App() {
     });
   };
 
-  const handlePublishSuccess = (publishedPost: BlogPost, commitUrl?: string) => {
+  const handlePublishSuccess = (
+    publishedPost: BlogPost,
+    commitUrl?: string,
+    socialNote?: string
+  ) => {
     setGithubPosts((prev) => {
       const others = prev.filter((p) => p.path !== publishedPost.path);
       return [publishedPost, ...others].sort((a, b) => b.date.localeCompare(a.date));
@@ -557,13 +664,14 @@ export default function App() {
     );
     setActiveTab('blog');
     showBanner({
-      message: `Đã đăng "${publishedPost.title}" lên ${config.githubOwner}/${config.githubRepo}`,
+      message: socialNote
+        ? `Đã đăng "${publishedPost.title}" lên ${config.githubOwner}/${config.githubRepo}. ${socialNote}`
+        : `Đã đăng "${publishedPost.title}" lên ${config.githubOwner}/${config.githubRepo}`,
       linkUrl: commitUrl || config.pagesUrl,
       linkLabel: commitUrl ? 'Xem Commit' : 'Mở GitHub Pages',
     });
 
-    setTimeout(() => fetchBuildStatus(config.githubOwner, config.githubRepo), 4000);
-    setTimeout(() => fetchBuildStatus(config.githubOwner, config.githubRepo), 15000);
+    startBuildProgressPolling(config.githubOwner, config.githubRepo, config.pagesUrl);
   };
 
   const handleDeletePost = async (post: BlogPost) => {
@@ -797,8 +905,10 @@ export default function App() {
           <MarkdownEditor
             theme={activeTheme}
             config={config}
+            uid={activeUid}
             authStatus={authStatus}
             initialPost={editingPost}
+            existingPosts={githubPosts}
             defaultCollection={editorDefaultCollection}
             defaultBranch={repoInfo?.defaultBranch}
             isAstroRepo={Boolean(repoStructure?.hasAstroEngine)}
@@ -835,6 +945,7 @@ export default function App() {
                 linkLabel: commitUrl ? 'Xem Commit' : 'Mở trang web',
               });
               syncFromGitHub();
+              startBuildProgressPolling(config.githubOwner, config.githubRepo, config.pagesUrl);
             }}
             onScheduleDeletePost={handleScheduleDeletePost}
             onEditPost={handleEditPost}
@@ -886,6 +997,18 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      <FloatingLiveChat
+        theme={activeTheme}
+        config={config}
+        onUpdateConfig={setConfig}
+        onOpenSettings={() => {
+          setActiveTab('github');
+          window.setTimeout(() => {
+            document.getElementById('live-chat-settings')?.scrollIntoView({ behavior: 'smooth' });
+          }, 120);
+        }}
+      />
 
       <MobileBottomNav
         activeTab={activeTab}

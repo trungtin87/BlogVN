@@ -33,8 +33,7 @@ import type {
   RepoStructureInfo,
   ScheduledTask,
 } from '../types/blog';
-import { COLLECTION_LABELS } from '../data/themes';
-import { ASTRO_TEMPLATE_PRESETS } from '../utils/astroTemplate';
+import { COLLECTION_LABELS, EDITORIAL_THEMES, normalizeAstroTemplateId } from '../data/themes';
 import { formatDisplayDate } from '../utils/markdown';
 import { ghCreateStarterPagesSite, ghDeployAstroTemplate } from '../utils/githubClient';
 import { ResilientImage } from './ResilientImage';
@@ -42,6 +41,7 @@ import { PWAInstallButton } from './PWAInstallButton';
 import { SiteEssentialsCard } from './SiteEssentialsCard';
 import { SiteIdentityCard } from './SiteIdentityCard';
 import { ScheduleManagerCard } from './ScheduleManagerCard';
+import { ThemeVisualSelector } from './ThemeVisualSelector';
 
 interface GitHubSyncPanelProps {
   theme: BlogTheme;
@@ -129,8 +129,8 @@ export function GitHubSyncPanel({
   const [newRepoName, setNewRepoName] = useState('');
   const [newTagline, setNewTagline] = useState('');
   const [useAstroVnTemplate, setUseAstroVnTemplate] = useState(true);
-  const [selectedAstroPreset, setSelectedAstroPreset] = useState<AstroTemplateId>(
-    config.astroTemplate || 'editorial'
+  const [selectedAstroPreset, setSelectedAstroPreset] = useState<AstroTemplateId>(() =>
+    normalizeAstroTemplateId(config.astroTemplate, config.themeMode)
   );
   const [isCreatingSite, setIsCreatingSite] = useState(false);
   const [createSiteError, setCreateSiteError] = useState<string | null>(null);
@@ -138,10 +138,8 @@ export function GitHubSyncPanel({
   useEffect(() => {
     setOwnerInput(config.githubOwner);
     setRepoInput(config.githubRepo);
-    if (config.astroTemplate) {
-      setSelectedAstroPreset(config.astroTemplate);
-    }
-  }, [config.githubOwner, config.githubRepo, config.astroTemplate]);
+    setSelectedAstroPreset(normalizeAstroTemplateId(config.astroTemplate, config.themeMode));
+  }, [config.githubOwner, config.githubRepo, config.astroTemplate, config.themeMode]);
 
   useEffect(() => {
     if (authStatus?.user?.login && !newRepoName) {
@@ -187,6 +185,7 @@ export function GitHubSyncPanel({
 
       let postsDir = '_posts';
       if (useAstroVnTemplate) {
+        const chosenTheme = EDITORIAL_THEMES[selectedAstroPreset];
         const nextCfg: BlogConfig = {
           ...config,
           siteTitle: newSiteTitle.trim() || config.siteTitle,
@@ -195,6 +194,7 @@ export function GitHubSyncPanel({
           githubRepo: data.repo,
           pagesUrl: data.pagesUrl,
           postsDirectory: 'src/content/bai_viet',
+          themeMode: chosenTheme ? (chosenTheme.isDark ? 'dark' : 'light') : config.themeMode,
           astroTemplate: selectedAstroPreset,
         };
         const astroRes = await ghDeployAstroTemplate({
@@ -860,36 +860,17 @@ export function GitHubSyncPanel({
             </label>
 
             {useAstroVnTemplate && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                {ASTRO_TEMPLATE_PRESETS.map((preset) => {
-                  const active = selectedAstroPreset === preset.id;
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => setSelectedAstroPreset(preset.id)}
-                      style={{
-                        backgroundColor: active ? palette.surface : palette.canvas,
-                        borderColor: active ? palette.link : palette.border,
-                      }}
-                      className="text-left p-3 rounded-xl border cursor-pointer transition-colors space-y-1"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold">{preset.name}</span>
-                        <span
-                          style={{ color: active ? palette.link : palette.textMuted, fontFamily: fonts.mono }}
-                          className="text-[10px]"
-                        >
-                          {preset.badge}
-                        </span>
-                      </div>
-                      <p style={{ color: palette.textMuted }} className="text-[11px] leading-snug">
-                        {preset.description}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
+              <ThemeVisualSelector
+                theme={theme}
+                selectedTemplate={selectedAstroPreset}
+                onSelectTemplate={(tplId) => setSelectedAstroPreset(tplId)}
+                previewSiteTitle={newSiteTitle || config.siteTitle}
+                previewHeaderTitle={config.headerTitle}
+                previewTagline={newTagline || config.tagline}
+                previewAuthorName={config.authorName}
+                previewSiteIcon={config.siteIcon}
+                compact
+              />
             )}
           </div>
 
@@ -918,6 +899,7 @@ export function GitHubSyncPanel({
           posts={posts}
           authStatus={authStatus}
           repoInfo={repoInfo}
+          repoStructure={repoStructure}
           onUpdateConfig={onUpdateConfig}
           onDeployedToGitHub={onDeployedToGitHub}
           onRefreshRepo={onRefresh}
@@ -1016,31 +998,33 @@ export function GitHubSyncPanel({
               </p>
             </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {FILTER_TABS.map((tab) => {
-                const active = collectionFilter === tab.id;
-                const count =
-                  tab.id === 'all'
-                    ? githubPosts.length
-                    : githubPosts.filter((p) => p.collection === tab.id).length;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setCollectionFilter(tab.id)}
-                    style={{
-                      backgroundColor: active ? palette.accent : palette.canvas,
-                      color: active ? palette.accentText : palette.textSecondary,
-                      borderColor: active ? palette.accent : palette.border,
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer whitespace-nowrap shrink-0"
-                  >
-                    <span>{tab.label}</span>
-                    <span className="tabular-nums opacity-75">({count})</span>
-                  </button>
-                );
-              })}
-            </div>
+            {githubPosts.some((p) => p.collection !== 'bai_viet') && (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {FILTER_TABS.map((tab) => {
+                  const active = collectionFilter === tab.id;
+                  const count =
+                    tab.id === 'all'
+                      ? githubPosts.length
+                      : githubPosts.filter((p) => p.collection === tab.id).length;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setCollectionFilter(tab.id)}
+                      style={{
+                        backgroundColor: active ? palette.accent : palette.canvas,
+                        color: active ? palette.accentText : palette.textSecondary,
+                        borderColor: active ? palette.accent : palette.border,
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer whitespace-nowrap shrink-0"
+                    >
+                      <span>{tab.label}</span>
+                      <span className="tabular-nums opacity-75">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {filteredGithubPosts.length === 0 ? (

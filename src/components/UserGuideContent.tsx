@@ -251,13 +251,13 @@ export function UserGuideContent({
               <li className="flex items-start gap-2">
                 <Rocket className="w-4 h-4 shrink-0 mt-0.5" style={{ color: palette.link }} />
                 <span>
-                  Chọn 1 trong 3 mẫu Astro Template (<strong>Tạp chí Biên tập</strong>, <strong>Tối giản Tập trung</strong>, <strong>Lưới Hình ảnh &amp; Video</strong>) rồi bấm <strong>Triển khai Template Astro Việt</strong>. Thao tác này sẽ làm sạch repo cũ tránh lỗi xung đột và tự động bật GitHub Actions Pages.
+                  Chọn 1 trong 5 giao diện blog chuyên viết (<strong>2 mẫu Sáng</strong>: New Yorker Classic, NYTimes Editorial; <strong>3 mẫu Tối</strong>: BBC Studio Dark, Obsidian Broadsheet, Espresso Salon) với bản xem trước trực quan ngay trên màn hình, rồi bấm <strong>Triển khai Template Astro Việt</strong> (có tuỳ chọn <strong>giữ nguyên bài viết &amp; ảnh cũ</strong> hoặc reset sạch hoàn toàn).
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
                 <span>
-                  Giao diện bài viết được tối giản tối đa (không hiển thị mục lục tự động hay hộp chỉ mục rườm rà), nhưng vẫn giữ đầy đủ SEO ngầm (<code style={{ fontFamily: fonts.mono }}>sitemap.xml</code>, <code style={{ fontFamily: fonts.mono }}>robots.txt</code>, <code style={{ fontFamily: fonts.mono }}>rss.xml</code>, JSON-LD <code style={{ fontFamily: fonts.mono }}>BlogPosting</code>, OpenGraph).
+                  Giao diện bài viết được tối giản tối đa (tích hợp lọc chuyên mục, 3 bài liên quan, Live Chat góc phải tuỳ chọn nền tảng Zalo/Messenger/Telegram/WhatsApp/Tawk.to/Crisp và giữ đầy đủ SEO ngầm <code style={{ fontFamily: fonts.mono }}>sitemap.xml</code>, <code style={{ fontFamily: fonts.mono }}>robots.txt</code>, <code style={{ fontFamily: fonts.mono }}>rss.xml</code>, JSON-LD).
                 </span>
               </li>
             </ul>
@@ -313,10 +313,10 @@ export function UserGuideContent({
             >
               <div className="font-semibold flex items-center gap-1.5">
                 <BookOpen className="w-4 h-4 shrink-0" style={{ color: palette.link }} />
-                Soạn Markdown, SEO Studio &amp; Hẹn giờ đăng
+                Tự lưu nháp, SEO Studio &amp; Chia sẻ Mạng xã hội API
               </div>
               <p style={{ color: palette.textSecondary }}>
-                Kéo thả hoặc dán (<code style={{ fontFamily: fonts.mono }}>Ctrl/Cmd+V</code>) nhiều ảnh vào khung viết. Mở thẻ <strong>SEO Studio</strong> để kiểm tra điểm SEO, đặt Canonical và nhấn <strong>Đăng lên GitHub</strong> (đăng ngay hoặc hẹn lịch tự đăng/tự xoá).
+                Khung <strong>Viết bài</strong> tách riêng và tự động lưu nháp mỗi 2,5 giây. Khi chuyển qua tab <strong>Tối ưu</strong> hoặc mở hộp thoại <strong>Đăng lên GitHub</strong>, bạn có thể kiểm tra điểm SEO và tự động chia sẻ qua API chính thống (Facebook Page, Threads, X, LinkedIn, Bluesky, Mastodon, Telegram, Discord).
               </p>
             </div>
           </div>

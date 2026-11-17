@@ -81,7 +81,95 @@ export interface BlogPost {
   featured?: boolean;
 }
 
-export type AstroTemplateId = 'editorial' | 'minimal' | 'visual-grid';
+export type AstroTemplateId =
+  | 'newyorker-light'
+  | 'nytimes-light'
+  | 'bbc-dark'
+  | 'obsidian-broadsheet'
+  | 'espresso-salon';
+
+export type LiveChatPlatformId =
+  | 'messenger'
+  | 'zalo'
+  | 'telegram'
+  | 'whatsapp'
+  | 'tawkto'
+  | 'crisp'
+  | 'email';
+
+export interface LiveChatChannelConfig {
+  id: LiveChatPlatformId;
+  enabled: boolean;
+  value: string;
+  label?: string;
+}
+
+export interface LiveChatConfig {
+  enabled: boolean;
+  title?: string;
+  welcomeText?: string;
+  channels: LiveChatChannelConfig[];
+}
+
+export type SocialPlatformId =
+  | 'facebook'
+  | 'linkedin'
+  | 'x'
+  | 'threads'
+  | 'mastodon'
+  | 'bluesky'
+  | 'telegram'
+  | 'discord';
+
+export interface SocialPlatformCredentials {
+  facebook?: {
+    enabled: boolean;
+    pageId: string;
+    pageAccessToken: string;
+  };
+  linkedin?: {
+    enabled: boolean;
+    accessToken: string;
+    authorUrn: string;
+  };
+  x?: {
+    enabled: boolean;
+    accessToken: string;
+  };
+  threads?: {
+    enabled: boolean;
+    userId: string;
+    accessToken: string;
+  };
+  mastodon?: {
+    enabled: boolean;
+    instanceUrl: string;
+    accessToken: string;
+  };
+  bluesky?: {
+    enabled: boolean;
+    handle: string;
+    appPassword: string;
+  };
+  telegram?: {
+    enabled: boolean;
+    botToken: string;
+    chatId: string;
+  };
+  discord?: {
+    enabled: boolean;
+    webhookUrl: string;
+  };
+}
+
+export interface SocialPublishResult {
+  platform: SocialPlatformId;
+  platformName: string;
+  ok: boolean;
+  postUrl?: string;
+  message: string;
+  fallbackShareUrl?: string;
+}
 
 export interface BlogConfig {
   siteTitle: string;
@@ -100,6 +188,7 @@ export interface BlogConfig {
   themeMode: ThemeMode;
   postsDirectory: string;
   astroTemplate?: AstroTemplateId;
+  liveChat?: LiveChatConfig;
 }
 
 export interface GitHubUser {

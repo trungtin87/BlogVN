@@ -4,8 +4,6 @@ import {
   CalendarClock,
   Check,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   CircleAlert,
   Clock,
   Code,
@@ -24,6 +22,7 @@ import {
   Save,
   Search,
   Send,
+  SlidersHorizontal,
   Table,
   Trash2,
   Upload,
@@ -38,6 +37,7 @@ import type {
   BlogTheme,
   RepoStructureInfo,
   ScheduledTask,
+  SocialPlatformId,
 } from '../types/blog';
 import { COLLECTION_LABELS, STARTER_TEMPLATES } from '../data/themes';
 import {
@@ -56,27 +56,35 @@ import {
 } from '../utils/imageUpload';
 import { evaluatePostSeo } from '../utils/siteGenerators';
 import { ghCreateSchedule, ghSavePost } from '../utils/githubClient';
+import {
+  buildPublishedArticleUrl,
+  buildSocialCaption,
+  loadSocialCredentials,
+  publishToSocialPlatform,
+} from '../utils/socialPublisher';
 import { ImageBatchModal, type BatchInsertLayout } from './ImageBatchModal';
 import { ResilientImage } from './ResilientImage';
+import { SocialSharePanel } from './SocialSharePanel';
 
 interface MarkdownEditorProps {
   theme: BlogTheme;
   config: BlogConfig;
+  uid?: string;
   authStatus: AuthStatus | null;
   initialPost: BlogPost | null;
+  existingPosts?: BlogPost[];
   defaultCollection?: BlogCollection;
   defaultBranch?: string;
   isAstroRepo?: boolean;
   repoStructure?: RepoStructureInfo | null;
   onSaveLocalDraft: (post: BlogPost) => void;
-  onPublishSuccess: (publishedPost: BlogPost, commitUrl?: string) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  onPublishSuccess: (publishedPost: BlogPost, commitUrl?: string, socialNote?: string) => void;
   onScheduledSuccess?: (task: ScheduledTask, focusGitHubTab?: boolean) => void;
   onOpenGitHubTab: () => void;
 }
 
-type EditorPaneMode = 'split' | 'write' | 'preview';
-
-const COLLECTION_OPTIONS: BlogCollection[] = ['bai_viet', 'du_an', 'sach', 'cua_hang'];
+type EditorPaneMode = 'write' | 'optimize' | 'split' | 'preview';
 
 function toLocalDatetimeInput(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -96,13 +104,16 @@ function getPresetDatetimeInput(hoursOffset: number, fixedHour?: number): string
 export function MarkdownEditor({
   theme,
   config,
+  uid = '',
   authStatus,
   initialPost,
+  existingPosts = [],
   defaultCollection = 'bai_viet',
   defaultBranch = 'main',
   isAstroRepo = true,
   repoStructure = null,
   onSaveLocalDraft,
+  onDirtyChange,
   onPublishSuccess,
   onScheduledSuccess,
   onOpenGitHubTab,
@@ -115,7 +126,6 @@ export function MarkdownEditor({
   const [paneMode, setPaneMode] = useState<EditorPaneMode>(() =>
     typeof window !== 'undefined' && window.innerWidth < 1024 ? 'write' : 'split'
   );
-  const [showMetaMobile, setShowMetaMobile] = useState(false);
 
   const [collection, setCollection] = useState<BlogCollection>(
     initialPost?.collection || defaultCollection
@@ -137,7 +147,7 @@ export function MarkdownEditor({
   );
 
   // Collection-specific schema fields matching src/content/config.ts
-  const [authorName, setAuthorName] = useState('Bùi Trung Tín');
+  const [authorName, setAuthorName] = useState(config.authorName || 'Tác giả');
   const [price, setPrice] = useState('');
   const [originalPrice, setOriginalPrice] = useState('');
   const [inStock, setInStock] = useState(true);
@@ -160,12 +170,16 @@ export function MarkdownEditor({
   const [batchDropFiles, setBatchDropFiles] = useState<File[]>([]);
 
   // Per-Post SEO Studio fields
-  const [showSeoPanel, setShowSeoPanel] = useState(false);
   const [seoTitle, setSeoTitle] = useState('');
   const [seoDescription, setSeoDescription] = useState('');
   const [canonicalUrl, setCanonicalUrl] = useState('');
   const [noindex, setNoindex] = useState(false);
   const [copiedJsonLd, setCopiedJsonLd] = useState(false);
+
+  // Social Media Sharing state
+  const [socialCaption, setSocialCaption] = useState('');
+  const [socialCaptionEdited, setSocialCaptionEdited] = useState(false);
+  const [selectedSocialPlatforms, setSelectedSocialPlatforms] = useState<SocialPlatformId[]>([]);
 
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
@@ -177,6 +191,8 @@ export function MarkdownEditor({
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [localSavedMessage, setLocalSavedMessage] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const skipDirtyRef = useRef(true);
 
   useEffect(() => {
     if (initialPost) {
@@ -194,7 +210,7 @@ export function MarkdownEditor({
       setExistingPath(initialPost.source === 'github' ? initialPost.path : null);
       setExistingSha(initialPost.source === 'github' ? initialPost.sha : undefined);
 
-      setAuthorName(initialPost.authorName || 'Bùi Trung Tín');
+      setAuthorName(initialPost.authorName || config.authorName || 'Tác giả');
       setPrice(initialPost.price || '');
       setOriginalPrice(initialPost.originalPrice || '');
       setInStock(initialPost.inStock !== false);
@@ -238,7 +254,7 @@ export function MarkdownEditor({
       setExistingPath(null);
       setExistingSha(undefined);
 
-      setAuthorName('Bùi Trung Tín');
+      setAuthorName(config.authorName || 'Tác giả');
       setPrice(defaultCollection === 'sach' ? 'Miễn phí' : defaultCollection === 'cua_hang' ? '99.000₫' : '');
       setOriginalPrice('');
       setInStock(true);
@@ -255,6 +271,10 @@ export function MarkdownEditor({
     }
     setPublishError(null);
     setUploadError(null);
+    setSocialCaptionEdited(false);
+    setIsDirty(false);
+    onDirtyChange?.(false);
+    skipDirtyRef.current = true;
   }, [initialPost?.id, defaultCollection]);
 
   useEffect(() => {
@@ -297,6 +317,60 @@ export function MarkdownEditor({
         .filter(Boolean),
     [formatsText]
   );
+
+  const effectiveSlug = useMemo(
+    () => slugifyVietnamese(slug || title || 'bai-viet-moi'),
+    [slug, title]
+  );
+
+  const postPublicUrl = useMemo(
+    () => buildPublishedArticleUrl(config, effectiveSlug),
+    [config, effectiveSlug]
+  );
+
+  useEffect(() => {
+    if (!socialCaptionEdited) {
+      setSocialCaption(
+        buildSocialCaption({
+          title: title || 'Bài viết mới',
+          excerpt,
+          tags: parsedTags,
+          url: postPublicUrl,
+        })
+      );
+    }
+  }, [socialCaptionEdited, title, excerpt, parsedTags, postPublicUrl]);
+
+  // B5: Pre-publish validation checks
+  const validationIssues = useMemo(() => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      errors.push('Ngày đăng không đúng chuẩn YYYY-MM-DD.');
+    }
+    if (canonicalUrl.trim() && !/^https?:\/\/\S+$/i.test(canonicalUrl.trim())) {
+      errors.push('Canonical URL phải bắt đầu bằng https:// hoặc http://.');
+    }
+    if (cover.trim() && !cover.trim().startsWith('/') && !/^https?:\/\/\S+$/i.test(cover.trim())) {
+      warnings.push('Đường dẫn ảnh bìa nên bắt đầu bằng "/" hoặc "https://".');
+    }
+
+    const duplicatePost = existingPosts.find(
+      (p) =>
+        p.slug === effectiveSlug &&
+        p.collection === collection &&
+        p.path !== existingPath &&
+        p.source === 'github'
+    );
+    if (duplicatePost) {
+      warnings.push(
+        `Slug "${effectiveSlug}" đang trùng với bài "${duplicatePost.title}" trên GitHub. Xuất bản sẽ ghi đè tệp này hoặc hãy đổi Slug khác.`
+      );
+    }
+
+    return { errors, warnings };
+  }, [date, canonicalUrl, cover, existingPosts, effectiveSlug, collection, existingPath]);
 
   const stats = useMemo(() => estimateReadingStats(markdownBody), [markdownBody]);
 
@@ -626,9 +700,44 @@ export function MarkdownEditor({
   const handleSaveLocal = () => {
     const postObj = buildCurrentPostObject('local');
     onSaveLocalDraft(postObj);
+    setIsDirty(false);
+    onDirtyChange?.(false);
     setLocalSavedMessage(`Đã lưu nháp ${new Date().toLocaleTimeString('vi-VN')}`);
     setTimeout(() => setLocalSavedMessage(null), 3500);
   };
+
+  // B1: 2.5s debounced auto-save draft + B3: dirty state & browser beforeunload guard
+  useEffect(() => {
+    if (skipDirtyRef.current) {
+      skipDirtyRef.current = false;
+      return;
+    }
+    setIsDirty(true);
+    onDirtyChange?.(true);
+
+    if (!title.trim() && markdownBody.trim().length < 20) return;
+
+    const timer = window.setTimeout(() => {
+      const postObj = buildCurrentPostObject('local');
+      onSaveLocalDraft(postObj);
+      setIsDirty(false);
+      onDirtyChange?.(false);
+      const hhmm = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      setLocalSavedMessage(`Đã tự lưu lúc ${hhmm}`);
+    }, 2500);
+
+    return () => window.clearTimeout(timer);
+  }, [title, slug, date, category, tagsText, excerpt, cover, draft, markdownBody, seoTitle, seoDescription, canonicalUrl, noindex]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [isDirty]);
 
   const handleDownloadMarkdown = () => {
     const postObj = buildCurrentPostObject('local');
@@ -658,6 +767,10 @@ export function MarkdownEditor({
   const handlePublishToGitHub = async () => {
     if (!title.trim()) {
       setPublishError('Vui lòng nhập tiêu đề trước khi đăng.');
+      return;
+    }
+    if (validationIssues.errors.length > 0) {
+      setPublishError(validationIssues.errors[0]);
       return;
     }
 
@@ -775,10 +888,37 @@ export function MarkdownEditor({
         }
       }
 
+      let socialSummary: string | undefined;
+      if (!draft && selectedSocialPlatforms.length > 0) {
+        const creds = loadSocialCredentials(uid);
+        const articleUrl = buildPublishedArticleUrl(config, postPayload.slug);
+        const shareCaption = socialCaption.trim() || title.trim();
+        const shareResults = await Promise.all(
+          selectedSocialPlatforms.map((pid) =>
+            publishToSocialPlatform(pid, creds, {
+              title: title.trim(),
+              excerpt: excerpt.trim(),
+              caption: shareCaption,
+              url: articleUrl,
+              cover: cover.trim() || undefined,
+            })
+          )
+        );
+        const okNames = shareResults.filter((r) => r.ok).map((r) => r.platformName);
+        const failCount = shareResults.filter((r) => !r.ok).length;
+        if (okNames.length > 0) {
+          socialSummary = `Đã chia sẻ API tới ${okNames.join(', ')}${failCount > 0 ? ` (${failCount} nền tảng cần mở hộp thoại/API)` : ''}.`;
+        } else if (failCount > 0) {
+          socialSummary = `Bài viết đã lên GitHub; ${failCount} nền tảng mạng xã hội chưa có Token hoặc cần mở hộp thoại chia sẻ thủ công.`;
+        }
+      }
+
       setExistingPath(data.post.path);
       setExistingSha(data.post.sha);
+      setIsDirty(false);
+      onDirtyChange?.(false);
       setShowPublishModal(false);
-      onPublishSuccess(data.post, data.commit?.html_url);
+      onPublishSuccess(data.post, data.commit?.html_url, socialSummary);
     } catch {
       setPublishError('Lỗi mạng khi kết nối tới GitHub API.');
     } finally {
@@ -842,23 +982,28 @@ export function MarkdownEditor({
           borderColor: palette.border,
           backgroundColor: palette.surface,
         }}
-        className="border-b px-4 sm:px-6 py-2.5 sm:py-3"
+        className="border-b px-3 sm:px-6 py-2 sm:py-3"
       >
-        <div className="max-w-[1440px] mx-auto flex flex-wrap items-center justify-between gap-2.5 sm:gap-4">
-          {/* View Mode Segmented Control */}
+        <div className="max-w-[1440px] mx-auto flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+          {/* View Mode Segmented Control (Write | Optimize & SEO | Preview | Desktop Split) */}
           <div className="flex items-center gap-2 flex-wrap">
             <div
               style={{
                 backgroundColor: palette.canvas,
                 borderColor: palette.border,
               }}
-              className="inline-flex p-1 rounded-lg border"
+              className="inline-flex p-1 rounded-xl border overflow-x-auto max-w-full"
               role="group"
               aria-label="Chế độ trình biên soạn"
             >
               {(
                 [
-                  { id: 'write', label: 'Soạn thảo', desktopOnly: false },
+                  { id: 'write', label: 'Viết bài', desktopOnly: false },
+                  {
+                    id: 'optimize',
+                    label: `Tối ưu · ${seoAudit.score}đ`,
+                    desktopOnly: false,
+                  },
                   { id: 'split', label: 'Chia đôi', desktopOnly: true },
                   { id: 'preview', label: 'Xem trước', desktopOnly: false },
                 ] as const
@@ -875,7 +1020,7 @@ export function MarkdownEditor({
                     }}
                     className={`${
                       mode.desktopOnly ? 'hidden lg:inline-flex' : 'inline-flex'
-                    } items-center justify-center px-3 min-h-[36px] text-xs font-medium rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0`}
+                    } items-center justify-center px-3 min-h-[38px] sm:min-h-[36px] text-xs font-medium rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 tabular-nums`}
                   >
                     {mode.label}
                   </button>
@@ -994,88 +1139,205 @@ export function MarkdownEditor({
         </div>
       )}
 
-      {/* Main Split Workspace */}
-      <div className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-4 sm:py-6 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
-        {/* Left: Collection + Title + Cover + Frontmatter + Markdown Input */}
-        {paneMode !== 'preview' && (
+      {/* Main Separated Workspace: Write / Optimize & SEO / Split / Preview */}
+      <div className="flex-1 max-w-[1440px] w-full mx-auto px-3 sm:px-6 py-3 sm:py-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* 1. WRITING CANVAS (Distraction-free Title + Toolbar + Full-Height Textarea) */}
+        {(paneMode === 'write' || paneMode === 'split') && (
           <div
             className={`${
               paneMode === 'split'
                 ? 'lg:col-span-6'
                 : 'lg:col-span-12 max-w-[920px] mx-auto w-full'
-            } flex flex-col gap-4`}
+            } flex flex-col gap-3`}
           >
-            {/* Metadata & Cover Card */}
+            {/* Streamlined Title Bar */}
+            <div>
+              <input
+                id="post-title-input"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={`Nhập ${titleLabel.toLowerCase()}...`}
+                aria-label={titleLabel}
+                style={{
+                  backgroundColor: palette.surfaceElevated,
+                  borderColor: palette.border,
+                  color: palette.textPrimary,
+                  fontFamily: fonts.display,
+                }}
+                className="w-full px-4 py-3 min-h-[50px] text-lg sm:text-xl font-bold rounded-2xl border focus:outline-none focus:ring-2"
+              />
+            </div>
+
+            {/* Markdown Toolbar + Spacious Editor Surface */}
+            <div
+              style={{
+                borderColor: palette.border,
+                backgroundColor: palette.surfaceElevated,
+              }}
+              className="flex-1 flex flex-col rounded-2xl border overflow-hidden min-h-[58vh] lg:min-h-[540px]"
+            >
+              {/* Horizontally scrollable single-row toolbar on mobile with 44px touch targets */}
+              <div
+                style={{
+                  borderColor: palette.border,
+                  backgroundColor: palette.surface,
+                }}
+                className="px-2.5 py-1.5 border-b flex items-center gap-1 overflow-x-auto flex-nowrap"
+              >
+                <button
+                  type="button"
+                  onClick={() => bodyImageInputRef.current?.click()}
+                  disabled={isUploadingBodyImage}
+                  style={{
+                    backgroundColor: palette.accent,
+                    color: palette.accentText,
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-xs font-semibold rounded-lg cursor-pointer whitespace-nowrap shrink-0 mr-1 disabled:opacity-50"
+                >
+                  {isUploadingBodyImage ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Đang tải...
+                    </>
+                  ) : (
+                    <>
+                      <ImagePlus className="w-4 h-4" />
+                      Chèn ảnh
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBatchDropFiles([]);
+                    setShowBatchModal(true);
+                  }}
+                  style={{
+                    borderColor: palette.border,
+                    backgroundColor: palette.canvas,
+                    color: palette.textPrimary,
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-xs font-semibold rounded-lg border cursor-pointer whitespace-nowrap shrink-0 mr-1 hover:opacity-85"
+                >
+                  <Images className="w-4 h-4" />
+                  Loạt ảnh
+                </button>
+
+                {[
+                  { icon: Heading2, label: 'Tiêu đề H2', action: () => insertSnippet('## ', '', 'Tiêu đề mục') },
+                  { icon: Bold, label: 'In đậm', action: () => insertSnippet('**', '**', 'chữ đậm') },
+                  { icon: Italic, label: 'In nghiêng', action: () => insertSnippet('*', '*', 'chữ nghiêng') },
+                  { icon: Quote, label: 'Trích dẫn', action: () => insertSnippet('> ', '', 'Nội dung trích dẫn') },
+                  { icon: List, label: 'Danh sách', action: () => insertSnippet('- ', '', 'Mục danh sách') },
+                  { icon: Code, label: 'Khối mã nguồn', action: () => insertSnippet('```typescript\n', '\n```', '// mã nguồn') },
+                  { icon: Link2, label: 'Chèn liên kết', action: () => insertSnippet('[', '](https://trungtin87.github.io)', 'tiêu đề liên kết') },
+                  {
+                    icon: Table,
+                    label: 'Chèn bảng',
+                    action: () =>
+                      insertSnippet(
+                        '\n| Cột 1 | Cột 2 |\n| --- | --- |\n| Giá trị A | Giá trị B |\n',
+                        '',
+                        ''
+                      ),
+                  },
+                ].map((tool) => {
+                  const Icon = tool.icon;
+                  return (
+                    <button
+                      key={tool.label}
+                      type="button"
+                      onClick={tool.action}
+                      title={tool.label}
+                      aria-label={tool.label}
+                      style={{ color: palette.textSecondary }}
+                      className="min-w-[44px] min-h-[44px] sm:min-w-[38px] sm:min-h-[38px] flex items-center justify-center rounded-lg hover:bg-black/5 cursor-pointer transition-colors shrink-0"
+                    >
+                      <Icon className="w-4 h-4" />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <textarea
+                ref={textareaRef}
+                value={markdownBody}
+                onChange={(e) => setMarkdownBody(e.target.value)}
+                onPaste={handleTextareaPaste}
+                onDrop={handleTextareaDrop}
+                placeholder="Viết nội dung bài blog tại đây (hỗ trợ dán hoặc kéo thả ảnh trực tiếp)..."
+                style={{
+                  backgroundColor: palette.surfaceElevated,
+                  color: palette.textPrimary,
+                  fontFamily: fonts.mono,
+                }}
+                className="flex-1 w-full p-4 sm:p-5 text-sm sm:text-[15px] leading-relaxed resize-none focus:outline-none min-h-[48vh] lg:min-h-[450px]"
+              />
+
+              <div
+                style={{
+                  borderColor: palette.border,
+                  backgroundColor: palette.surface,
+                  color: palette.textMuted,
+                  fontFamily: fonts.mono,
+                }}
+                className="px-4 py-2.5 border-t text-xs tabular-nums flex flex-wrap items-center justify-between gap-2"
+              >
+                <span>
+                  {stats.words} từ · {stats.chars} ký tự · ~{stats.minutes} phút đọc
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPaneMode('optimize')}
+                  style={{ color: palette.link }}
+                  className="inline-flex items-center gap-1.5 font-semibold hover:underline underline-offset-4 cursor-pointer"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  Ảnh bìa &amp; Tối ưu SEO ({seoAudit.score}/100) →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. DEDICATED POST OPTIMIZATION & SEO VIEW (Separated for spacious mobile writing) */}
+        {paneMode === 'optimize' && (
+          <div className="lg:col-span-12 max-w-[920px] mx-auto w-full space-y-5">
+            {/* Section A: Cover Image (Upload / YouTube) & Article Metadata */}
             <div
               style={{
                 borderColor: palette.border,
                 backgroundColor: palette.surface,
               }}
-              className="p-4 sm:p-5 rounded-2xl border space-y-4"
+              className="p-4 sm:p-6 rounded-2xl border space-y-5"
             >
-              {/* Collection Selector */}
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <span style={{ color: palette.textMuted }} className="text-xs font-medium">
-                    Trang con (Collection trên Astro)
-                  </span>
-                  <span
-                    style={{ color: palette.textMuted, fontFamily: fonts.mono }}
-                    className="text-[11px]"
-                  >
-                    {COLLECTION_LABELS[collection].route}
-                  </span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 style={{ fontFamily: fonts.display }} className="text-lg font-bold">
+                    Ảnh bìa &amp; Thông tin bài viết
+                  </h2>
+                  <p style={{ color: palette.textMuted }} className="text-xs mt-0.5">
+                    Thiết lập ảnh đại diện (tải từ máy hoặc lấy từ link YouTube), chuyên mục và tóm tắt.
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {COLLECTION_OPTIONS.map((colKey) => {
-                    const active = collection === colKey;
-                    const disabled = Boolean(existingPath) && !active;
-                    return (
-                      <button
-                        key={colKey}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => setCollection(colKey)}
-                        style={{
-                          backgroundColor: active ? palette.accent : palette.canvas,
-                          color: active ? palette.accentText : palette.textSecondary,
-                          borderColor: active ? palette.accent : palette.border,
-                        }}
-                        className="px-3 min-h-[44px] sm:min-h-[38px] text-xs font-semibold rounded-xl border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                      >
-                        {COLLECTION_LABELS[colKey].label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="post-title-input"
-                  style={{ color: palette.textMuted }}
-                  className="block text-xs font-medium mb-1.5"
-                >
-                  {titleLabel}
-                </label>
-                <input
-                  id="post-title-input"
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder={`Nhập ${titleLabel.toLowerCase()}...`}
+                <button
+                  type="button"
+                  onClick={() => setPaneMode('write')}
                   style={{
-                    backgroundColor: palette.canvas,
                     borderColor: palette.border,
+                    backgroundColor: palette.canvas,
                     color: palette.textPrimary,
-                    fontFamily: fonts.display,
                   }}
-                  className="w-full px-3.5 py-2.5 min-h-[46px] text-base sm:text-lg font-semibold rounded-xl border focus:outline-none focus:ring-2"
-                />
+                  className="px-3 min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 whitespace-nowrap"
+                >
+                  ← Quay lại viết bài
+                </button>
               </div>
 
-              {/* Cover Image Upload Row */}
-              <div className="space-y-2">
+              {/* Cover Image Upload & YouTube Extractor */}
+              <div className="space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <label
                     htmlFor="post-cover-input"
@@ -1092,7 +1354,7 @@ export function MarkdownEditor({
                       className="inline-flex items-center gap-1 text-xs hover:text-red-500 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      Xoá ảnh
+                      Xoá ảnh bìa
                     </button>
                   )}
                 </div>
@@ -1154,7 +1416,11 @@ export function MarkdownEditor({
                     onChange={(e) => setCover(e.target.value)}
                     onPaste={(e) => {
                       const pasted = e.clipboardData?.getData('text')?.trim() || '';
-                      if (pasted && !pasted.includes('i.ytimg.com/vi/') && extractYouTubeVideoId(pasted)) {
+                      if (
+                        pasted &&
+                        !pasted.includes('i.ytimg.com/vi/') &&
+                        extractYouTubeVideoId(pasted)
+                      ) {
                         e.preventDefault();
                         handleExtractYoutubeCover(pasted);
                       }
@@ -1245,10 +1511,13 @@ export function MarkdownEditor({
                       alt={title || coverLabel}
                       fallbackTitle={cover}
                       isDark={isDark}
-                      className="w-full h-36 sm:h-44 object-cover rounded-xl"
+                      className="w-full h-44 sm:h-52 object-cover rounded-xl"
                     />
                     {cover.includes('i.ytimg.com/vi/') && (
-                      <div style={{ color: palette.textMuted, fontFamily: fonts.mono }} className="text-[11px] truncate">
+                      <div
+                        style={{ color: palette.textMuted, fontFamily: fonts.mono }}
+                        className="text-[11px] truncate"
+                      >
                         Ảnh bìa trích xuất từ video YouTube: {cover}
                       </div>
                     )}
@@ -1256,787 +1525,522 @@ export function MarkdownEditor({
                 )}
               </div>
 
-              {/* Mobile Accordion Toggle for Secondary Frontmatter Fields */}
-              <button
-                type="button"
-                onClick={() => setShowMetaMobile((v) => !v)}
-                style={{
-                  borderColor: palette.border,
-                  color: palette.textSecondary,
-                }}
-                className="lg:hidden w-full flex items-center justify-between px-3.5 min-h-[44px] text-xs font-medium rounded-xl border cursor-pointer"
-              >
-                <span>Thông tin chi tiết ({COLLECTION_LABELS[collection].label})</span>
-                {showMetaMobile ? (
-                  <ChevronUp className="w-4 h-4" />
-                ) : (
-                  <ChevronDown className="w-4 h-4" />
-                )}
-              </button>
-
-              {/* Secondary Frontmatter Fields (Collection-aware) */}
-              <div className={`${showMetaMobile ? 'block' : 'hidden'} lg:block space-y-3`}>
-                {collection === 'bai_viet' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label
-                        htmlFor="post-slug-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Đường dẫn (Slug)
-                      </label>
-                      <input
-                        id="post-slug-input"
-                        type="text"
-                        value={slug}
-                        onChange={(e) => {
-                          setSlug(e.target.value);
-                          setSlugEdited(true);
-                        }}
-                        placeholder="tu-dong-tao-slug"
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                          fontFamily: fonts.mono,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="post-date-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Ngày đăng
-                      </label>
-                      <input
-                        id="post-date-input"
-                        type="date"
-                        value={date}
-                        onChange={(e) => setDate(e.target.value)}
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                          fontFamily: fonts.mono,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border tabular-nums"
-                      />
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="post-category-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Danh mục
-                      </label>
-                      <input
-                        id="post-category-input"
-                        type="text"
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        placeholder="Kỹ thuật"
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {collection === 'du_an' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label
-                        htmlFor="project-slug-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Đường dẫn (Slug)
-                      </label>
-                      <input
-                        id="project-slug-input"
-                        type="text"
-                        value={slug}
-                        onChange={(e) => {
-                          setSlug(e.target.value);
-                          setSlugEdited(true);
-                        }}
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                          fontFamily: fonts.mono,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="project-demo-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Link Demo
-                      </label>
-                      <input
-                        id="project-demo-input"
-                        type="url"
-                        value={linkDemo}
-                        onChange={(e) => setLinkDemo(e.target.value)}
-                        placeholder="https://..."
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="project-gh-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Link GitHub
-                      </label>
-                      <input
-                        id="project-gh-input"
-                        type="url"
-                        value={linkGithub}
-                        onChange={(e) => setLinkGithub(e.target.value)}
-                        placeholder="https://github.com/..."
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {collection === 'sach' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div>
-                      <label
-                        htmlFor="book-author-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Tác giả
-                      </label>
-                      <input
-                        id="book-author-input"
-                        type="text"
-                        value={authorName}
-                        onChange={(e) => setAuthorName(e.target.value)}
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="book-year-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Năm xuất bản
-                      </label>
-                      <input
-                        id="book-year-input"
-                        type="number"
-                        value={publishYear}
-                        onChange={(e) => setPublishYear(e.target.value)}
-                        placeholder="2025"
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="book-price-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Giá
-                      </label>
-                      <input
-                        id="book-price-input"
-                        type="text"
-                        value={price}
-                        onChange={(e) => setPrice(e.target.value)}
-                        placeholder="Miễn phí"
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="book-formats-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Định dạng
-                      </label>
-                      <input
-                        id="book-formats-input"
-                        type="text"
-                        value={formatsText}
-                        onChange={(e) => setFormatsText(e.target.value)}
-                        placeholder="PDF, EPUB"
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-                    <div className="sm:col-span-2 lg:col-span-4">
-                      <label
-                        htmlFor="book-buy-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Link đọc / tải / mua sách
-                      </label>
-                      <input
-                        id="book-buy-input"
-                        type="text"
-                        value={linkBuy}
-                        onChange={(e) => setLinkBuy(e.target.value)}
-                        placeholder="https://... hoặc #"
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {collection === 'cua_hang' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label
-                        htmlFor="shop-price-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Giá bán
-                      </label>
-                      <input
-                        id="shop-price-input"
-                        type="text"
-                        value={price}
-                        onChange={(e) => setPrice(e.target.value)}
-                        placeholder="199.000₫"
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="shop-orig-price-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Giá gốc (tuỳ chọn)
-                      </label>
-                      <input
-                        id="shop-orig-price-input"
-                        type="text"
-                        value={originalPrice}
-                        onChange={(e) => setOriginalPrice(e.target.value)}
-                        placeholder="299.000₫"
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="shop-buy-input"
-                        style={{ color: palette.textMuted }}
-                        className="block text-xs font-medium mb-1"
-                      >
-                        Link đặt mua
-                      </label>
-                      <input
-                        id="shop-buy-input"
-                        type="text"
-                        value={linkBuy}
-                        onChange={(e) => setLinkBuy(e.target.value)}
-                        placeholder="https://... hoặc #"
-                        style={{
-                          backgroundColor: palette.canvas,
-                          borderColor: palette.border,
-                          color: palette.textPrimary,
-                        }}
-                        className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Shared Tags + Excerpt Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label
-                      htmlFor="post-tags-input"
-                      style={{ color: palette.textMuted }}
-                      className="block text-xs font-medium mb-1"
-                    >
-                      {tagsLabel}
-                    </label>
-                    <input
-                      id="post-tags-input"
-                      type="text"
-                      value={tagsText}
-                      onChange={(e) => setTagsText(e.target.value)}
-                      placeholder="github-pages, markdown"
-                      style={{
-                        backgroundColor: palette.canvas,
-                        borderColor: palette.border,
-                        color: palette.textPrimary,
-                      }}
-                      className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="post-excerpt-input"
-                      style={{ color: palette.textMuted }}
-                      className="block text-xs font-medium mb-1"
-                    >
-                      Mô tả ngắn
-                    </label>
-                    <input
-                      id="post-excerpt-input"
-                      type="text"
-                      value={excerpt}
-                      onChange={(e) => setExcerpt(e.target.value)}
-                      placeholder="Tóm tắt hiển thị trên thẻ ngoài trang web..."
-                      style={{
-                        backgroundColor: palette.canvas,
-                        borderColor: palette.border,
-                        color: palette.textPrimary,
-                      }}
-                      className="w-full px-3 min-h-[44px] sm:min-h-[38px] text-xs rounded-lg border"
-                    />
-                  </div>
-                </div>
-
-                {/* Target File Path + Boolean Flag */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs">
-                  <div
-                    style={{ color: palette.textMuted, fontFamily: fonts.mono }}
-                    className="truncate max-w-full"
+              {/* Blog Post Metadata Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label
+                    htmlFor="post-slug-input"
+                    style={{ color: palette.textMuted }}
+                    className="block text-xs font-medium mb-1"
                   >
-                    Đích: <span style={{ color: palette.textPrimary }}>{computedPath}</span>
-                  </div>
-
-                  {collection === 'bai_viet' && (
-                    <label className="inline-flex items-center gap-2 min-h-[36px] cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={draft}
-                        onChange={(e) => setDraft(e.target.checked)}
-                        className="w-4 h-4 rounded"
-                      />
-                      <span style={{ color: palette.textSecondary }}>Bản nháp (nhap)</span>
-                    </label>
-                  )}
-
-                  {collection === 'sach' && (
-                    <label className="inline-flex items-center gap-2 min-h-[36px] cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={featured}
-                        onChange={(e) => setFeatured(e.target.checked)}
-                        className="w-4 h-4 rounded"
-                      />
-                      <span style={{ color: palette.textSecondary }}>Sách nổi bật (noi_bat)</span>
-                    </label>
-                  )}
-
-                  {collection === 'cua_hang' && (
-                    <label className="inline-flex items-center gap-2 min-h-[36px] cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={inStock}
-                        onChange={(e) => setInStock(e.target.checked)}
-                        className="w-4 h-4 rounded"
-                      />
-                      <span style={{ color: palette.textSecondary }}>Còn hàng (con_hang)</span>
-                    </label>
-                  )}
-
+                    Đường dẫn (Slug)
+                  </label>
+                  <input
+                    id="post-slug-input"
+                    type="text"
+                    value={slug}
+                    onChange={(e) => {
+                      setSlug(e.target.value);
+                      setSlugEdited(true);
+                    }}
+                    placeholder="tu-dong-tao-slug"
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                      fontFamily: fonts.mono,
+                    }}
+                    className="w-full px-3 min-h-[44px] sm:min-h-[40px] text-xs rounded-xl border"
+                  />
                 </div>
 
-                {/* Expandable SEO Studio Drawer */}
-                <div style={{ borderColor: palette.border }} className="pt-2 border-t">
-                  <button
-                    type="button"
-                    onClick={() => setShowSeoPanel((v) => !v)}
+                <div>
+                  <label
+                    htmlFor="post-date-input"
+                    style={{ color: palette.textMuted }}
+                    className="block text-xs font-medium mb-1"
+                  >
+                    Ngày đăng
+                  </label>
+                  <input
+                    id="post-date-input"
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                      fontFamily: fonts.mono,
+                    }}
+                    className="w-full px-3 min-h-[44px] sm:min-h-[40px] text-xs rounded-xl border tabular-nums"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="post-category-input"
+                    style={{ color: palette.textMuted }}
+                    className="block text-xs font-medium mb-1"
+                  >
+                    Danh mục
+                  </label>
+                  <input
+                    id="post-category-input"
+                    type="text"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="Tiểu luận / Kỹ thuật"
                     style={{
                       backgroundColor: palette.canvas,
                       borderColor: palette.border,
                       color: palette.textPrimary,
                     }}
-                    className="w-full px-3.5 min-h-[42px] rounded-xl border flex items-center justify-between gap-2 text-xs font-semibold cursor-pointer hover:opacity-85"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Search className="w-3.5 h-3.5" style={{ color: palette.link }} />
-                      SEO, Google Snippet &amp; Schema JSON-LD
-                    </span>
-                    <span className="inline-flex items-center gap-2 tabular-nums">
-                      <span
-                        className={
-                          seoAudit.score >= 80
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : seoAudit.score >= 50
-                            ? 'text-amber-600 dark:text-amber-400'
-                            : 'text-red-500'
-                        }
-                      >
-                        Điểm SEO: {seoAudit.score}/100
-                      </span>
-                      {showSeoPanel ? (
-                        <ChevronUp className="w-4 h-4" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4" />
-                      )}
-                    </span>
-                  </button>
-
-                  {showSeoPanel && (
-                    <div
-                      style={{
-                        borderColor: palette.border,
-                        backgroundColor: palette.canvas,
-                      }}
-                      className="mt-3 p-4 rounded-xl border space-y-4"
-                    >
-                      {/* Google Search Snippet Preview */}
-                      <div className="space-y-1">
-                        <div style={{ color: palette.textMuted }} className="text-[11px] font-medium">
-                          Xem trước kết quả Google Search
-                        </div>
-                        <div
-                          style={{
-                            borderColor: palette.border,
-                            backgroundColor: palette.surfaceElevated,
-                          }}
-                          className="p-3.5 rounded-lg border space-y-1"
-                        >
-                          <div
-                            style={{ color: palette.textMuted, fontFamily: fonts.mono }}
-                            className="text-[11px] truncate"
-                          >
-                            {seoAudit.previewUrl}
-                          </div>
-                          <div
-                            className="text-sm sm:text-base font-semibold leading-snug truncate"
-                            style={{ color: palette.link }}
-                          >
-                            {seoAudit.effectiveTitle}
-                          </div>
-                          <div
-                            style={{ color: palette.textSecondary }}
-                            className="text-xs leading-relaxed line-clamp-2"
-                          >
-                            {seoAudit.effectiveDescription}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* SEO Checklist */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {seoAudit.checks.map((chk) => (
-                          <div
-                            key={chk.id}
-                            style={{ borderColor: palette.border }}
-                            className="p-2.5 rounded-lg border flex items-start gap-2 text-xs"
-                          >
-                            {chk.passed ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                            ) : (
-                              <CircleAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                            )}
-                            <div className="min-w-0">
-                              <div className="font-medium leading-snug">{chk.label}</div>
-                              <div style={{ color: palette.textMuted }} className="text-[11px] truncate">
-                                {chk.detail}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Optional Custom SEO Overrides */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label style={{ color: palette.textMuted }} className="block text-xs mb-1">
-                            Tiêu đề SEO riêng (seo_title — tuỳ chọn)
-                          </label>
-                          <input
-                            type="text"
-                            value={seoTitle}
-                            onChange={(e) => setSeoTitle(e.target.value)}
-                            placeholder={title || 'Mặc định dùng tiêu đề bài viết'}
-                            style={{
-                              backgroundColor: palette.surfaceElevated,
-                              borderColor: palette.border,
-                              color: palette.textPrimary,
-                            }}
-                            className="w-full px-3 min-h-[38px] text-xs rounded-lg border"
-                          />
-                        </div>
-                        <div>
-                          <label style={{ color: palette.textMuted }} className="block text-xs mb-1">
-                            Canonical URL (tuỳ chọn)
-                          </label>
-                          <input
-                            type="url"
-                            value={canonicalUrl}
-                            onChange={(e) => setCanonicalUrl(e.target.value)}
-                            placeholder={seoAudit.previewUrl}
-                            style={{
-                              backgroundColor: palette.surfaceElevated,
-                              borderColor: palette.border,
-                              color: palette.textPrimary,
-                              fontFamily: fonts.mono,
-                            }}
-                            className="w-full px-3 min-h-[38px] text-xs rounded-lg border"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label style={{ color: palette.textMuted }} className="block text-xs mb-1">
-                          Meta Description riêng (seo_description — tuỳ chọn)
-                        </label>
-                        <input
-                          type="text"
-                          value={seoDescription}
-                          onChange={(e) => setSeoDescription(e.target.value)}
-                          placeholder={excerpt || 'Mặc định dùng mô tả ngắn'}
-                          style={{
-                            backgroundColor: palette.surfaceElevated,
-                            borderColor: palette.border,
-                            color: palette.textPrimary,
-                          }}
-                          className="w-full px-3 min-h-[38px] text-xs rounded-lg border"
-                        />
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <label className="inline-flex items-center gap-2 text-xs cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={noindex}
-                            onChange={(e) => setNoindex(e.target.checked)}
-                            className="w-4 h-4 rounded"
-                          />
-                          <span style={{ color: palette.textSecondary }}>
-                            Ẩn khỏi Google &amp; RSS (noindex)
-                          </span>
-                        </label>
-
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(seoAudit.articleJsonLd);
-                              setCopiedJsonLd(true);
-                              setTimeout(() => setCopiedJsonLd(false), 2000);
-                            } catch {
-                              // ignore
-                            }
-                          }}
-                          style={{
-                            borderColor: palette.border,
-                            backgroundColor: palette.surfaceElevated,
-                            color: palette.textPrimary,
-                          }}
-                          className="inline-flex items-center gap-1.5 px-3 min-h-[34px] text-xs font-medium rounded-lg border cursor-pointer"
-                        >
-                          {copiedJsonLd ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5" />
-                          )}
-                          {copiedJsonLd ? 'Đã chép Schema JSON-LD' : 'Sao chép Schema JSON-LD'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                    className="w-full px-3 min-h-[44px] sm:min-h-[40px] text-xs rounded-xl border"
+                  />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label
+                    htmlFor="post-tags-input"
+                    style={{ color: palette.textMuted }}
+                    className="block text-xs font-medium mb-1"
+                  >
+                    {tagsLabel}
+                  </label>
+                  <input
+                    id="post-tags-input"
+                    type="text"
+                    value={tagsText}
+                    onChange={(e) => setTagsText(e.target.value)}
+                    placeholder="github-pages, markdown"
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                    }}
+                    className="w-full px-3 min-h-[44px] sm:min-h-[40px] text-xs rounded-xl border"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="post-excerpt-input"
+                    style={{ color: palette.textMuted }}
+                    className="block text-xs font-medium mb-1"
+                  >
+                    Mô tả ngắn (Sapo / Tóm tắt)
+                  </label>
+                  <input
+                    id="post-excerpt-input"
+                    type="text"
+                    value={excerpt}
+                    onChange={(e) => setExcerpt(e.target.value)}
+                    placeholder="Tóm tắt ngắn hiển thị ở trang nhất & Google Search..."
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                    }}
+                    className="w-full px-3 min-h-[44px] sm:min-h-[40px] text-xs rounded-xl border"
+                  />
+                </div>
+              </div>
+
+              {/* Optional Legacy Fields ONLY when editing pre-existing non-blog files */}
+              {collection === 'du_an' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label style={{ color: palette.textMuted }} className="block text-xs mb-1">
+                      Link Demo
+                    </label>
+                    <input
+                      type="url"
+                      value={linkDemo}
+                      onChange={(e) => setLinkDemo(e.target.value)}
+                      style={{
+                        backgroundColor: palette.canvas,
+                        borderColor: palette.border,
+                        color: palette.textPrimary,
+                      }}
+                      className="w-full px-3 min-h-[40px] text-xs rounded-xl border"
+                    />
+                  </div>
+                  <div>
+                    <label style={{ color: palette.textMuted }} className="block text-xs mb-1">
+                      Link GitHub
+                    </label>
+                    <input
+                      type="url"
+                      value={linkGithub}
+                      onChange={(e) => setLinkGithub(e.target.value)}
+                      style={{
+                        backgroundColor: palette.canvas,
+                        borderColor: palette.border,
+                        color: palette.textPrimary,
+                      }}
+                      className="w-full px-3 min-h-[40px] text-xs rounded-xl border"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {collection === 'sach' && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <input
+                    type="text"
+                    value={authorName}
+                    onChange={(e) => setAuthorName(e.target.value)}
+                    placeholder="Tác giả"
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                    }}
+                    className="w-full px-3 min-h-[40px] text-xs rounded-xl border"
+                  />
+                  <input
+                    type="number"
+                    value={publishYear}
+                    onChange={(e) => setPublishYear(e.target.value)}
+                    placeholder="Năm xuất bản"
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                    }}
+                    className="w-full px-3 min-h-[40px] text-xs rounded-xl border"
+                  />
+                  <input
+                    type="text"
+                    value={formatsText}
+                    onChange={(e) => setFormatsText(e.target.value)}
+                    placeholder="PDF, EPUB"
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                    }}
+                    className="w-full px-3 min-h-[40px] text-xs rounded-xl border"
+                  />
+                </div>
+              )}
+
+              {collection === 'cua_hang' && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <input
+                    type="text"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="Giá bán"
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                    }}
+                    className="w-full px-3 min-h-[40px] text-xs rounded-xl border"
+                  />
+                  <input
+                    type="text"
+                    value={originalPrice}
+                    onChange={(e) => setOriginalPrice(e.target.value)}
+                    placeholder="Giá gốc"
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                    }}
+                    className="w-full px-3 min-h-[40px] text-xs rounded-xl border"
+                  />
+                  <input
+                    type="text"
+                    value={linkBuy}
+                    onChange={(e) => setLinkBuy(e.target.value)}
+                    placeholder="Link đặt mua"
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                    }}
+                    className="w-full px-3 min-h-[40px] text-xs rounded-xl border"
+                  />
+                </div>
+              )}
+
+              {/* Target Path & Draft Toggle */}
+              <div
+                style={{ borderColor: palette.border }}
+                className="pt-3 border-t flex flex-wrap items-center justify-between gap-3 text-xs"
+              >
+                <div
+                  style={{ color: palette.textMuted, fontFamily: fonts.mono }}
+                  className="truncate max-w-full"
+                >
+                  Đích tệp: <span style={{ color: palette.textPrimary }}>{computedPath}</span>
+                </div>
+
+                {collection === 'bai_viet' && (
+                  <label className="inline-flex items-center gap-2 min-h-[36px] cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={draft}
+                      onChange={(e) => setDraft(e.target.checked)}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span style={{ color: palette.textSecondary }}>Lưu dạng bản nháp (nhap)</span>
+                  </label>
+                )}
+
+                {collection === 'sach' && (
+                  <label className="inline-flex items-center gap-2 min-h-[36px] cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={featured}
+                      onChange={(e) => setFeatured(e.target.checked)}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span style={{ color: palette.textSecondary }}>Nổi bật (noi_bat)</span>
+                  </label>
+                )}
+
+                {collection === 'cua_hang' && (
+                  <label className="inline-flex items-center gap-2 min-h-[36px] cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={inStock}
+                      onChange={(e) => setInStock(e.target.checked)}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span style={{ color: palette.textSecondary }}>Còn hàng (con_hang)</span>
+                  </label>
+                )}
               </div>
             </div>
 
-            {/* Markdown Toolbar + Editor Surface */}
+            {/* Section B: Dedicated SEO Studio (Always open in Optimization tab) */}
             <div
               style={{
                 borderColor: palette.border,
-                backgroundColor: palette.surfaceElevated,
+                backgroundColor: palette.surface,
               }}
-              className="flex-1 flex flex-col rounded-2xl border overflow-hidden min-h-[400px]"
+              className="p-4 sm:p-6 rounded-2xl border space-y-4"
             >
-              {/* Horizontally scrollable single-row toolbar on mobile with 44px touch targets */}
-              <div
-                style={{
-                  borderColor: palette.border,
-                  backgroundColor: palette.surface,
-                }}
-                className="px-2.5 py-1.5 border-b flex items-center gap-1 overflow-x-auto flex-nowrap"
-              >
-                <button
-                  type="button"
-                  onClick={() => bodyImageInputRef.current?.click()}
-                  disabled={isUploadingBodyImage}
-                  style={{
-                    backgroundColor: palette.accent,
-                    color: palette.accentText,
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-xs font-semibold rounded-lg cursor-pointer whitespace-nowrap shrink-0 mr-1 disabled:opacity-50"
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-base font-bold">
+                  <Search className="w-4 h-4" style={{ color: palette.link }} />
+                  <span style={{ fontFamily: fonts.display }}>
+                    Tối ưu SEO, Google Snippet &amp; Schema JSON-LD
+                  </span>
+                </div>
+                <span
+                  className={`text-sm font-bold tabular-nums ${
+                    seoAudit.score >= 80
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : seoAudit.score >= 50
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-red-500'
+                  }`}
                 >
-                  {isUploadingBodyImage ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Đang tải...
-                    </>
-                  ) : (
-                    <>
-                      <ImagePlus className="w-4 h-4" />
-                      Chèn 1 ảnh
-                    </>
-                  )}
-                </button>
+                  Điểm SEO: {seoAudit.score}/100
+                </span>
+              </div>
+
+              {/* Google Search Snippet Preview */}
+              <div className="space-y-1.5">
+                <div style={{ color: palette.textMuted }} className="text-xs font-medium">
+                  Xem trước hiển thị trên Google Search
+                </div>
+                <div
+                  style={{
+                    borderColor: palette.border,
+                    backgroundColor: palette.surfaceElevated,
+                  }}
+                  className="p-4 rounded-xl border space-y-1"
+                >
+                  <div
+                    style={{ color: palette.textMuted, fontFamily: fonts.mono }}
+                    className="text-[11px] truncate"
+                  >
+                    {seoAudit.previewUrl}
+                  </div>
+                  <div
+                    className="text-sm sm:text-base font-semibold leading-snug truncate"
+                    style={{ color: palette.link }}
+                  >
+                    {seoAudit.effectiveTitle}
+                  </div>
+                  <div
+                    style={{ color: palette.textSecondary }}
+                    className="text-xs leading-relaxed line-clamp-2"
+                  >
+                    {seoAudit.effectiveDescription}
+                  </div>
+                </div>
+              </div>
+
+              {/* SEO Checklist */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {seoAudit.checks.map((chk) => (
+                  <div
+                    key={chk.id}
+                    style={{
+                      borderColor: palette.border,
+                      backgroundColor: palette.canvas,
+                    }}
+                    className="p-3 rounded-xl border flex items-start gap-2.5 text-xs"
+                  >
+                    {chk.passed ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <CircleAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-medium leading-snug">{chk.label}</div>
+                      <div style={{ color: palette.textMuted }} className="text-[11px] truncate">
+                        {chk.detail}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Optional Custom SEO Overrides */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label style={{ color: palette.textMuted }} className="block text-xs mb-1">
+                    Tiêu đề SEO riêng (seo_title — tuỳ chọn)
+                  </label>
+                  <input
+                    type="text"
+                    value={seoTitle}
+                    onChange={(e) => setSeoTitle(e.target.value)}
+                    placeholder={title || 'Mặc định dùng tiêu đề bài viết'}
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                    }}
+                    className="w-full px-3 min-h-[40px] text-xs rounded-xl border"
+                  />
+                </div>
+                <div>
+                  <label style={{ color: palette.textMuted }} className="block text-xs mb-1">
+                    Canonical URL (tuỳ chọn)
+                  </label>
+                  <input
+                    type="url"
+                    value={canonicalUrl}
+                    onChange={(e) => setCanonicalUrl(e.target.value)}
+                    placeholder={seoAudit.previewUrl}
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                      fontFamily: fonts.mono,
+                    }}
+                    className="w-full px-3 min-h-[40px] text-xs rounded-xl border"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ color: palette.textMuted }} className="block text-xs mb-1">
+                  Meta Description riêng (seo_description — tuỳ chọn)
+                </label>
+                <input
+                  type="text"
+                  value={seoDescription}
+                  onChange={(e) => setSeoDescription(e.target.value)}
+                  placeholder={excerpt || 'Mặc định dùng mô tả ngắn'}
+                  style={{
+                    backgroundColor: palette.canvas,
+                    borderColor: palette.border,
+                    color: palette.textPrimary,
+                  }}
+                  className="w-full px-3 min-h-[40px] text-xs rounded-xl border"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <label className="inline-flex items-center gap-2 text-xs cursor-pointer select-none min-h-[36px]">
+                  <input
+                    type="checkbox"
+                    checked={noindex}
+                    onChange={(e) => setNoindex(e.target.checked)}
+                    className="w-4 h-4 rounded"
+                  />
+                  <span style={{ color: palette.textSecondary }}>
+                    Ẩn khỏi Google &amp; RSS (noindex)
+                  </span>
+                </label>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setBatchDropFiles([]);
-                    setShowBatchModal(true);
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(seoAudit.articleJsonLd);
+                      setCopiedJsonLd(true);
+                      setTimeout(() => setCopiedJsonLd(false), 2000);
+                    } catch {
+                      // ignore
+                    }
                   }}
                   style={{
                     borderColor: palette.border,
                     backgroundColor: palette.canvas,
                     color: palette.textPrimary,
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-xs font-semibold rounded-lg border cursor-pointer whitespace-nowrap shrink-0 mr-1 hover:opacity-85"
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85"
                 >
-                  <Images className="w-4 h-4" />
-                  Loạt ảnh
+                  {copiedJsonLd ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                  {copiedJsonLd ? 'Đã chép Schema JSON-LD' : 'Sao chép Schema JSON-LD'}
                 </button>
-
-                {[
-                  { icon: Heading2, label: 'Tiêu đề H2', action: () => insertSnippet('## ', '', 'Tiêu đề mục') },
-                  { icon: Bold, label: 'In đậm', action: () => insertSnippet('**', '**', 'chữ đậm') },
-                  { icon: Italic, label: 'In nghiêng', action: () => insertSnippet('*', '*', 'chữ nghiêng') },
-                  { icon: Quote, label: 'Trích dẫn', action: () => insertSnippet('> ', '', 'Nội dung trích dẫn') },
-                  { icon: List, label: 'Danh sách', action: () => insertSnippet('- ', '', 'Mục danh sách') },
-                  { icon: Code, label: 'Khối mã nguồn', action: () => insertSnippet('```typescript\n', '\n```', '// mã nguồn') },
-                  { icon: Link2, label: 'Chèn liên kết', action: () => insertSnippet('[', '](https://trungtin87.github.io)', 'tiêu đề liên kết') },
-                  {
-                    icon: Table,
-                    label: 'Chèn bảng',
-                    action: () =>
-                      insertSnippet(
-                        '\n| Cột 1 | Cột 2 |\n| --- | --- |\n| Giá trị A | Giá trị B |\n',
-                        '',
-                        ''
-                      ),
-                  },
-                ].map((tool) => {
-                  const Icon = tool.icon;
-                  return (
-                    <button
-                      key={tool.label}
-                      type="button"
-                      onClick={tool.action}
-                      title={tool.label}
-                      aria-label={tool.label}
-                      style={{ color: palette.textSecondary }}
-                      className="min-w-[44px] min-h-[44px] sm:min-w-[38px] sm:min-h-[38px] flex items-center justify-center rounded-lg hover:bg-black/5 cursor-pointer transition-colors shrink-0"
-                    >
-                      <Icon className="w-4 h-4" />
-                    </button>
-                  );
-                })}
-              </div>
-
-              <textarea
-                ref={textareaRef}
-                value={markdownBody}
-                onChange={(e) => setMarkdownBody(e.target.value)}
-                onPaste={handleTextareaPaste}
-                onDrop={handleTextareaDrop}
-                placeholder="Viết nội dung Markdown tại đây (hỗ trợ dán hoặc kéo thả ảnh trực tiếp)..."
-                style={{
-                  backgroundColor: palette.surfaceElevated,
-                  color: palette.textPrimary,
-                  fontFamily: fonts.mono,
-                }}
-                className="flex-1 w-full p-4 sm:p-5 text-sm leading-relaxed resize-none focus:outline-none min-h-[340px]"
-              />
-
-              <div
-                style={{
-                  borderColor: palette.border,
-                  backgroundColor: palette.surface,
-                  color: palette.textMuted,
-                  fontFamily: fonts.mono,
-                }}
-                className="px-4 py-2.5 border-t text-xs tabular-nums flex flex-wrap items-center justify-between gap-2"
-              >
-                <span>
-                  {stats.words} từ · {stats.chars} ký tự · ~{stats.minutes} phút đọc
-                </span>
-                <span className="hidden sm:inline">Hỗ trợ dán / tải ảnh trực tiếp</span>
               </div>
             </div>
+
+            {/* Section B2: Validation Notice inside Tối ưu */}
+            {(validationIssues.errors.length > 0 || validationIssues.warnings.length > 0) && (
+              <div className="p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 space-y-1.5 text-xs text-amber-800 dark:text-amber-200">
+                <div className="font-semibold">Kiểm tra trước khi xuất bản:</div>
+                {validationIssues.errors.map((err) => (
+                  <div key={err} className="text-red-600 dark:text-red-400 font-medium">
+                    • {err}
+                  </div>
+                ))}
+                {validationIssues.warnings.map((warn) => (
+                  <div key={warn}>• {warn}</div>
+                ))}
+              </div>
+            )}
+
+            {/* Section C: Official Social Media Sharing Studio */}
+            <SocialSharePanel
+              mode="studio"
+              theme={theme}
+              uid={uid}
+              postTitle={title}
+              postExcerpt={excerpt}
+              postUrl={postPublicUrl}
+              postCover={coverPreviewPrimary || cover}
+              caption={socialCaption}
+              onChangeCaption={(val) => {
+                setSocialCaption(val);
+                setSocialCaptionEdited(true);
+              }}
+              selectedPlatforms={selectedSocialPlatforms}
+              onChangeSelectedPlatforms={setSelectedSocialPlatforms}
+            />
           </div>
         )}
 
-        {/* Right: Live Theme-Matched Preview */}
-        {paneMode !== 'write' && (
+        {/* 3. LIVE THEME-MATCHED ARTICLE PREVIEW */}
+        {(paneMode === 'preview' || paneMode === 'split') && (
           <div
             className={`${
               paneMode === 'split'
@@ -2055,11 +2059,13 @@ export function MarkdownEditor({
                 style={{ color: palette.textMuted, fontFamily: fonts.mono }}
                 className="text-xs tabular-nums mb-3 flex flex-wrap items-center gap-2"
               >
-                <span>{COLLECTION_LABELS[collection].label}</span>
-                <span aria-hidden="true">·</span>
-                <span>{theme.name}</span>
+                <span style={{ color: palette.link }} className="font-semibold uppercase">
+                  {category || COLLECTION_LABELS[collection].label}
+                </span>
                 <span aria-hidden="true">·</span>
                 <span>{formatDisplayDate(date)}</span>
+                <span aria-hidden="true">·</span>
+                <span>~{stats.minutes} phút đọc</span>
               </div>
 
               <h1
@@ -2402,7 +2408,40 @@ export function MarkdownEditor({
                   )}
                 </div>
               </div>
+
+              {/* Publish-Time Social Sharing Checklist */}
+              {publishMode === 'now' && !draft && (
+                <SocialSharePanel
+                  mode="publish-checklist"
+                  theme={theme}
+                  uid={uid}
+                  postTitle={title}
+                  postExcerpt={excerpt}
+                  postUrl={postPublicUrl}
+                  postCover={coverPreviewPrimary || cover}
+                  caption={socialCaption}
+                  onChangeCaption={(val) => {
+                    setSocialCaption(val);
+                    setSocialCaptionEdited(true);
+                  }}
+                  selectedPlatforms={selectedSocialPlatforms}
+                  onChangeSelectedPlatforms={setSelectedSocialPlatforms}
+                />
+              )}
             </div>
+
+            {(validationIssues.errors.length > 0 || validationIssues.warnings.length > 0) && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/35 text-xs space-y-1 text-amber-800 dark:text-amber-200">
+                {validationIssues.errors.map((err) => (
+                  <div key={err} className="text-red-600 dark:text-red-400 font-medium">
+                    • {err}
+                  </div>
+                ))}
+                {validationIssues.warnings.map((warn) => (
+                  <div key={warn}>• {warn}</div>
+                ))}
+              </div>
+            )}
 
             {publishError && (
               <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs">
