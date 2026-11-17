@@ -3333,6 +3333,12 @@ async function startServer() {
       authorName: String(incomingCfg.authorName || '').trim() || undefined,
       authorBio: String(incomingCfg.authorBio || '').trim() || undefined,
       authorAvatar: incomingCfg.authorAvatar ? String(incomingCfg.authorAvatar).trim() : undefined,
+      astroTemplate:
+        incomingCfg.astroTemplate === 'minimal' ||
+        incomingCfg.astroTemplate === 'visual-grid' ||
+        incomingCfg.astroTemplate === 'editorial'
+          ? incomingCfg.astroTemplate
+          : undefined,
     };
 
     const all = loadSiteConfigsFromDisk();
@@ -3436,7 +3442,13 @@ async function startServer() {
       return;
     }
 
-    const { owner = DEFAULT_OWNER, repo = DEFAULT_REPO, branch, config = {} } = req.body || {};
+    const {
+      owner = DEFAULT_OWNER,
+      repo = DEFAULT_REPO,
+      branch,
+      config = {},
+      templateId,
+    } = req.body || {};
 
     try {
       let targetBranch = branch ? String(branch) : '';
@@ -3449,6 +3461,7 @@ async function startServer() {
         owner,
         repo,
         config,
+        templateId: templateId || config?.astroTemplate,
       });
 
       const commitRes = await commitMultipleFilesAtomic({

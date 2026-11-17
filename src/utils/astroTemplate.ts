@@ -1,5 +1,36 @@
 import { dump as dumpYaml } from 'js-yaml';
-import type { BlogConfig } from '../types/blog';
+import type { AstroTemplateId, BlogConfig } from '../types/blog';
+
+export interface AstroTemplatePresetMeta {
+  id: AstroTemplateId;
+  name: string;
+  badge: string;
+  description: string;
+}
+
+export const ASTRO_TEMPLATE_PRESETS: AstroTemplatePresetMeta[] = [
+  {
+    id: 'editorial',
+    name: 'Tạp chí Biên tập',
+    badge: 'Cân bằng',
+    description:
+      'Lưới 2 cột thanh thoát, không hiển thị hộp mục lục tự động, giữ đầy đủ thẻ SEO, RSS và JSON-LD.',
+  },
+  {
+    id: 'minimal',
+    name: 'Tối giản Tập trung',
+    badge: 'Đọc sâu',
+    description:
+      'Luồng bài viết 1 cột thoáng đãng theo phong cách ghi chép cá nhân, tối đa sự tập trung vào nội dung.',
+  },
+  {
+    id: 'visual-grid',
+    name: 'Lưới Hình ảnh & Video',
+    badge: 'Media / YouTube',
+    description:
+      'Lưới 3 cột tôn vinh ảnh bìa khổ rộng (hỗ trợ ảnh đại diện trích từ link YouTube) và tìm kiếm nhanh.',
+  },
+];
 
 function escapeSingleQuote(val: string): string {
   return String(val || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -9,8 +40,11 @@ export function buildAstroSiteConfigModule(params: {
   owner: string;
   repo: string;
   config: Partial<BlogConfig>;
+  templateId?: AstroTemplateId;
 }): string {
   const { owner, repo, config } = params;
+  const templateStyle: AstroTemplateId =
+    params.templateId || config.astroTemplate || 'editorial';
   const isUserSite = repo.toLowerCase() === `${owner.toLowerCase()}.github.io`;
   const defaultPagesUrl = isUserSite ? `https://${repo}` : `https://${owner}.github.io/${repo}`;
 
@@ -45,6 +79,7 @@ export function buildAstroSiteConfigModule(params: {
       'Tác giả blog cá nhân chia sẻ góc nhìn về công nghệ, viết lách và cuộc sống.'
     ).trim(),
     themeMode: config.themeMode === 'dark' ? 'dark' : 'light',
+    templateStyle,
     pagesUrl: (config.pagesUrl || defaultPagesUrl).trim().replace(/\/+$/, ''),
     githubOwner: owner,
     githubRepo: repo,
@@ -54,6 +89,8 @@ export function buildAstroSiteConfigModule(params: {
   label: string;
   url: string;
 }
+
+export type AstroTemplateStyle = 'editorial' | 'minimal' | 'visual-grid';
 
 export interface SiteIdentityConfig {
   siteTitle: string;
@@ -66,6 +103,7 @@ export interface SiteIdentityConfig {
   authorName: string;
   authorBio: string;
   themeMode: 'light' | 'dark';
+  templateStyle: AstroTemplateStyle;
   pagesUrl: string;
   githubOwner: string;
   githubRepo: string;
@@ -79,8 +117,11 @@ export function buildVietnameseAstroTemplateFiles(params: {
   owner: string;
   repo: string;
   config: Partial<BlogConfig>;
+  templateId?: AstroTemplateId;
 }): Array<{ path: string; content: string; isBase64?: boolean }> {
   const { owner, repo, config } = params;
+  const templateStyle: AstroTemplateId =
+    params.templateId || config.astroTemplate || 'editorial';
   const siteTitle = (config.siteTitle || repo || 'Blog Việt').trim();
   const tagline = (
     config.tagline ||
@@ -104,6 +145,7 @@ export function buildVietnameseAstroTemplateFiles(params: {
     githubRepo: repo,
     pagesUrl: (config.pagesUrl || defaultPagesUrl).trim().replace(/\/+$/, ''),
     postsDirectory: 'src/content/bai_viet',
+    astroTemplate: templateStyle,
   };
 
   const gitignore = `node_modules/
@@ -420,6 +462,7 @@ interface Props {
   ogImage?: string;
   noindex?: boolean;
   canonical?: string;
+  jsonLd?: Record<string, any>;
 }
 
 const {
@@ -428,6 +471,7 @@ const {
   ogImage = '/tainguyen/hinhanh/og-default.svg',
   noindex = false,
   canonical,
+  jsonLd,
 } = Astro.props;
 
 const fullTitle =
@@ -467,7 +511,9 @@ const mainNav = [
     <link rel="icon" href={iconHref} />
     <link rel="apple-touch-icon" href={iconHref} />
     <link rel="manifest" href={withBase('/manifest.webmanifest')} />
+    <link rel="sitemap" type="application/xml" title="Sitemap" href={withBase('/sitemap.xml')} />
     <link rel="alternate" type="application/rss+xml" title={\`\${SITE_CONFIG.siteTitle} RSS\`} href={withBase('/rss.xml')} />
+    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -487,7 +533,7 @@ const mainNav = [
       } catch {}
     </script>
   </head>
-  <body>
+  <body data-template={SITE_CONFIG.templateStyle}>
     <header class="site-header">
       <div class="wrap nav-inner">
         <a class="brand" href={withBase('/')}>
@@ -552,7 +598,6 @@ const mainNav = [
         </div>
         <div class="footer-links">
           <a href={withBase('/rss.xml')}>RSS</a>
-          <a href={withBase('/sitemap.xml')}>Sitemap</a>
           {SITE_CONFIG.footerLinks.map((link) => (
             <a
               href={withBase(link.url)}
@@ -645,6 +690,14 @@ const mainNav = [
     max-width: 1040px;
     margin: 0 auto;
     padding: 0 20px;
+  }
+
+  body[data-template='minimal'] .wrap {
+    max-width: 780px;
+  }
+
+  body[data-template='visual-grid'] .wrap {
+    max-width: 1200px;
   }
 
   .site-header {
@@ -997,12 +1050,20 @@ const posts = (await getCollection('bai_viet'))
   .filter((e) => !e.data.nhap && !e.data.draft)
   .sort((a, b) => getPostDate(b).localeCompare(getPostDate(a)));
 
-const projects = await getCollection('du_an');
-const books = await getCollection('sach');
-const shop = await getCollection('cua_hang');
+const homeJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Blog',
+  name: SITE_CONFIG.siteTitle,
+  description: SITE_CONFIG.tagline,
+  url: SITE_CONFIG.pagesUrl,
+  author: {
+    '@type': 'Person',
+    name: SITE_CONFIG.authorName,
+  },
+};
 ---
 
-<BaseLayout>
+<BaseLayout jsonLd={homeJsonLd}>
   <section class="hero">
     <div class="hero-kicker">{SITE_CONFIG.authorName} · Blog cá nhân</div>
     <h1>{SITE_CONFIG.siteTitle}</h1>
@@ -1019,25 +1080,6 @@ const shop = await getCollection('cua_hang');
     </div>
   </section>
 
-  <section class="stats-strip">
-    <a class="strip-card" href={withBase('/bai-viet/')}>
-      <strong>{posts.length}</strong>
-      <span>Bài viết</span>
-    </a>
-    <a class="strip-card" href={withBase('/du-an/')}>
-      <strong>{projects.length}</strong>
-      <span>Dự án</span>
-    </a>
-    <a class="strip-card" href={withBase('/sach/')}>
-      <strong>{books.length}</strong>
-      <span>Sách &amp; Tài liệu</span>
-    </a>
-    <a class="strip-card" href={withBase('/cua-hang/')}>
-      <strong>{shop.length}</strong>
-      <span>Cửa hàng</span>
-    </a>
-  </section>
-
   <section class="posts-section">
     <div class="section-head">
       <h2>Bài viết mới nhất</h2>
@@ -1046,7 +1088,7 @@ const shop = await getCollection('cua_hang');
     {posts.length === 0 ? (
       <p class="empty-note">Chưa có bài viết nào được xuất bản.</p>
     ) : (
-      <div id="postsGrid" class="posts-grid">
+      <div id="postsGrid" class={\`posts-grid template-\${SITE_CONFIG.templateStyle}\`}>
         {posts.map((entry) => (
           <PostCard entry={entry} routePrefix="/bai-viet" />
         ))}
@@ -1141,39 +1183,8 @@ const shop = await getCollection('cua_hang');
     text-decoration: none !important;
   }
 
-  .stats-strip {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    margin: 28px 0;
-  }
-
-  @media (min-width: 640px) {
-    .stats-strip {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-  }
-
-  .strip-card {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 14px 16px;
-    border-radius: 14px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    text-decoration: none !important;
-  }
-
-  .strip-card strong {
-    font-family: var(--font-display);
-    font-size: 1.35rem;
-  }
-
-  .strip-card span {
-    font-size: 0.82rem;
-    color: var(--muted);
+  .posts-section {
+    padding-top: 28px;
   }
 
   .section-head h2 {
@@ -1189,8 +1200,23 @@ const shop = await getCollection('cua_hang');
   }
 
   @media (min-width: 720px) {
-    .posts-grid {
+    .posts-grid.template-editorial {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .posts-grid.template-minimal {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    .posts-grid.template-visual-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .posts-grid.template-visual-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 
@@ -1215,6 +1241,7 @@ const shop = await getCollection('cua_hang');
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostCard from '../../components/PostCard.astro';
+import { SITE_CONFIG } from '../../cau_hinh/trang_web';
 import { getPostDate } from '../../utils/url';
 
 const entries = (await getCollection('${opts.collection}'))
@@ -1231,7 +1258,7 @@ const entries = (await getCollection('${opts.collection}'))
   {entries.length === 0 ? (
     <p style="color: var(--muted);">Chưa có mục nào trong danh mục này.</p>
   ) : (
-    <div class="col-grid">
+    <div class={\`col-grid template-\${SITE_CONFIG.templateStyle}\`}>
       {entries.map((entry) => (
         <PostCard entry={entry} routePrefix="${opts.routePrefix}" />
       ))}
@@ -1260,8 +1287,18 @@ const entries = (await getCollection('${opts.collection}'))
     gap: 20px;
   }
   @media (min-width: 720px) {
-    .col-grid {
+    .col-grid.template-editorial,
+    .col-grid.template-visual-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .col-grid.template-minimal {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .col-grid.template-visual-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 </style>
@@ -1313,6 +1350,28 @@ const tags: string[] = Array.isArray(entry.data?.tags)
   ? entry.data.the_loai
   : [];
 const minutes = estimateReadingTime(entry.body || '');
+const resolvedAuthor = String(entry.data?.tac_gia || entry.data?.author || SITE_CONFIG.authorName);
+const pageSlug = getPostSlug(entry);
+const canonicalTarget =
+  entry.data?.canonical_url ||
+  \`\${SITE_CONFIG.pagesUrl.replace(/\\/+$/, '')}\${withBase(\`${opts.routePrefix}/\${pageSlug}/\`)}\`;
+const blogPostingJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BlogPosting',
+  headline: entry.data?.seo_title || title,
+  description: entry.data?.seo_description || excerpt,
+  datePublished: date,
+  mainEntityOfPage: canonicalTarget,
+  ...(cover ? { image: cover } : {}),
+  author: {
+    '@type': 'Person',
+    name: resolvedAuthor,
+  },
+  publisher: {
+    '@type': 'Person',
+    name: SITE_CONFIG.authorName,
+  },
+};
 ---
 
 <BaseLayout
@@ -1321,6 +1380,7 @@ const minutes = estimateReadingTime(entry.body || '');
   ogImage={cover}
   noindex={Boolean(entry.data?.noindex)}
   canonical={entry.data?.canonical_url}
+  jsonLd={blogPostingJsonLd}
 >
   <article class="article-wrap">
     <a class="back-link" href={withBase('${opts.routePrefix}/')}>← Quay lại ${opts.backLabel}</a>
@@ -1724,7 +1784,7 @@ Ghi chép những nguyên tắc đơn giản nhưng hiệu quả giúp truyền 
     { path: 'public/manifest.webmanifest', content: manifestJson },
     { path: 'public/tainguyen/hinhanh/og-default.svg', content: ogDefaultSvg },
     { path: 'public/tainguyen/hinhanh/uploads/.gitkeep', content: '' },
-    { path: 'src/cau_hinh/trang_web.ts', content: buildAstroSiteConfigModule({ owner, repo, config }) },
+    { path: 'src/cau_hinh/trang_web.ts', content: buildAstroSiteConfigModule({ owner, repo, config, templateId: templateStyle }) },
     { path: 'src/utils/url.ts', content: urlUtilsTs },
     { path: 'src/content.config.ts', content: contentConfigTs },
     { path: 'src/layouts/BaseLayout.astro', content: baseLayoutAstro },

@@ -28,6 +28,7 @@ import {
   Trash2,
   Upload,
   X,
+  Youtube,
 } from 'lucide-react';
 import type {
   AuthStatus,
@@ -42,8 +43,10 @@ import { COLLECTION_LABELS, STARTER_TEMPLATES } from '../data/themes';
 import {
   composeMarkdownWithFrontmatter,
   estimateReadingStats,
+  extractYouTubeVideoId,
   formatDisplayDate,
   renderMarkdownToSafeHtml,
+  resolveYouTubeCoverUrl,
   slugifyVietnamese,
 } from '../utils/markdown';
 import {
@@ -149,6 +152,9 @@ export function MarkdownEditor({
   const [sessionImagePreviews, setSessionImagePreviews] = useState<Record<string, string>>({});
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isUploadingBodyImage, setIsUploadingBodyImage] = useState(false);
+  const [showYoutubeCoverBox, setShowYoutubeCoverBox] = useState(false);
+  const [youtubeCoverInput, setYoutubeCoverInput] = useState('');
+  const [isExtractingYoutubeCover, setIsExtractingYoutubeCover] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchDropFiles, setBatchDropFiles] = useState<File[]>([]);
@@ -421,6 +427,33 @@ export function MarkdownEditor({
     } finally {
       setIsUploadingCover(false);
       if (coverFileInputRef.current) coverFileInputRef.current.value = '';
+    }
+  };
+
+  const detectedYoutubeVideoId = useMemo(() => {
+    if (!cover || cover.includes('i.ytimg.com/vi/')) return null;
+    return extractYouTubeVideoId(cover);
+  }, [cover]);
+
+  const handleExtractYoutubeCover = async (rawInput: string) => {
+    const videoId = extractYouTubeVideoId(rawInput);
+    if (!videoId) {
+      setUploadError(
+        'Link YouTube không hợp lệ. Hỗ trợ dạng youtube.com/watch?v=..., youtu.be/..., youtube.com/shorts/...'
+      );
+      return;
+    }
+    setUploadError(null);
+    setIsExtractingYoutubeCover(true);
+    try {
+      const resolved = await resolveYouTubeCoverUrl(rawInput);
+      if (resolved?.thumbnailUrl) {
+        setCover(resolved.thumbnailUrl);
+        setYoutubeCoverInput('');
+        setShowYoutubeCoverBox(false);
+      }
+    } finally {
+      setIsExtractingYoutubeCover(false);
     }
   };
 
@@ -1068,13 +1101,13 @@ export function MarkdownEditor({
                   <button
                     type="button"
                     onClick={() => coverFileInputRef.current?.click()}
-                    disabled={isUploadingCover}
+                    disabled={isUploadingCover || isExtractingYoutubeCover}
                     style={{
                       backgroundColor: palette.canvas,
                       borderColor: palette.border,
                       color: palette.textPrimary,
                     }}
-                    className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0 disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 px-3.5 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0 disabled:opacity-50"
                   >
                     {isUploadingCover ? (
                       <>
@@ -1089,12 +1122,44 @@ export function MarkdownEditor({
                     )}
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (detectedYoutubeVideoId) {
+                        handleExtractYoutubeCover(cover);
+                      } else {
+                        setShowYoutubeCoverBox((v) => !v);
+                      }
+                    }}
+                    disabled={isExtractingYoutubeCover}
+                    style={{
+                      backgroundColor: showYoutubeCoverBox ? palette.accent : palette.canvas,
+                      borderColor: showYoutubeCoverBox ? palette.accent : palette.border,
+                      color: showYoutubeCoverBox ? palette.accentText : palette.textPrimary,
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0 disabled:opacity-50"
+                  >
+                    {isExtractingYoutubeCover ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Youtube className="w-4 h-4 text-red-500" />
+                    )}
+                    Lấy từ YouTube
+                  </button>
+
                   <input
                     id="post-cover-input"
                     type="text"
                     value={cover}
                     onChange={(e) => setCover(e.target.value)}
-                    placeholder="/tainguyen/hinhanh/... hoặc dán URL ảnh"
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData?.getData('text')?.trim() || '';
+                      if (pasted && !pasted.includes('i.ytimg.com/vi/') && extractYouTubeVideoId(pasted)) {
+                        e.preventDefault();
+                        handleExtractYoutubeCover(pasted);
+                      }
+                    }}
+                    placeholder="/tainguyen/hinhanh/... hoặc dán URL ảnh / link video YouTube"
                     style={{
                       backgroundColor: palette.canvas,
                       borderColor: palette.border,
@@ -1104,8 +1169,76 @@ export function MarkdownEditor({
                   />
                 </div>
 
+                {showYoutubeCoverBox && (
+                  <div
+                    style={{
+                      borderColor: palette.border,
+                      backgroundColor: palette.canvas,
+                    }}
+                    className="p-3 rounded-xl border flex flex-col sm:flex-row gap-2"
+                  >
+                    <input
+                      type="url"
+                      value={youtubeCoverInput}
+                      onChange={(e) => setYoutubeCoverInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleExtractYoutubeCover(youtubeCoverInput);
+                        }
+                      }}
+                      placeholder="Dán link video YouTube (https://youtube.com/watch?v=... hoặc https://youtu.be/...)"
+                      style={{
+                        backgroundColor: palette.surface,
+                        borderColor: palette.border,
+                        color: palette.textPrimary,
+                      }}
+                      className="flex-1 min-w-0 px-3 min-h-[40px] text-xs rounded-lg border"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleExtractYoutubeCover(youtubeCoverInput)}
+                      disabled={isExtractingYoutubeCover || !youtubeCoverInput.trim()}
+                      style={{
+                        backgroundColor: palette.accent,
+                        color: palette.accentText,
+                      }}
+                      className="px-4 min-h-[40px] text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-45 whitespace-nowrap shrink-0"
+                    >
+                      {isExtractingYoutubeCover ? 'Đang lấy ảnh...' : 'Lấy ảnh bìa'}
+                    </button>
+                  </div>
+                )}
+
+                {detectedYoutubeVideoId && (
+                  <div
+                    style={{
+                      borderColor: palette.border,
+                      backgroundColor: palette.canvas,
+                    }}
+                    className="px-3 py-2 rounded-xl border flex flex-wrap items-center justify-between gap-2 text-xs"
+                  >
+                    <span style={{ color: palette.textSecondary }} className="flex items-center gap-1.5">
+                      <Youtube className="w-4 h-4 text-red-500 shrink-0" />
+                      Đã nhận diện link YouTube (<code>{detectedYoutubeVideoId}</code>)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleExtractYoutubeCover(cover)}
+                      disabled={isExtractingYoutubeCover}
+                      style={{
+                        backgroundColor: palette.accent,
+                        color: palette.accentText,
+                      }}
+                      className="px-3 min-h-[32px] text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-50"
+                    >
+                      {isExtractingYoutubeCover ? 'Đang lấy ảnh...' : 'Lấy ảnh bìa video này'}
+                    </button>
+                  </div>
+                )}
+
                 {cover && (
-                  <div className="pt-1">
+                  <div className="pt-1 space-y-1.5">
                     <ResilientImage
                       src={coverPreviewPrimary}
                       fallbackSrc={coverPreviewFallback}
@@ -1114,6 +1247,11 @@ export function MarkdownEditor({
                       isDark={isDark}
                       className="w-full h-36 sm:h-44 object-cover rounded-xl"
                     />
+                    {cover.includes('i.ytimg.com/vi/') && (
+                      <div style={{ color: palette.textMuted, fontFamily: fonts.mono }} className="text-[11px] truncate">
+                        Ảnh bìa trích xuất từ video YouTube: {cover}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

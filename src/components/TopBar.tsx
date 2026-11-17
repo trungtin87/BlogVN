@@ -1,4 +1,4 @@
-import { Moon, Sun } from 'lucide-react';
+import { HelpCircle, Moon, Sun } from 'lucide-react';
 import type { BlogTheme, ThemeMode, WorkspaceTab } from '../types/blog';
 
 interface TopBarProps {
@@ -6,6 +6,7 @@ interface TopBarProps {
   onSelectTab: (tab: WorkspaceTab) => void;
   onCreateNewPost: () => void;
   onToggleThemeMode: (mode: ThemeMode) => void;
+  onOpenGuide: () => void;
   theme: BlogTheme;
   siteTitle: string;
   headerTitle?: string;
@@ -23,6 +24,7 @@ export function TopBar({
   onSelectTab,
   onCreateNewPost,
   onToggleThemeMode,
+  onOpenGuide,
   theme,
   siteTitle,
   headerTitle,
@@ -85,8 +87,24 @@ export function TopBar({
           })}
         </nav>
 
-        {/* Zone 3: Global Dark Mode Toggle + Primary CTA */}
+        {/* Zone 3: Guide + Global Dark Mode Toggle + Primary CTA */}
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={onOpenGuide}
+            aria-label="Mở hướng dẫn sử dụng BlogVN"
+            title="Hướng dẫn sử dụng BlogVN"
+            style={{
+              borderColor: palette.border,
+              backgroundColor: palette.surface,
+              color: palette.textPrimary,
+            }}
+            className="inline-flex items-center justify-center gap-1.5 min-w-[40px] sm:px-3 min-h-[40px] md:min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0 transition-colors"
+          >
+            <HelpCircle className="w-4 h-4" style={{ color: palette.link }} />
+            <span className="hidden sm:inline">Hướng dẫn</span>
+          </button>
+
           <button
             type="button"
             onClick={() => onToggleThemeMode(isDark ? 'light' : 'dark')}

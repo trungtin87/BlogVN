@@ -14,6 +14,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import type {
+  AstroTemplateId,
   AuthStatus,
   BlogConfig,
   BlogPost,
@@ -21,6 +22,7 @@ import type {
   GitHubRepoInfo,
   SiteNavLink,
 } from '../types/blog';
+import { ASTRO_TEMPLATE_PRESETS } from '../utils/astroTemplate';
 import { ghDeployAstroTemplate, ghSaveSiteConfig } from '../utils/githubClient';
 
 interface SiteIdentityCardProps {
@@ -88,6 +90,9 @@ export function SiteIdentityCard({
   const [footerLinks, setFooterLinks] = useState<SiteNavLink[]>(config.footerLinks || []);
   const [authorName, setAuthorName] = useState(config.authorName || '');
   const [authorBio, setAuthorBio] = useState(config.authorBio || '');
+  const [astroTemplate, setAstroTemplate] = useState<AstroTemplateId>(
+    config.astroTemplate || 'editorial'
+  );
 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeployingApp, setIsDeployingApp] = useState(false);
@@ -106,6 +111,7 @@ export function SiteIdentityCard({
     setFooterLinks(config.footerLinks || []);
     setAuthorName(config.authorName || '');
     setAuthorBio(config.authorBio || '');
+    setAstroTemplate(config.astroTemplate || 'editorial');
   }, [config]);
 
   const buildDraftConfig = (): BlogConfig => ({
@@ -119,6 +125,7 @@ export function SiteIdentityCard({
     footerLinks: footerLinks.filter((l) => l.label.trim() && l.url.trim()),
     authorName: authorName.trim() || config.authorName,
     authorBio: authorBio.trim(),
+    astroTemplate,
   });
 
   const handleIconFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -198,6 +205,7 @@ export function SiteIdentityCard({
         repo: config.githubRepo,
         branch: repoInfo?.defaultBranch || 'main',
         config: nextCfg,
+        templateId: astroTemplate,
       });
 
       if (!result.ok) {
@@ -680,33 +688,74 @@ export function SiteIdentityCard({
           }}
           className="p-4 rounded-xl border space-y-3"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-1">
-              <div className="text-sm font-semibold flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4" style={{ color: palette.link }} />
-                Template Web Blog Astro 5 chuẩn tiếng Việt (Xoá sạch dữ liệu cũ)
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="text-sm font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4" style={{ color: palette.link }} />
+                  Template Web Blog Astro 5 chuẩn tiếng Việt (Xoá sạch dữ liệu cũ)
+                </div>
+                <p style={{ color: palette.textSecondary }} className="text-xs leading-relaxed">
+                  Thay thế toàn bộ tệp cũ xung đột trên{' '}
+                  <code>{config.githubOwner}/{config.githubRepo}</code> bằng mẫu Blog Astro 5 tiếng Việt sạch sẽ: ẩn hoàn toàn khung mục lục tự động &amp; chỉ mục rườm rà trên giao diện, nhưng vẫn giữ nguyên hạ tầng SEO ngầm (<code>sitemap.xml</code>, <code>robots.txt</code>, Schema JSON-LD <code>BlogPosting</code>, OpenGraph, RSS) kèm nhận dạng web cá nhân của bạn.
+                </p>
               </div>
-              <p style={{ color: palette.textSecondary }} className="text-xs leading-relaxed">
-                Khắc phục lỗi build do repo đã có dữ liệu cũ xung đột: thay thế toàn bộ cây tệp trên{' '}
-                <code>{config.githubOwner}/{config.githubRepo}</code> bằng mẫu Blog Astro 5 hoàn chỉnh cho người Việt (Bài viết, Dự án, Sách, Cửa hàng, RSS, Sitemap, tìm kiếm, Âm/Dương) kết hợp trực tiếp với <strong>nhận dạng web cá nhân</strong> ở trên và tự động bật GitHub Actions Pages.
-              </p>
+
+              {!confirmWipeAstro && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmWipeAstro(true)}
+                  disabled={isSaving || isDeployingApp || isDeployingAstro || !authStatus?.authenticated}
+                  style={{
+                    backgroundColor: palette.accent,
+                    color: palette.accentText,
+                  }}
+                  className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-45 whitespace-nowrap shrink-0"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Triển khai Template Astro Việt
+                </button>
+              )}
             </div>
 
-            {!confirmWipeAstro && (
-              <button
-                type="button"
-                onClick={() => setConfirmWipeAstro(true)}
-                disabled={isSaving || isDeployingApp || isDeployingAstro || !authStatus?.authenticated}
-                style={{
-                  backgroundColor: palette.accent,
-                  color: palette.accentText,
-                }}
-                className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-45 whitespace-nowrap shrink-0"
-              >
-                <Sparkles className="w-4 h-4" />
-                Triển khai Template Astro Việt
-              </button>
-            )}
+            <div className="space-y-2">
+              <div style={{ color: palette.textMuted }} className="text-xs font-medium">
+                Chọn mẫu bố cục Astro Template
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {ASTRO_TEMPLATE_PRESETS.map((preset) => {
+                  const selected = astroTemplate === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => setAstroTemplate(preset.id)}
+                      style={{
+                        backgroundColor: selected ? palette.surface : palette.canvas,
+                        borderColor: selected ? palette.link : palette.border,
+                      }}
+                      className="text-left p-3.5 rounded-xl border transition-colors cursor-pointer space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold">{preset.name}</span>
+                        <span
+                          style={{
+                            color: selected ? palette.link : palette.textMuted,
+                            fontFamily: fonts.mono,
+                          }}
+                          className="text-[11px] font-medium"
+                        >
+                          {preset.badge}
+                        </span>
+                      </div>
+                      <p style={{ color: palette.textSecondary }} className="text-[11px] leading-relaxed">
+                        {preset.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {confirmWipeAstro && (

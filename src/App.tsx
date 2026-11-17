@@ -39,6 +39,7 @@ import { MarkdownEditor } from './components/MarkdownEditor';
 import { GitHubSyncPanel } from './components/GitHubSyncPanel';
 import { GoogleAuthGate } from './components/GoogleAuthGate';
 import { OfflineIndicator } from './components/PWAInstallButton';
+import { UserGuideModal } from './components/UserGuideModal';
 
 const GATE_THEME_KEY = 'blogvn_gate_theme_mode';
 
@@ -120,6 +121,7 @@ export default function App() {
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
   const [editorDefaultCollection, setEditorDefaultCollection] =
     useState<BlogCollection>('bai_viet');
+  const [showGuideModal, setShowGuideModal] = useState(false);
   const [toast, setToast] = useState<ToastBanner | null>(null);
   const isRunningDueRef = useRef(false);
 
@@ -717,10 +719,18 @@ export default function App() {
         onSelectTab={setActiveTab}
         onCreateNewPost={() => handleCreateNewPost('bai_viet')}
         onToggleThemeMode={handleToggleThemeMode}
+        onOpenGuide={() => setShowGuideModal(true)}
         theme={activeTheme}
         siteTitle={config.siteTitle}
         headerTitle={config.headerTitle}
         siteIcon={config.siteIcon}
+      />
+
+      <UserGuideModal
+        open={showGuideModal}
+        theme={activeTheme}
+        onClose={() => setShowGuideModal(false)}
+        onNavigateTab={(tab) => setActiveTab(tab)}
       />
 
       <OfflineIndicator theme={activeTheme} />

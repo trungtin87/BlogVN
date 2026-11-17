@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
 import {
-  Check,
   CheckCircle2,
   Clock,
-  Copy,
   Edit3,
   ExternalLink,
   FolderGit2,
@@ -23,6 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import type {
+  AstroTemplateId,
   AuthStatus,
   BlogCollection,
   BlogConfig,
@@ -35,6 +34,7 @@ import type {
   ScheduledTask,
 } from '../types/blog';
 import { COLLECTION_LABELS } from '../data/themes';
+import { ASTRO_TEMPLATE_PRESETS } from '../utils/astroTemplate';
 import { formatDisplayDate } from '../utils/markdown';
 import { ghCreateStarterPagesSite, ghDeployAstroTemplate } from '../utils/githubClient';
 import { ResilientImage } from './ResilientImage';
@@ -118,7 +118,6 @@ export function GitHubSyncPanel({
   const [deletingPath, setDeletingPath] = useState<string | null>(null);
   const [confirmDeletePath, setConfirmDeletePath] = useState<string | null>(null);
   const [collectionFilter, setCollectionFilter] = useState<'all' | BlogCollection>('all');
-  const [copiedCmd, setCopiedCmd] = useState(false);
 
   // Auto-delete scheduling modal state for an existing post
   const [scheduleDeleteTarget, setScheduleDeleteTarget] = useState<BlogPost | null>(null);
@@ -130,13 +129,19 @@ export function GitHubSyncPanel({
   const [newRepoName, setNewRepoName] = useState('');
   const [newTagline, setNewTagline] = useState('');
   const [useAstroVnTemplate, setUseAstroVnTemplate] = useState(true);
+  const [selectedAstroPreset, setSelectedAstroPreset] = useState<AstroTemplateId>(
+    config.astroTemplate || 'editorial'
+  );
   const [isCreatingSite, setIsCreatingSite] = useState(false);
   const [createSiteError, setCreateSiteError] = useState<string | null>(null);
 
   useEffect(() => {
     setOwnerInput(config.githubOwner);
     setRepoInput(config.githubRepo);
-  }, [config.githubOwner, config.githubRepo]);
+    if (config.astroTemplate) {
+      setSelectedAstroPreset(config.astroTemplate);
+    }
+  }, [config.githubOwner, config.githubRepo, config.astroTemplate]);
 
   useEffect(() => {
     if (authStatus?.user?.login && !newRepoName) {
@@ -158,17 +163,6 @@ export function GitHubSyncPanel({
   const appOrigin =
     typeof window !== 'undefined' ? window.location.origin : 'https://trungtin87.github.io';
   const callbackUrl = `${appOrigin}/auth/callback`;
-  const bubblewrapCommand = `npm i -g @bubblewrap/cli && bubblewrap init --manifest=${appOrigin}/manifest.webmanifest && bubblewrap build`;
-
-  const handleCopyBubblewrap = async () => {
-    try {
-      await navigator.clipboard.writeText(bubblewrapCommand);
-      setCopiedCmd(true);
-      setTimeout(() => setCopiedCmd(false), 2500);
-    } catch {
-      // ignore clipboard error
-    }
-  };
 
   const handleApplyRepo = (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,11 +195,13 @@ export function GitHubSyncPanel({
           githubRepo: data.repo,
           pagesUrl: data.pagesUrl,
           postsDirectory: 'src/content/bai_viet',
+          astroTemplate: selectedAstroPreset,
         };
         const astroRes = await ghDeployAstroTemplate({
           owner: data.owner,
           repo: data.repo,
           config: nextCfg,
+          templateId: selectedAstroPreset,
         });
         if (!astroRes.ok) {
           setCreateSiteError(
@@ -850,17 +846,52 @@ export function GitHubSyncPanel({
             </div>
           </form>
 
-          <label className="inline-flex items-center gap-2 text-xs cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={useAstroVnTemplate}
-              onChange={(e) => setUseAstroVnTemplate(e.target.checked)}
-              className="rounded"
-            />
-            <span style={{ color: palette.textSecondary }}>
-              Dùng <strong>Template Web Blog Astro 5 tiếng Việt</strong> (xoá dữ liệu cũ nếu repo đã tồn tại &amp; nhúng nhận dạng web cá nhân)
-            </span>
-          </label>
+          <div className="space-y-3">
+            <label className="inline-flex items-center gap-2 text-xs cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={useAstroVnTemplate}
+                onChange={(e) => setUseAstroVnTemplate(e.target.checked)}
+                className="rounded"
+              />
+              <span style={{ color: palette.textSecondary }}>
+                Dùng <strong>Template Web Blog Astro 5 tiếng Việt</strong> (xoá dữ liệu cũ nếu repo đã tồn tại &amp; nhúng nhận dạng web cá nhân)
+              </span>
+            </label>
+
+            {useAstroVnTemplate && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {ASTRO_TEMPLATE_PRESETS.map((preset) => {
+                  const active = selectedAstroPreset === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => setSelectedAstroPreset(preset.id)}
+                      style={{
+                        backgroundColor: active ? palette.surface : palette.canvas,
+                        borderColor: active ? palette.link : palette.border,
+                      }}
+                      className="text-left p-3 rounded-xl border cursor-pointer transition-colors space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold">{preset.name}</span>
+                        <span
+                          style={{ color: active ? palette.link : palette.textMuted, fontFamily: fonts.mono }}
+                          className="text-[10px]"
+                        >
+                          {preset.badge}
+                        </span>
+                      </div>
+                      <p style={{ color: palette.textMuted }} className="text-[11px] leading-snug">
+                        {preset.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {createSiteError && (
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs">
@@ -903,7 +934,7 @@ export function GitHubSyncPanel({
           onTasksExecuted={onRefresh}
         />
 
-        {/* Mobile App Install & App Store / APK Publishing Card */}
+        {/* Web App Install (PWA) & Local Privacy Control Card */}
         <div
           style={{
             borderColor: palette.border,
@@ -924,91 +955,43 @@ export function GitHubSyncPanel({
               </div>
               <div>
                 <h2 style={{ fontFamily: fonts.display }} className="text-lg font-bold">
-                  Cài đặt BlogVN lên điện thoại &amp; Đóng gói App Store / Play Store
+                  Cài đặt BlogVN như Web App (PWA) &amp; Quyền riêng tư
                 </h2>
                 <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
-                  Hỗ trợ cài trực tiếp qua PWA trên iOS/Android hoặc đóng gói thành `.apk` / `.aab` / `.ipa`.
+                  Chạy trực tiếp trên trình duyệt hoặc ghim thành ứng dụng web (PWA) trên điện thoại và máy tính mà không cần cài gói ứng dụng.
                 </p>
               </div>
             </div>
             <PWAInstallButton theme={theme} />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div
-              style={{
-                borderColor: palette.border,
-                backgroundColor: palette.canvas,
-              }}
-              className="p-4 rounded-xl border space-y-2"
-            >
-              <div className="text-sm font-semibold">Đóng gói Android (.apk / .aab) nhanh với Bubblewrap</div>
-              <div className="flex items-center gap-2">
-                <code
-                  style={{
-                    borderColor: palette.border,
-                    backgroundColor: palette.surface,
-                    fontFamily: fonts.mono,
-                  }}
-                  className="flex-1 px-2.5 py-2 rounded-lg border text-[11px] overflow-x-auto whitespace-nowrap"
-                >
-                  {bubblewrapCommand}
-                </code>
-                <button
-                  type="button"
-                  onClick={handleCopyBubblewrap}
-                  aria-label="Sao chép lệnh Bubblewrap"
-                  style={{
-                    borderColor: palette.border,
-                    backgroundColor: palette.surface,
-                  }}
-                  className="min-w-[40px] min-h-[40px] rounded-lg border flex items-center justify-center cursor-pointer shrink-0"
-                >
-                  {copiedCmd ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                </button>
-              </div>
-              <div className="text-[11px]" style={{ color: palette.textMuted }}>
-                Hoặc dán URL vào{' '}
-                <a
-                  href="https://www.pwabuilder.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: palette.link }}
-                  className="underline underline-offset-4"
-                >
-                  pwabuilder.com
-                </a>{' '}
-                để tạo gói cài đặt ngay.
-              </div>
-            </div>
-
-            {/* Privacy & Account Control for App Store Compliance */}
-            <div
-              style={{
-                borderColor: palette.border,
-                backgroundColor: palette.canvas,
-              }}
-              className="p-4 rounded-xl border space-y-2.5"
-            >
+          <div
+            style={{
+              borderColor: palette.border,
+              backgroundColor: palette.canvas,
+            }}
+            className="p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          >
+            <div className="space-y-1">
               <div className="flex items-center gap-2 text-sm font-semibold">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                Quyền riêng tư &amp; Dữ liệu (App Store)
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                Quyền riêng tư &amp; Dữ liệu tách biệt trên máy
               </div>
               <p style={{ color: palette.textSecondary }} className="text-xs leading-relaxed">
-                BlogVN chỉ lưu phiên đăng nhập OAuth trong cookie mã hoá và bản nháp cục bộ trên thiết bị. Ứng dụng chỉ thao tác trên repository bạn trực tiếp chọn.
+                Mọi bản nháp, cấu hình nhận dạng web và GitHub Token được lưu riêng theo tài khoản Google trên trình duyệt của bạn. BlogVN chỉ thao tác trên repository bạn trực tiếp chọn.
               </p>
-              <button
-                type="button"
-                onClick={onClearLocalData}
-                style={{
-                  borderColor: palette.border,
-                  color: palette.textSecondary,
-                }}
-                className="px-3 min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer hover:text-red-500"
-              >
-                Đăng xuất &amp; Xoá toàn bộ dữ liệu cục bộ
-              </button>
             </div>
+            <button
+              type="button"
+              onClick={onClearLocalData}
+              style={{
+                borderColor: palette.border,
+                color: palette.textSecondary,
+              }}
+              className="px-3.5 min-h-[40px] text-xs font-medium rounded-lg border cursor-pointer hover:text-red-500 whitespace-nowrap shrink-0"
+            >
+              Đăng xuất &amp; Xoá toàn bộ dữ liệu cục bộ
+            </button>
           </div>
         </div>
 

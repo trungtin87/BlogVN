@@ -118,3 +118,94 @@ export function formatDisplayDate(isoDate: string): string {
   if (parts.length !== 3) return isoDate;
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
+
+export function extractYouTubeVideoId(input: string): string | null {
+  const trimmed = String(input || '').trim();
+  if (!trimmed) return null;
+
+  // Bare 11-char ID
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Already a ytimg thumbnail URL -> keep recognized too
+  const ytimgMatch = trimmed.match(/i\.ytimg\.com\/vi\/([a-zA-Z0-9_-]{11})/i);
+  if (ytimgMatch) {
+    return ytimgMatch[1];
+  }
+
+  const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(normalized);
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    if (host === 'youtu.be') {
+      const seg = url.pathname.split('/').filter(Boolean)[0];
+      return seg && /^[a-zA-Z0-9_-]{11}$/.test(seg) ? seg : null;
+    }
+    if (host.endsWith('youtube.com') || host === 'youtube-nocookie.com') {
+      const vParam = url.searchParams.get('v');
+      if (vParam && /^[a-zA-Z0-9_-]{11}$/.test(vParam)) {
+        return vParam;
+      }
+      const pathMatch = url.pathname.match(/\/(?:shorts|embed|live|v|vi)\/([a-zA-Z0-9_-]{11})/);
+      if (pathMatch) {
+        return pathMatch[1];
+      }
+    }
+  } catch {
+    // fallback regex if URL fails
+  }
+
+  const fallbackMatch = trimmed.match(
+    /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i
+  );
+  return fallbackMatch ? fallbackMatch[1] : null;
+}
+
+export function getYouTubeThumbnailUrl(
+  videoId: string,
+  quality: 'maxresdefault' | 'hqdefault' = 'maxresdefault'
+): string {
+  return `https://i.ytimg.com/vi/${videoId}/${quality}.jpg`;
+}
+
+export async function resolveYouTubeCoverUrl(
+  youtubeUrl: string
+): Promise<{ videoId: string; thumbnailUrl: string } | null> {
+  const videoId = extractYouTubeVideoId(youtubeUrl);
+  if (!videoId) return null;
+
+  const maxResUrl = getYouTubeThumbnailUrl(videoId, 'maxresdefault');
+  const hqUrl = getYouTubeThumbnailUrl(videoId, 'hqdefault');
+
+  if (typeof window === 'undefined' || typeof Image === 'undefined') {
+    return { videoId, thumbnailUrl: maxResUrl };
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    let settled = false;
+    const finish = (thumbnailUrl: string) => {
+      if (settled) return;
+      settled = true;
+      resolve({ videoId, thumbnailUrl });
+    };
+
+    const timer = window.setTimeout(() => finish(hqUrl), 3500);
+    img.onload = () => {
+      window.clearTimeout(timer);
+      // YouTube returns a 120x90 grey placeholder when maxresdefault is unavailable
+      if (img.naturalWidth > 120) {
+        finish(maxResUrl);
+      } else {
+        finish(hqUrl);
+      }
+    };
+    img.onerror = () => {
+      window.clearTimeout(timer);
+      finish(hqUrl);
+    };
+    img.src = maxResUrl;
+  });
+}
+

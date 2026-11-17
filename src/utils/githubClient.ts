@@ -1,5 +1,6 @@
 import { dump as dumpYaml, load as loadYaml } from 'js-yaml';
 import type {
+  AstroTemplateId,
   AuthStatus,
   BlogCollection,
   BlogConfig,
@@ -2077,6 +2078,7 @@ export async function ghDeployAstroTemplate(
     repo: string;
     branch?: string;
     config: BlogConfig;
+    templateId?: AstroTemplateId;
   },
   uid = activeUid
 ): Promise<{
@@ -2116,6 +2118,7 @@ export async function ghDeployAstroTemplate(
     owner: params.owner,
     repo: params.repo,
     config: params.config,
+    templateId: params.templateId || params.config.astroTemplate,
   });
 
   const commitRes = await commitMultipleFilesClient({

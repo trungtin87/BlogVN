@@ -81,6 +81,8 @@ export interface BlogPost {
   featured?: boolean;
 }
 
+export type AstroTemplateId = 'editorial' | 'minimal' | 'visual-grid';
+
 export interface BlogConfig {
   siteTitle: string;
   tagline: string;
@@ -97,6 +99,7 @@ export interface BlogConfig {
   pagesUrl: string;
   themeMode: ThemeMode;
   postsDirectory: string;
+  astroTemplate?: AstroTemplateId;
 }
 
 export interface GitHubUser {
