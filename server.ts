@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import cookieParser from 'cookie-parser';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import dotenv from 'dotenv';
 import { dump as dumpYaml, load as loadYaml } from 'js-yaml';
@@ -3752,11 +3753,36 @@ async function startServer() {
     }
   });
 
+  const httpServer = http.createServer(app);
+
   if (process.env.NODE_ENV !== 'production') {
+    const disableHmr = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: disableHmr ? false : { server: httpServer },
+        ...(disableHmr ? { ws: false } : {}),
+      },
       appType: 'spa',
     });
+
+    if (disableHmr) {
+      app.get('/@vite/client', async (_req: Request, res: Response, next) => {
+        try {
+          const transformed = await vite.transformRequest('/@vite/client');
+          if (!transformed?.code) return next();
+          const safeCode = transformed.code
+            .replace('await wsTransport.connect(handlers);', 'return;')
+            .replace('await wsTransport.disconnect();', 'return;')
+            .replace('wsTransport.send(data);', 'return;');
+          res.setHeader('Content-Type', 'application/javascript');
+          res.send(safeCode);
+        } catch {
+          next();
+        }
+      });
+    }
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.resolve(process.cwd(), 'dist');
@@ -3776,7 +3802,7 @@ async function startServer() {
     }
   }, 20000);
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Huyen Khong Studio listening on http://0.0.0.0:${PORT}`);
   });
 }
