@@ -190,8 +190,33 @@ export function SiteIdentityCard({
     setAuthorName(config.authorName || '');
     setAuthorBio(config.authorBio || '');
     setAstroTemplate(normalizeAstroTemplateId(config.astroTemplate, config.themeMode));
+  }, [
+    config.githubOwner,
+    config.githubRepo,
+    config.siteTitle,
+    config.tagline,
+    config.siteIcon,
+    config.headerTitle,
+    config.headerNavLinks,
+    config.footerText,
+    config.footerLinks,
+    config.authorName,
+    config.authorBio,
+    config.astroTemplate,
+    config.themeMode,
+  ]);
+
+  useEffect(() => {
     setLiveChat(mergeLiveChatConfig(config.liveChat));
-  }, [config]);
+  }, [config.liveChat]);
+
+  const updateLiveChatImmediate = (nextChat: LiveChatConfig) => {
+    setLiveChat(nextChat);
+    onUpdateConfig({
+      ...config,
+      liveChat: nextChat,
+    });
+  };
 
   const buildDraftConfig = (
     overrideTemplate?: AstroTemplateId,
@@ -730,9 +755,7 @@ export function SiteIdentityCard({
               type="checkbox"
               checked={liveChat.enabled}
               onChange={(e) => {
-                const updated: LiveChatConfig = { ...liveChat, enabled: e.target.checked };
-                setLiveChat(updated);
-                onUpdateConfig(buildDraftConfig(undefined, updated));
+                updateLiveChatImmediate({ ...liveChat, enabled: e.target.checked });
               }}
               className="w-4 h-4 rounded"
             />
@@ -748,7 +771,7 @@ export function SiteIdentityCard({
             <input
               type="text"
               value={liveChat.title || ''}
-              onChange={(e) => setLiveChat((prev) => ({ ...prev, title: e.target.value }))}
+              onChange={(e) => updateLiveChatImmediate({ ...liveChat, title: e.target.value })}
               placeholder="Trò chuyện với tác giả"
               style={{
                 backgroundColor: palette.surface,
@@ -765,7 +788,9 @@ export function SiteIdentityCard({
             <input
               type="text"
               value={liveChat.welcomeText || ''}
-              onChange={(e) => setLiveChat((prev) => ({ ...prev, welcomeText: e.target.value }))}
+              onChange={(e) =>
+                updateLiveChatImmediate({ ...liveChat, welcomeText: e.target.value })
+              }
               placeholder="Chọn kênh liên hệ nhanh bên dưới..."
               style={{
                 backgroundColor: palette.surface,
@@ -798,7 +823,7 @@ export function SiteIdentityCard({
                         const nextChannels = liveChat.channels.map((item) =>
                           item.id === ch.id ? { ...item, enabled: e.target.checked } : item
                         );
-                        setLiveChat((prev) => ({ ...prev, channels: nextChannels }));
+                        updateLiveChatImmediate({ ...liveChat, channels: nextChannels });
                       }}
                       className="w-4 h-4 rounded"
                     />
@@ -816,7 +841,7 @@ export function SiteIdentityCard({
                         const nextChannels = liveChat.channels.map((item) =>
                           item.id === ch.id ? { ...item, value: val } : item
                         );
-                        setLiveChat((prev) => ({ ...prev, channels: nextChannels }));
+                        updateLiveChatImmediate({ ...liveChat, channels: nextChannels });
                       }}
                       placeholder={meta.placeholder}
                       style={{

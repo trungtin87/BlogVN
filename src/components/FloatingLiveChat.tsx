@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Check,
+  Copy,
   ExternalLink,
   Mail,
   MessageCircle,
@@ -38,7 +40,8 @@ function buildChannelHref(ch: LiveChatChannelConfig): string {
       return /^https?:\/\//i.test(val) ? val : `https://t.me/${val.replace(/^@/, '')}`;
     case 'whatsapp': {
       const digits = val.replace(/[^0-9]/g, '');
-      return /^https?:\/\//i.test(val) ? val : `https://wa.me/${digits}`;
+      const normalized = /^0\d{8,10}$/.test(digits) ? `84${digits.slice(1)}` : digits;
+      return /^https?:\/\//i.test(val) ? val : `https://wa.me/${normalized}`;
     }
     case 'email':
       return val.startsWith('mailto:') ? val : `mailto:${val}`;
@@ -47,7 +50,7 @@ function buildChannelHref(ch: LiveChatChannelConfig): string {
       return `https://tawk.to/chat/${clean}`;
     }
     case 'crisp':
-      return '#crisp-chat';
+      return `https://go.crisp.chat/chat/embed/?website_id=${encodeURIComponent(val)}`;
   }
 }
 
@@ -79,6 +82,7 @@ export function FloatingLiveChat({
 }: FloatingLiveChatProps) {
   const { palette, fonts } = theme;
   const [open, setOpen] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const liveChat = config.liveChat;
   const enabledChannels = useMemo(
@@ -170,18 +174,36 @@ export function FloatingLiveChat({
     });
   };
 
-  const handleOpenChannel = (ch: LiveChatChannelConfig) => {
+  const handleChannelClick = (e: React.MouseEvent<HTMLAnchorElement>, ch: LiveChatChannelConfig) => {
     if (ch.id === 'crisp') {
       const crisp = (window as any).$crisp;
-      if (Array.isArray(crisp)) {
+      const isSdkReady = Array.isArray(crisp) && typeof (crisp as any).is === 'function';
+      if (isSdkReady) {
+        e.preventDefault();
         crisp.push(['do', 'chat:open']);
         setOpen(false);
         return;
       }
+      // Fallback: let the native <a href="https://go.crisp.chat/chat/embed/?website_id=..."> open cleanly
     }
-    const href = buildChannelHref(ch);
-    if (href && href !== '#') {
-      window.open(href, '_blank', 'noopener,noreferrer');
+    if (ch.id === 'tawkto') {
+      const tawk = (window as any).Tawk_API;
+      if (tawk && typeof tawk.maximize === 'function') {
+        e.preventDefault();
+        tawk.maximize();
+        setOpen(false);
+      }
+    }
+  };
+
+  const handleCopyChannel = async (ch: LiveChatChannelConfig) => {
+    const textToCopy = ch.id === 'email' ? ch.value.trim() : buildChannelHref(ch);
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopiedId(ch.id);
+      window.setTimeout(() => setCopiedId((prev) => (prev === ch.id ? null : prev)), 2000);
+    } catch {
+      // ignore clipboard restrictions
     }
   };
 
@@ -228,14 +250,22 @@ export function FloatingLiveChat({
           </div>
 
           {/* Channel List */}
-          <div className="p-3 space-y-2 max-h-[300px] overflow-y-auto">
+          <div className="p-3 space-y-2 max-h-[320px] overflow-y-auto">
             {enabledChannels.length === 0 ? (
               <div
                 style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
-                className="p-3 rounded-xl border text-xs space-y-2"
+                className="p-3 rounded-xl border text-xs space-y-2.5"
               >
-                <div style={{ color: palette.textSecondary }}>
-                  Bạn đã bật Live Chat nhưng chưa nhập ID/tài khoản cho kênh nào.
+                <div style={{ color: palette.textPrimary }} className="font-semibold">
+                  Chưa có thông tin kênh chat nào được điền
+                </div>
+                <div style={{ color: palette.textSecondary }} className="leading-relaxed space-y-1.5">
+                  <p>
+                    • <strong>Zalo, Messenger, Telegram, WhatsApp, Email:</strong> Không cần API key — chỉ cần nhập SĐT, username hoặc email để mở thẳng khung chat.
+                  </p>
+                  <p>
+                    • <strong>Tawk.to / Crisp:</strong> Dán Property ID hoặc Website ID miễn phí để nhúng hộp chat trực tiếp trên blog.
+                  </p>
                 </div>
                 {onOpenSettings && (
                   <button
@@ -244,57 +274,83 @@ export function FloatingLiveChat({
                       setOpen(false);
                       onOpenSettings();
                     }}
-                    style={{ color: palette.link }}
-                    className="inline-flex items-center gap-1 font-semibold underline underline-offset-4 cursor-pointer"
+                    style={{
+                      backgroundColor: palette.accent,
+                      color: palette.accentText,
+                    }}
+                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 min-h-[38px] rounded-lg font-semibold cursor-pointer hover:opacity-90"
                   >
                     <Settings className="w-3.5 h-3.5" />
-                    Cấu hình kênh Live Chat
+                    Nhập SĐT / ID kênh chat ngay →
                   </button>
                 )}
               </div>
             ) : (
               enabledChannels.map((ch) => {
                 const meta = channelPlatformHint(ch.id);
+                const href = buildChannelHref(ch);
+                const isEmail = ch.id === 'email';
+                const copied = copiedId === ch.id;
                 return (
-                  <button
+                  <div
                     key={ch.id}
-                    type="button"
-                    onClick={() => handleOpenChannel(ch)}
                     style={{
                       borderColor: palette.border,
                       backgroundColor: palette.canvas,
                       color: palette.textPrimary,
                     }}
-                    className="w-full px-3 py-2.5 rounded-xl border flex items-center justify-between gap-2.5 text-left hover:opacity-85 cursor-pointer transition-opacity min-h-[46px]"
+                    className="w-full rounded-xl border flex items-stretch overflow-hidden min-h-[48px]"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span
-                        style={{ backgroundColor: meta.color }}
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold truncate">
-                          {ch.label?.trim() || meta.tag}
-                        </div>
-                        <div
-                          style={{ color: palette.textMuted, fontFamily: fonts.mono }}
-                          className="text-[11px] truncate"
-                        >
-                          {ch.value}
+                    <a
+                      href={href}
+                      target={isEmail ? undefined : '_blank'}
+                      rel={isEmail ? undefined : 'noopener noreferrer'}
+                      onClick={(e) => handleChannelClick(e, ch)}
+                      className="flex-1 px-3 py-2 flex items-center justify-between gap-2.5 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors min-w-0"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span
+                          style={{ backgroundColor: meta.color }}
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold truncate">
+                            {ch.label?.trim() || meta.tag}
+                          </div>
+                          <div
+                            style={{ color: palette.textMuted, fontFamily: fonts.mono }}
+                            className="text-[11px] truncate"
+                          >
+                            {ch.value}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    {ch.id === 'email' ? (
-                      <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: palette.link }} />
-                    ) : ch.id === 'telegram' ? (
-                      <Send className="w-3.5 h-3.5 shrink-0" style={{ color: palette.link }} />
-                    ) : (
-                      <ExternalLink
-                        className="w-3.5 h-3.5 shrink-0"
-                        style={{ color: palette.link }}
-                      />
-                    )}
-                  </button>
+                      {isEmail ? (
+                        <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: palette.link }} />
+                      ) : ch.id === 'telegram' ? (
+                        <Send className="w-3.5 h-3.5 shrink-0" style={{ color: palette.link }} />
+                      ) : (
+                        <ExternalLink
+                          className="w-3.5 h-3.5 shrink-0"
+                          style={{ color: palette.link }}
+                        />
+                      )}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyChannel(ch)}
+                      title="Sao chép liên kết / địa chỉ"
+                      aria-label={`Sao chép ${ch.label || meta.tag}`}
+                      style={{ borderColor: palette.border, color: palette.textMuted }}
+                      className="px-2.5 border-l flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer shrink-0"
+                    >
+                      {copied ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
                 );
               })
             )}

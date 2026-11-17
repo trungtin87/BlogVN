@@ -691,7 +691,11 @@ function resolveChatHref(id: string, rawValue: string): string {
   if (id === 'zalo') return \`https://zalo.me/\${encodeURIComponent(val.replace(/^@/, ''))}\`;
   if (id === 'messenger') return \`https://m.me/\${encodeURIComponent(val.replace(/^@/, ''))}\`;
   if (id === 'telegram') return \`https://t.me/\${encodeURIComponent(val.replace(/^@/, ''))}\`;
-  if (id === 'whatsapp') return \`https://wa.me/\${val.replace(/[^0-9]/g, '')}\`;
+  if (id === 'whatsapp') {
+    const digits = val.replace(/[^0-9]/g, '');
+    const normalized = /^0\\d{8,10}$/.test(digits) ? \`84\${digits.slice(1)}\` : digits;
+    return \`https://wa.me/\${normalized}\`;
+  }
   if (id === 'email') return \`mailto:\${val}\`;
   return val;
 }
@@ -844,7 +848,15 @@ const mainNav = [
     )}
 
     {liveChat?.enabled && tawkChannel?.value && (
-      <script is:inline define:vars={{ tawkId: tawkChannel.value }}>
+      <script
+        is:inline
+        define:vars={{
+          tawkId: tawkChannel.value
+            .trim()
+            .replace(/^https?:\/\/embed\.tawk\.to\//i, '')
+            .replace(/^\/+/, ''),
+        }}
+      >
         var Tawk_API = Tawk_API || {}, Tawk_LoadStart = new Date();
         (function () {
           var s1 = document.createElement('script'),
