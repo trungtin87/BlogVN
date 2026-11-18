@@ -172,7 +172,7 @@ export function SiteIdentityCard({
   const [liveChat, setLiveChat] = useState<LiveChatConfig>(() =>
     mergeLiveChatConfig(config.liveChat)
   );
-  const [preservePostsOnDeploy, setPreservePostsOnDeploy] = useState(true);
+  const [preservePostsOnDeploy, setPreservePostsOnDeploy] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeployingApp, setIsDeployingApp] = useState(false);
@@ -1028,27 +1028,27 @@ export function SiteIdentityCard({
                     <input
                       type="radio"
                       name="astroDeployMode"
-                      checked={preservePostsOnDeploy}
-                      onChange={() => setPreservePostsOnDeploy(true)}
+                      checked={!preservePostsOnDeploy}
+                      onChange={() => setPreservePostsOnDeploy(false)}
                       className="mt-0.5"
                     />
                     <span>
-                      <strong>Cập nhật an toàn (Khuyên dùng):</strong> Xoá code thừa xung đột nhưng{' '}
-                      <strong>giữ nguyên {existingRepoPostCount > 0 ? `${existingRepoPostCount} bài viết` : 'bài viết'} &amp; ảnh tải lên</strong> trong{' '}
-                      <code>src/content/bai_viet/</code> và <code>public/tainguyen/hinhanh/uploads/</code>.
+                      <strong>Xoá sạch hết &amp; Tải đầy đủ bài viết mẫu mới (Mặc định):</strong> Xoá toàn bộ tệp cũ trên nhánh mặc định của{' '}
+                      <code>{config.githubOwner}/{config.githubRepo}</code> và nạp mới trọn bộ template + các bài viết mẫu đầy đủ.
                     </span>
                   </label>
                   <label className="flex items-start gap-2 cursor-pointer">
                     <input
                       type="radio"
                       name="astroDeployMode"
-                      checked={!preservePostsOnDeploy}
-                      onChange={() => setPreservePostsOnDeploy(false)}
+                      checked={preservePostsOnDeploy}
+                      onChange={() => setPreservePostsOnDeploy(true)}
                       className="mt-0.5"
                     />
                     <span>
-                      <strong>Reset sạch hoàn toàn:</strong> Xoá toàn bộ tệp cũ trên nhánh mặc định của{' '}
-                      <code>{config.githubOwner}/{config.githubRepo}</code> và tạo lại 3 bài mẫu mới.
+                      <strong>Chỉ cập nhật giao diện (Giữ bài viết cũ):</strong> Xoá code thừa xung đột nhưng{' '}
+                      <strong>giữ nguyên {existingRepoPostCount > 0 ? `${existingRepoPostCount} bài viết` : 'bài viết'} &amp; ảnh tải lên</strong> trong{' '}
+                      <code>src/content/bai_viet/</code> và <code>public/tainguyen/hinhanh/uploads/</code>.
                     </span>
                   </label>
                 </div>
@@ -1063,12 +1063,12 @@ export function SiteIdentityCard({
                   {isDeployingAstro ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Đang đẩy Template Astro 5...
+                      Đang xoá sạch &amp; đẩy Template Astro 5...
                     </>
-                  ) : preservePostsOnDeploy ? (
-                    'Cập nhật Astro (Giữ nguyên bài viết)'
+                  ) : !preservePostsOnDeploy ? (
+                    'Xác nhận xoá sạch & Tải template + bài mẫu mới'
                   ) : (
-                    'Xác nhận xoá sạch & Triển khai Astro mới'
+                    'Cập nhật Astro (Giữ nguyên bài viết)'
                   )}
                 </button>
                 <button

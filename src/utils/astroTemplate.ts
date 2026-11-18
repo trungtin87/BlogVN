@@ -630,8 +630,36 @@ jobs:
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
 
-  const buildCoverSvg = (index: 1 | 2 | 3, kicker: string, headline: string): string => {
-    const safeHeadline = escXml(headline.slice(0, 52));
+  const wrapSvgTextLines = (raw: string, maxChars = 28, maxLines = 2): string[] => {
+    const words = String(raw || '').trim().split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let current = '';
+    for (const w of words) {
+      const candidate = current ? `${current} ${w}` : w;
+      if (candidate.length <= maxChars) {
+        current = candidate;
+      } else {
+        if (current) lines.push(current);
+        current = w;
+        if (lines.length >= maxLines) break;
+      }
+    }
+    if (current && lines.length < maxLines) {
+      lines.push(current);
+    }
+    if (lines.length === maxLines && words.join(' ').length > lines.join(' ').length) {
+      lines[maxLines - 1] = lines[maxLines - 1].slice(0, Math.max(4, maxChars - 1)) + '…';
+    }
+    return lines.length > 0 ? lines : ['Đạo Ký'];
+  };
+
+  const buildCoverSvg = (
+    index: number,
+    totalCovers: number,
+    kicker: string,
+    headline: string
+  ): string => {
+    const headlineLines = wrapSvgTextLines(headline, 26, 2);
     const safeKicker = escXml(kicker.toUpperCase());
     const safeBrand = escXml(siteTitle.slice(0, 32));
     const motifByTemplate: Record<AstroTemplateId, string> = {
@@ -673,14 +701,20 @@ jobs:
         <circle cx="940" cy="220" r="95" fill="none" stroke="${tokens.link}" stroke-width="1.5" opacity="0.5"/>
         <path d="M845 310 C890 250, 990 250, 1035 310" fill="none" stroke="${tokens.accent}" stroke-width="2.5"/>`,
     };
+    const tspanMarkup = headlineLines
+      .map(
+        (line, i) =>
+          `<tspan x="90" dy="${i === 0 ? 0 : 48}">${escXml(line)}</tspan>`
+      )
+      .join('');
     return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
   <rect width="1200" height="630" fill="${tokens.bg}"/>
   ${motifByTemplate[templateStyle]}
-  <text x="90" y="165" font-family="monospace" font-size="20" font-weight="700" letter-spacing="2" fill="${tokens.link}">${safeKicker}</text>
-  <text x="90" y="255" font-family="Georgia, serif" font-weight="700" font-size="44" fill="${tokens.text}">${safeHeadline}</text>
-  <text x="90" y="325" font-family="sans-serif" font-size="22" fill="${tokens.text2}">${safeBrand} · ${escXml(presetMeta.name)}</text>
+  <text x="90" y="155" font-family="monospace" font-size="20" font-weight="700" letter-spacing="2" fill="${tokens.link}">${safeKicker}</text>
+  <text x="90" y="232" font-family="Georgia, serif" font-weight="700" font-size="38" fill="${tokens.text}">${tspanMarkup}</text>
+  <text x="90" y="346" font-family="sans-serif" font-size="22" fill="${tokens.text2}">${safeBrand} · ${escXml(presetMeta.name)}</text>
   <line x1="90" y1="470" x2="1110" y2="470" stroke="${tokens.border}" stroke-width="1.5"/>
-  <text x="90" y="520" font-family="monospace" font-size="20" fill="${tokens.muted}">${escXml(authorName)} · Số ${index}/03</text>
+  <text x="90" y="520" font-family="monospace" font-size="20" fill="${tokens.muted}">${escXml(authorName)} · Số 0${index}/0${totalCovers}</text>
 </svg>
 `;
   };
@@ -1879,7 +1913,9 @@ const homeJsonLd = {
   }
 
   :global(body[data-template='newyorker-light']) .masthead-tools {
-    justify-content: center;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 780px;
   }
 
   .masthead-kicker {
@@ -1908,37 +1944,44 @@ const homeJsonLd = {
 
   .masthead-tools {
     margin-top: 22px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
     align-items: center;
+    width: 100%;
   }
 
   .search-input {
-    flex: 1 1 220px;
-    max-width: 420px;
-    min-width: 0;
+    display: block;
     width: 100%;
+    min-width: 0;
+    height: 44px;
     min-height: 44px;
+    max-height: 44px;
+    line-height: normal;
     padding: 0 14px;
     border-radius: 10px;
     border: 1px solid var(--border);
     background: var(--card);
     color: var(--text);
-    font-size: 0.9rem;
+    font-size: 0.92rem;
     font-family: inherit;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
   }
 
   .masthead-cta {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    height: 44px;
     min-height: 44px;
-    padding: 0 18px;
+    padding: 0 20px;
     border-radius: 10px;
     background: var(--accent);
     color: var(--accent-text);
-    font-size: 0.86rem;
+    font-size: 0.88rem;
     font-weight: 600;
     text-decoration: none !important;
     white-space: nowrap;
@@ -1946,11 +1989,17 @@ const homeJsonLd = {
 
   @media (max-width: 639px) {
     .masthead-tools {
-      flex-direction: column;
-      align-items: stretch;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+      max-width: none;
+    }
+    .search-input {
+      width: 100%;
+      height: 44px;
     }
     .masthead-cta {
       width: 100%;
+      height: 44px;
     }
   }
 
@@ -2209,17 +2258,25 @@ const categories = Array.from(
     gap: 12px;
   }
   .archive-search {
+    display: block;
+    flex: 0 0 auto;
     width: 100%;
-    max-width: 420px;
+    max-width: 720px;
     min-width: 0;
-    min-height: 42px;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    line-height: normal;
     padding: 0 14px;
     border-radius: 10px;
     border: 1px solid var(--border);
     background: var(--card);
     color: var(--text);
-    font-size: 0.9rem;
+    font-size: 0.92rem;
     font-family: inherit;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
   }
   .cat-bar {
     display: flex;
@@ -2690,7 +2747,7 @@ export const GET: APIRoute = async ({ site }) => {
 
   interface StarterSeed {
     fileName: string;
-    coverIndex: 1 | 2 | 3;
+    coverIndex: 1 | 2 | 3 | 4;
     title: string;
     category: string;
     categorySlug: string;
@@ -2830,6 +2887,21 @@ Thay vì chờ máy chủ truy vấn mỗi khi có người mở bài viết, to
 
 Mỗi bài viết xuất bản từ Đạo Ký lên **${siteTitle}** đều tự động sở hữu thẻ Meta chuẩn xác, URL slug sạch tiếng Việt không dấu, Sitemap XML cập nhật liên tục và JSON-LD \`BlogPosting\` để công cụ tìm kiếm hiểu đúng chủ đề lẫn tác giả **${authorName}**.`,
       },
+      {
+        fileName: 'luong-tin-chuyen-sau-hang-tuan.md',
+        coverIndex: 4,
+        title: 'Sắp xếp chuyên mục tin phân tích & bản tin cuối tuần',
+        category: 'Bình luận',
+        categorySlug: 'binh-luan',
+        slug: 'luong-tin-chuyen-sau-hang-tuan',
+        tags: ['chuyen-muc', 'ban-tin', 'nytimes'],
+        excerpt:
+          'Giữ nhịp xuất bản đều đặn theo chuyên mục giúp kho bài viết ngày càng có chiều sâu và dễ tra cứu.',
+        date: dayOffsetStr(3),
+        body: `## Trật tự từ những bản tin định kỳ
+
+Khi phân loại rõ ràng giữa **Tiêu điểm**, **Kỹ thuật**, **SEO & Dữ liệu** và **Bình luận**, người đọc mới ghé **${siteTitle}** có thể lọc đúng chủ đề quan tâm ngay trong kho lưu trữ.`,
+      },
     ],
     'bbc-dark': [
       {
@@ -2883,6 +2955,21 @@ Từ kích thước nút chạm tối thiểu 44px đến khoảng cách lề g�
 
 Với trình soạn thảo tách biệt không gian viết và tối ưu SEO trong **Đạo Ký**, **${authorName}** có thể định dạng tiêu đề, danh sách hay trích dẫn ngay tại vị trí con trỏ mà không bị nhảy màn hình, sau đó đồng bộ một chạm lên GitHub.`,
       },
+      {
+        fileName: 'dong-bo-kenh-live-chat-doc-gia.md',
+        coverIndex: 4,
+        title: 'Kết nối trực tiếp độc giả với Live Chat & mạng xã hội',
+        category: 'Tương tác',
+        categorySlug: 'tuong-tac',
+        slug: 'dong-bo-kenh-live-chat-doc-gia',
+        tags: ['live-chat', 'zalo', 'cong-dong'],
+        excerpt:
+          'Cho phép độc giả nhắn tin nhanh qua Zalo, Messenger, Telegram hoặc Tawk.to ngay trên trang blog.',
+        date: dayOffsetStr(3),
+        body: `## Không bỏ lỡ phản hồi từ người đọc
+
+Bằng hộp thoại Live Chat ở góc dưới bên phải, **${siteTitle}** kết nối tức thì với những kênh liên lạc quen thuộc mà bạn chủ động bật hoặc tắt trong bảng điều khiển.`,
+      },
     ],
     'obsidian-broadsheet': [
       {
@@ -2935,6 +3022,21 @@ Một tệp văn bản Markdown hoàn toàn trong suốt với mọi trình so�
         body: `## Ngôn ngữ chung với công cụ tìm kiếm
 
 Thẻ lược đồ \`BlogPosting\` được nhúng tự động trong phần đầu mỗi trang bài viết trên **${siteTitle}**, đảm bảo liên kết khi chia sẻ lên mạng xã hội hay xuất hiện trên kết quả tìm kiếm luôn rõ ràng và chuyên nghiệp.`,
+      },
+      {
+        fileName: 'he-mau-broadsheet-hai-che-do.md',
+        coverIndex: 4,
+        title: 'Cân chỉnh độ tương phản Sáng và Tối cho bài viết chuyên sâu',
+        category: 'Thiết kế',
+        categorySlug: 'thiet-ke',
+        slug: 'he-mau-broadsheet-hai-che-do',
+        tags: ['dark-mode', 'light-mode', 'typography'],
+        excerpt:
+          'Từ nền mực đêm xanh thẫm sang giấy báo ban ngày chỉ qua biểu tượng Mặt trời / Mặt trăng trên thanh tiêu đề.',
+        date: dayOffsetStr(3),
+        body: `## Đọc thoải mái ở mọi điều kiện ánh sáng
+
+Bảng màu kép của **Broadsheet Đêm** giữ nguyên tinh thần nhật báo nghiêm cẩn cho cả hai chế độ sáng và tối, giúp độc giả của **${siteTitle}** luôn đọc mượt mà dù đang ngoài trời nắng hay trong phòng yên tĩnh.`,
       },
     ],
     'espresso-salon': [
@@ -2995,13 +3097,13 @@ Dù viết về triết lý sống, ghi chép đọc sách hay câu chuyện ngh
   };
 
   const selectedSeeds = STARTER_SEEDS_BY_TEMPLATE[templateStyle] || STARTER_SEEDS_BY_TEMPLATE['newyorker-light'];
-  const coverSvgs = [
-    buildCoverSvg(1, selectedSeeds[0].category, selectedSeeds[0].title),
-    buildCoverSvg(2, selectedSeeds[1].category, selectedSeeds[1].title),
-    buildCoverSvg(3, selectedSeeds[2].category, selectedSeeds[2].title),
-  ];
+  const totalCovers = selectedSeeds.length;
+  const coverFiles = selectedSeeds.map((seed, idx) => ({
+    path: `public/tainguyen/hinhanh/cover-${idx + 1}.svg`,
+    content: buildCoverSvg(idx + 1, totalCovers, seed.category, seed.title),
+  }));
 
-  const starterFiles = selectedSeeds.map((seed) => ({
+  const starterFiles = selectedSeeds.map((seed, idx) => ({
     path: `src/content/bai_viet/${seed.fileName}`,
     content: makeMarkdown(
       {
@@ -3012,7 +3114,7 @@ Dù viết về triết lý sống, ghi chép đọc sách hay câu chuyện ngh
         tags: seed.tags,
         mo_ta: seed.excerpt,
         ngay: seed.date,
-        anh_bia: `/tainguyen/hinhanh/cover-${seed.coverIndex}.svg`,
+        anh_bia: `/tainguyen/hinhanh/cover-${idx + 1}.svg`,
         nhap: false,
         tac_gia: authorName,
       },
@@ -3032,9 +3134,7 @@ Dù viết về triết lý sống, ghi chép đọc sách hay câu chuyện ngh
     { path: 'public/favicon.svg', content: faviconSvg },
     { path: 'public/manifest.webmanifest', content: manifestJson },
     { path: 'public/tainguyen/hinhanh/og-default.svg', content: ogDefaultSvg },
-    { path: 'public/tainguyen/hinhanh/cover-1.svg', content: coverSvgs[0] },
-    { path: 'public/tainguyen/hinhanh/cover-2.svg', content: coverSvgs[1] },
-    { path: 'public/tainguyen/hinhanh/cover-3.svg', content: coverSvgs[2] },
+    ...coverFiles,
     { path: 'public/tainguyen/hinhanh/uploads/.gitkeep', content: '' },
     {
       path: 'src/cau_hinh/trang_web.ts',

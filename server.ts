@@ -3527,7 +3527,7 @@ async function startServer() {
       branch,
       config = {},
       templateId,
-      preservePosts = true,
+      preservePosts = false,
     } = req.body || {};
 
     try {
@@ -3540,7 +3540,7 @@ async function startServer() {
       const preservedTreeEntries: Array<{ path: string; sha: string; mode?: string }> = [];
       let preservedPostsCount = 0;
 
-      if (preservePosts !== false) {
+      if (preservePosts === true) {
         const existingTreeResp = await githubRequest<any>(
           `/repos/${owner}/${repo}/git/trees/${encodeURIComponent(targetBranch)}?recursive=1`,
           {},
@@ -3573,7 +3573,7 @@ async function startServer() {
         repo,
         config,
         templateId: templateId || config?.astroTemplate,
-        includeStarterPosts: preservePosts === false || preservedPostsCount === 0,
+        includeStarterPosts: preservePosts !== true || preservedPostsCount === 0,
         defaultFaviconPngBase64,
       });
 
@@ -3583,7 +3583,7 @@ async function startServer() {
         branch: targetBranch,
         files,
         message:
-          preservePosts !== false && preservedPostsCount > 0
+          preservePosts === true && preservedPostsCount > 0
             ? `Đạo Ký: Cập nhật giao diện Astro 5 (giữ nguyên ${preservedPostsCount} bài viết) (${config.siteTitle || repo})`
             : `Đạo Ký: Triển khai Template Astro Đạo Ký sạch & nhận dạng web (${config.siteTitle || repo})`,
         token,

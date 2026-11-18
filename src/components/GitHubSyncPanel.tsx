@@ -202,6 +202,7 @@ export function GitHubSyncPanel({
           repo: data.repo,
           config: nextCfg,
           templateId: selectedAstroPreset,
+          preservePosts: false,
         });
         if (!astroRes.ok) {
           setCreateSiteError(

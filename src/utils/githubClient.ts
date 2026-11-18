@@ -2175,7 +2175,7 @@ export async function ghDeployAstroTemplate(
     targetBranch = repoResp.ok && repoResp.data?.default_branch ? repoResp.data.default_branch : 'main';
   }
 
-  const preservePosts = params.preservePosts !== false;
+  const preservePosts = params.preservePosts === true;
   let preservedTreeEntries: Array<{ path: string; sha: string; mode?: string }> = [];
   let preservedPostsCount = 0;
 
