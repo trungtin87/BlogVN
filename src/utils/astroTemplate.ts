@@ -868,6 +868,12 @@ const directChatChannels = activeChatChannels.filter(
 );
 const tawkChannel = activeChatChannels.find((ch) => ch.id === 'tawkto');
 const crispChannel = activeChatChannels.find((ch) => ch.id === 'crisp');
+const tawkWidgetId = tawkChannel?.value
+  ? tawkChannel.value
+      .trim()
+      .replace(/^https?:\\/\\/embed\\.tawk\\.to\\//i, '')
+      .replace(/^\\/+/, '')
+  : '';
 
 function resolveChatHref(id: string, rawValue: string): string {
   const val = rawValue.trim();
@@ -1057,16 +1063,8 @@ const mainNav = [
       </div>
     )}
 
-    {liveChat?.enabled && tawkChannel?.value && (
-      <script
-        is:inline
-        define:vars={{
-          tawkId: tawkChannel.value
-            .trim()
-            .replace(/^https?:\/\/embed\.tawk\.to\//i, '')
-            .replace(/^\/+/, ''),
-        }}
-      >
+    {liveChat?.enabled && tawkWidgetId && (
+      <script is:inline define:vars={{ tawkId: tawkWidgetId }}>
         var Tawk_API = Tawk_API || {}, Tawk_LoadStart = new Date();
         (function () {
           var s1 = document.createElement('script'),
