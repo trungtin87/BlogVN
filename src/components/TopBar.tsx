@@ -31,7 +31,8 @@ export function TopBar({
   siteIcon,
 }: TopBarProps) {
   const { palette, fonts, isDark } = theme;
-  const brandLabel = (headerTitle || siteTitle || 'BlogVN').trim();
+  const brandLabel = (headerTitle || siteTitle || 'Đạo Ký').trim();
+  const resolvedIcon = siteIcon || './assets/aistudio/1794978557793_3b5d5cb0.png';
 
   return (
     <header
@@ -42,30 +43,29 @@ export function TopBar({
       }}
       className="md:sticky md:top-0 z-40 border-b transition-colors duration-200"
     >
-      <div className="max-w-[1360px] mx-auto px-4 sm:px-6 h-14 md:h-16 flex items-center justify-between gap-3 md:gap-8">
+      <div className="max-w-[1200px] mx-auto px-3 sm:px-6 h-14 md:h-16 flex items-center justify-between gap-2 sm:gap-4 md:gap-8">
         {/* Zone 1: Single-line Brand Wordmark */}
         <button
           type="button"
           onClick={() => onSelectTab('blog')}
           style={{ fontFamily: fonts.display, color: palette.textPrimary }}
-          className="text-lg md:text-xl font-bold tracking-tight whitespace-nowrap shrink-0 min-h-[44px] flex items-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 max-w-[200px] sm:max-w-xs"
+          className="text-base sm:text-lg md:text-xl font-bold tracking-tight whitespace-nowrap shrink-0 min-h-[44px] flex items-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 max-w-[155px] sm:max-w-xs"
         >
-          {siteIcon && (
-            <img
-              src={siteIcon}
-              alt=""
-              className="w-6 h-6 rounded-md object-cover shrink-0"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = 'none';
-              }}
-            />
-          )}
+          <img
+            src={resolvedIcon}
+            alt="Đạo Ký"
+            className="w-7 h-7 rounded-full object-cover shrink-0 border"
+            style={{ borderColor: palette.border }}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
           <span className="truncate">{brandLabel}</span>
         </button>
 
         {/* Zone 2: 3 Single-line Navigation Links (desktop) */}
         <nav
-          className="hidden md:flex items-center gap-8 text-sm font-medium"
+          className="hidden md:flex flex-1 justify-center items-center gap-8 text-sm font-medium"
           aria-label="Điều hướng chính"
         >
           {NAV_ITEMS.map((item) => {
@@ -88,18 +88,18 @@ export function TopBar({
         </nav>
 
         {/* Zone 3: Guide + Global Dark Mode Toggle + Primary CTA */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={onOpenGuide}
-            aria-label="Mở hướng dẫn sử dụng BlogVN"
-            title="Hướng dẫn sử dụng BlogVN"
+            aria-label="Mở hướng dẫn sử dụng Đạo Ký"
+            title="Hướng dẫn sử dụng Đạo Ký"
             style={{
               borderColor: palette.border,
               backgroundColor: palette.surface,
               color: palette.textPrimary,
             }}
-            className="inline-flex items-center justify-center gap-1.5 min-w-[40px] sm:px-3 min-h-[40px] md:min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 min-w-[38px] sm:px-3 min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0 transition-colors"
           >
             <HelpCircle className="w-4 h-4" style={{ color: palette.link }} />
             <span className="hidden sm:inline">Hướng dẫn</span>
@@ -109,13 +109,13 @@ export function TopBar({
             type="button"
             onClick={() => onToggleThemeMode(isDark ? 'light' : 'dark')}
             aria-label={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
-            title={isDark ? 'Chuyển sang giao diện sáng (Dương)' : 'Chuyển sang giao diện tối (Âm)'}
+            title={isDark ? 'Chuyển sang chế độ sáng (Mặt trời)' : 'Chuyển sang chế độ tối (Mặt trăng)'}
             style={{
               borderColor: palette.border,
               backgroundColor: palette.surface,
               color: palette.textPrimary,
             }}
-            className="inline-flex items-center justify-center gap-1.5 min-w-[40px] sm:px-3 min-h-[40px] md:min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0 transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 min-w-[38px] sm:px-3 min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0 transition-colors"
           >
             {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             <span className="hidden sm:inline">{isDark ? 'Sáng' : 'Tối'}</span>
@@ -128,7 +128,7 @@ export function TopBar({
               backgroundColor: palette.accent,
               color: palette.accentText,
             }}
-            className="inline-flex items-center justify-center px-3.5 sm:px-4 min-h-[40px] md:min-h-[38px] text-xs sm:text-sm font-semibold rounded-lg whitespace-nowrap shrink-0 cursor-pointer transition-opacity duration-150 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="inline-flex items-center justify-center px-3 sm:px-4 min-h-[38px] text-xs sm:text-sm font-semibold rounded-lg whitespace-nowrap shrink-0 cursor-pointer transition-opacity duration-150 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
           >
             Viết mới
           </button>

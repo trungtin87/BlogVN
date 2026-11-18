@@ -15,7 +15,7 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: [
-          'icon.svg',
+          'assets/aistudio/1794978557793_3b5d5cb0.png',
           'apple-touch-icon.png',
           'pwa-192x192.png',
           'pwa-512x512.png',
@@ -23,10 +23,10 @@ export default defineConfig(() => {
         ],
         manifest: {
           id: basePath,
-          name: 'BlogVN — Tạo & Quản lý Blog GitHub Pages',
-          short_name: 'BlogVN',
+          name: 'Đạo Ký — Tạo & Quản lý Blog GitHub Pages',
+          short_name: 'Đạo Ký',
           description:
-            'Ứng dụng viết bài Markdown, tải ảnh và quản lý blog GitHub Pages dành cho mọi người.',
+            'Đạo Ký — Ứng dụng viết bài Markdown, tải ảnh và quản lý blog GitHub Pages.',
           theme_color: '#111111',
           background_color: '#ffffff',
           display: 'standalone',

@@ -726,7 +726,7 @@ async function commitMultipleFilesAtomic(params: {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: 'Initialize repository',
-            content: Buffer.from('BlogVN\n', 'utf8').toString('base64'),
+            content: Buffer.from('Đạo Ký\n', 'utf8').toString('base64'),
             branch: params.branch,
           }),
         },
@@ -997,6 +997,30 @@ function escapeHtmlAttr(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
+function readDefaultDaoKyPngBase64(): string | undefined {
+  try {
+    const p = path.join(process.cwd(), 'public', 'pwa-192x192.png');
+    if (fs.existsSync(p)) {
+      return fs.readFileSync(p).toString('base64');
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
+function isBundledDefaultSiteIcon(siteIcon?: string): boolean {
+  const clean = (siteIcon || '').trim();
+  return (
+    !clean ||
+    clean === './icon.svg' ||
+    clean === '/icon.svg' ||
+    clean.includes('1794978557793_3b5d5cb0.png') ||
+    clean === './pwa-192x192.png' ||
+    clean === '/pwa-192x192.png'
+  );
+}
+
 function buildStandaloneWebAppFiles(params: {
   owner: string;
   repo: string;
@@ -1004,12 +1028,16 @@ function buildStandaloneWebAppFiles(params: {
   posts: BlogPost[];
 }): Array<{ path: string; content: string; isBase64?: boolean }> {
   const { owner, repo, siteConfig, posts } = params;
-  const title = siteConfig.siteTitle || repo || 'BlogVN';
+  const title = siteConfig.siteTitle || repo || 'Đạo Ký';
   const headerBrand = siteConfig.headerTitle || title;
   const tagline = siteConfig.tagline || `Trang blog cá nhân ${title}`;
   const footerText =
-    siteConfig.footerText || `© ${new Date().getFullYear()} ${title} · Xuất bản từ BlogVN.`;
-  const iconHref = siteConfig.siteIcon || './icon.svg';
+    siteConfig.footerText || `© ${new Date().getFullYear()} ${title} · Xuất bản từ Đạo Ký.`;
+  const defaultPngB64 = isBundledDefaultSiteIcon(siteConfig.siteIcon)
+    ? readDefaultDaoKyPngBase64()
+    : undefined;
+  const usePng = Boolean(siteConfig.siteIcon?.startsWith('data:image/') || defaultPngB64);
+  const iconHref = usePng ? './favicon.png' : siteConfig.siteIcon || './favicon.png';
   const headerLinks = Array.isArray(siteConfig.headerNavLinks) ? siteConfig.headerNavLinks : [];
   const footerLinks = Array.isArray(siteConfig.footerLinks) ? siteConfig.footerLinks : [];
 
@@ -1038,14 +1066,14 @@ function buildStandaloneWebAppFiles(params: {
     theme_color: '#111827',
     icons: [
       {
-        src: iconHref.startsWith('data:') ? './favicon.png' : iconHref,
+        src: iconHref,
         sizes: '512x512',
         type: 'image/png',
       },
     ],
   };
 
-  const swJs = `const CACHE_NAME = 'blogvn-site-v1';
+  const swJs = `const CACHE_NAME = 'daoky-site-v1';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './posts-manifest.json'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE_NAME).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -1193,10 +1221,12 @@ self.addEventListener('fetch', (e) => {
     { path: 'index.html', content: indexHtml, isBase64: false },
   ];
 
-  // If siteIcon is a data URL image uploaded from device, also store it cleanly as favicon.png inside repo
+  // If siteIcon is a data URL image uploaded from device, or default Đạo Ký logo, store favicon.png inside repo
   if (siteConfig.siteIcon && siteConfig.siteIcon.startsWith('data:image/')) {
     const cleanB64 = siteConfig.siteIcon.replace(/^data:[^;]+;base64,/, '');
     files.push({ path: 'favicon.png', content: cleanB64, isBase64: true });
+  } else if (defaultPngB64) {
+    files.push({ path: 'favicon.png', content: defaultPngB64, isBase64: true });
   }
 
   return files;
@@ -1458,7 +1488,7 @@ async function processDueSchedules(
 }
 
 function buildGitHubSchedulerWorkflowYaml(): string {
-  return `name: BlogVN Scheduled Publish & Auto-Delete
+  return `name: Đạo Ký Scheduled Publish & Auto-Delete
 
 on:
   schedule:
@@ -1532,11 +1562,11 @@ jobs:
 
       - name: Commit & Push scheduled changes
         run: |
-          git config user.name "BlogVN Scheduler"
+          git config user.name "Đạo Ký Scheduler"
           git config user.email "actions@users.noreply.github.com"
           git add -A
           if ! git diff --staged --quiet; then
-            git commit -m "BlogVN: Execute scheduled post publish / auto-delete"
+            git commit -m "Đạo Ký: Execute scheduled post publish / auto-delete"
             git push
           else
             echo "No due scheduled jobs."
@@ -2222,7 +2252,7 @@ async function startServer() {
           .replace(/[^a-zA-Z0-9._-]/g, '-') || `${owner}.github.io`;
       const finalTitle = String(siteTitle || '').trim() || `Blog của ${userResp.data.name || owner}`;
       const finalTagline =
-        String(tagline || '').trim() || 'Ghi chép cá nhân, chia sẻ kiến thức được tạo từ BlogVN.';
+        String(tagline || '').trim() || 'Ghi chép cá nhân, chia sẻ kiến thức được tạo từ Đạo Ký.';
 
       // 1. Create repository (or check if already created)
       let defaultBranch = 'main';
@@ -2284,7 +2314,7 @@ async function startServer() {
         `title: "${finalTitle.replace(/"/g, '\\"')}"`,
         `---`,
         ``,
-        `Chào mừng đến với **${finalTitle}** — trang blog được tạo và quản lý bằng **BlogVN**.`,
+        `Chào mừng đến với **${finalTitle}** — trang blog được tạo và quản lý bằng **Đạo Ký**.`,
       ].join('\n');
 
       const welcomePost = [
@@ -2293,13 +2323,13 @@ async function startServer() {
         `title: "Chào mừng đến với ${finalTitle.replace(/"/g, '\\"')}"`,
         `date: ${today}`,
         `categories: [Ghi chép]`,
-        `tags: [blogvn, github-pages]`,
-        `excerpt: "Bài viết đầu tiên được khởi tạo tự động từ ứng dụng BlogVN."`,
+        `tags: [dao-ky, github-pages]`,
+        `excerpt: "Bài viết đầu tiên được khởi tạo tự động từ ứng dụng Đạo Ký."`,
         `---`,
         ``,
         `Xin chào! Đây là bài viết đầu tiên trên trang GitHub Pages mới của bạn.`,
         ``,
-        `Từ nay bạn có thể viết bài Markdown, tải ảnh trực tiếp từ điện thoại và bấm **Đăng lên GitHub** ngay trong ứng dụng **BlogVN**.`,
+        `Từ nay bạn có thể viết bài Markdown, tải ảnh trực tiếp từ điện thoại và bấm **Đăng lên GitHub** ngay trong ứng dụng **Đạo Ký**.`,
       ].join('\n');
 
       await upsertRepoFile({
@@ -2308,7 +2338,7 @@ async function startServer() {
         branch: defaultBranch,
         filePath: '_config.yml',
         content: configYml + '\n',
-        message: 'Khởi tạo cấu hình BlogVN (_config.yml)',
+        message: 'Khởi tạo cấu hình Đạo Ký (_config.yml)',
         token,
       });
 
@@ -2318,7 +2348,7 @@ async function startServer() {
         branch: defaultBranch,
         filePath: 'index.md',
         content: indexMd + '\n',
-        message: 'Khởi tạo trang chủ BlogVN',
+        message: 'Khởi tạo trang chủ Đạo Ký',
         token,
       });
 
@@ -2326,9 +2356,9 @@ async function startServer() {
         owner,
         repo: cleanRepoName,
         branch: defaultBranch,
-        filePath: `_posts/${today}-chao-mung-den-voi-blogvn.md`,
+        filePath: `_posts/${today}-chao-mung-den-voi-dao-ky.md`,
         content: welcomePost + '\n',
-        message: 'Thêm bài viết chào mừng từ BlogVN',
+        message: 'Thêm bài viết chào mừng từ Đạo Ký',
         token,
       });
 
@@ -2701,7 +2731,7 @@ async function startServer() {
           content: p.base64Data,
           isBase64: true,
         })),
-        message: commitMessage || `Upload ${prepared.length} images via BlogVN Image Batch`,
+        message: commitMessage || `Upload ${prepared.length} images via Đạo Ký Image Batch`,
         token,
       });
 
@@ -3286,7 +3316,7 @@ async function startServer() {
             isBase64: false,
           },
         ],
-        message: `BlogVN: Sync ${pendingRepoTasks.length} scheduled jobs & 24/7 GitHub Actions workflow`,
+        message: `Đạo Ký: Sync ${pendingRepoTasks.length} scheduled jobs & 24/7 GitHub Actions workflow`,
         token,
       });
 
@@ -3418,15 +3448,29 @@ async function startServer() {
           token
         );
         if (astroCfgCheck.ok) {
+          const defaultPngB64 = isBundledDefaultSiteIcon(cleanCfg.siteIcon)
+            ? readDefaultDaoKyPngBase64()
+            : undefined;
           filesToCommit.push({
             path: 'src/cau_hinh/trang_web.ts',
-            content: buildAstroSiteConfigModule({ owner, repo, config: cleanCfg }),
+            content: buildAstroSiteConfigModule({
+              owner,
+              repo,
+              config: cleanCfg,
+              hasBundledPngFavicon: Boolean(cleanCfg.siteIcon?.startsWith('data:image/') || defaultPngB64),
+            }),
             isBase64: false,
           });
           if (cleanCfg.siteIcon?.startsWith('data:image/')) {
             filesToCommit.push({
               path: 'public/favicon.png',
               content: cleanCfg.siteIcon.replace(/^data:[^;]+;base64,/, ''),
+              isBase64: true,
+            });
+          } else if (defaultPngB64) {
+            filesToCommit.push({
+              path: 'public/favicon.png',
+              content: defaultPngB64,
               isBase64: true,
             });
           }
@@ -3439,8 +3483,8 @@ async function startServer() {
         branch,
         files: filesToCommit,
         message: publishWebApp
-          ? `BlogVN: Xuất bản Web App GitHub Pages & cấu hình nhận dạng (${cleanCfg.siteTitle || repo})`
-          : `BlogVN: Cập nhật cấu hình nhận dạng web (${cleanCfg.siteTitle || repo})`,
+          ? `Đạo Ký: Xuất bản Web App GitHub Pages & cấu hình nhận dạng (${cleanCfg.siteTitle || repo})`
+          : `Đạo Ký: Cập nhật cấu hình nhận dạng web (${cleanCfg.siteTitle || repo})`,
         token,
       });
 
@@ -3520,12 +3564,17 @@ async function startServer() {
         }
       }
 
+      const defaultFaviconPngBase64 = isBundledDefaultSiteIcon(config?.siteIcon)
+        ? readDefaultDaoKyPngBase64()
+        : undefined;
+
       const files = buildVietnameseAstroTemplateFiles({
         owner,
         repo,
         config,
         templateId: templateId || config?.astroTemplate,
         includeStarterPosts: preservePosts === false || preservedPostsCount === 0,
+        defaultFaviconPngBase64,
       });
 
       const commitRes = await commitMultipleFilesAtomic({
@@ -3535,8 +3584,8 @@ async function startServer() {
         files,
         message:
           preservePosts !== false && preservedPostsCount > 0
-            ? `BlogVN: Cập nhật giao diện Astro 5 (giữ nguyên ${preservedPostsCount} bài viết) (${config.siteTitle || repo})`
-            : `BlogVN: Triển khai Template Astro Blog Việt sạch & nhận dạng web (${config.siteTitle || repo})`,
+            ? `Đạo Ký: Cập nhật giao diện Astro 5 (giữ nguyên ${preservedPostsCount} bài viết) (${config.siteTitle || repo})`
+            : `Đạo Ký: Triển khai Template Astro Đạo Ký sạch & nhận dạng web (${config.siteTitle || repo})`,
         token,
         replaceAllFiles: true,
         preservedTreeEntries,
@@ -3598,7 +3647,7 @@ async function startServer() {
     }
   });
 
-  // 11. Built-in BlogVN App SEO endpoints (robots.txt, sitemap.xml, rss.xml)
+  // 11. Built-in Đạo Ký App SEO endpoints (robots.txt, sitemap.xml, rss.xml)
   app.get('/robots.txt', (req: Request, res: Response) => {
     res.type('text/plain').send(generateRobotsTxt(getBaseAppUrl(req)));
   });
@@ -3607,9 +3656,9 @@ async function startServer() {
     const base = getBaseAppUrl(req);
     const xml = generateSitemapXml({
       config: {
-        siteTitle: 'BlogVN',
-        tagline: 'Tạo & Quản lý Blog GitHub Pages',
-        authorName: 'BlogVN',
+        siteTitle: 'Đạo Ký',
+        tagline: 'Không gian viết Blog & Quản lý Markdown chuyên sâu',
+        authorName: 'Đạo Ký',
         authorBio: '',
         githubOwner: DEFAULT_OWNER,
         githubRepo: DEFAULT_REPO,
@@ -3627,10 +3676,10 @@ async function startServer() {
     const base = getBaseAppUrl(req);
     const xml = generateRssXml({
       config: {
-        siteTitle: 'BlogVN — Tạo & Quản lý Blog GitHub Pages',
+        siteTitle: 'Đạo Ký — Không gian viết Blog & Quản lý Markdown',
         tagline:
           'Khởi tạo blog GitHub Pages trong 1 chạm, biên soạn Markdown, nén tải ảnh hàng loạt và xuất bản trực tiếp.',
-        authorName: 'BlogVN',
+        authorName: 'Đạo Ký',
         authorBio: '',
         githubOwner: DEFAULT_OWNER,
         githubRepo: DEFAULT_REPO,

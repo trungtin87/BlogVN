@@ -155,8 +155,10 @@ export function SiteIdentityCard({
 
   const [siteTitle, setSiteTitle] = useState(config.siteTitle || '');
   const [tagline, setTagline] = useState(config.tagline || '');
-  const [siteIcon, setSiteIcon] = useState(config.siteIcon || './icon.svg');
-  const [headerTitle, setHeaderTitle] = useState(config.headerTitle || 'BlogVN');
+  const [siteIcon, setSiteIcon] = useState(
+    config.siteIcon || './assets/aistudio/1794978557793_3b5d5cb0.png'
+  );
+  const [headerTitle, setHeaderTitle] = useState(config.headerTitle || 'Đạo Ký');
   const [headerNavLinks, setHeaderNavLinks] = useState<SiteNavLink[]>(
     config.headerNavLinks || []
   );
@@ -182,8 +184,8 @@ export function SiteIdentityCard({
   useEffect(() => {
     setSiteTitle(config.siteTitle || '');
     setTagline(config.tagline || '');
-    setSiteIcon(config.siteIcon || './icon.svg');
-    setHeaderTitle(config.headerTitle || 'BlogVN');
+    setSiteIcon(config.siteIcon || './assets/aistudio/1794978557793_3b5d5cb0.png');
+    setHeaderTitle(config.headerTitle || 'Đạo Ký');
     setHeaderNavLinks(config.headerNavLinks || []);
     setFooterText(config.footerText || '');
     setFooterLinks(config.footerLinks || []);
@@ -229,14 +231,19 @@ export function SiteIdentityCard({
       ...config,
       siteTitle: siteTitle.trim() || config.siteTitle,
       tagline: tagline.trim(),
-      siteIcon: siteIcon.trim() || './icon.svg',
-      headerTitle: headerTitle.trim() || 'BlogVN',
+      siteIcon: siteIcon.trim() || './assets/aistudio/1794978557793_3b5d5cb0.png',
+      headerTitle: headerTitle.trim() || 'Đạo Ký',
       headerNavLinks: headerNavLinks.filter((l) => l.label.trim() && l.url.trim()),
       footerText: footerText.trim(),
       footerLinks: footerLinks.filter((l) => l.label.trim() && l.url.trim()),
       authorName: authorName.trim() || config.authorName,
       authorBio: authorBio.trim(),
-      themeMode: chosenPreset ? (chosenPreset.isDark ? 'dark' : 'light') : config.themeMode,
+      themeMode:
+        overrideTemplate && chosenPreset
+          ? chosenPreset.isDark
+            ? 'dark'
+            : 'light'
+          : config.themeMode || (chosenPreset?.isDark ? 'dark' : 'light'),
       astroTemplate: chosenTpl,
       liveChat: {
         enabled: chosenChat.enabled,
@@ -418,9 +425,10 @@ export function SiteIdentityCard({
         className="p-3.5 rounded-xl border flex items-center gap-3"
       >
         <img
-          src={siteIcon || './icon.svg'}
+          src={siteIcon || './assets/aistudio/1794978557793_3b5d5cb0.png'}
           alt="Icon"
-          className="w-5 h-5 rounded object-cover shrink-0"
+          className="w-6 h-6 rounded-full object-cover shrink-0 border"
+          style={{ borderColor: palette.border }}
         />
         <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold truncate">{siteTitle || 'Tiêu đề trang web'}</div>
@@ -441,7 +449,7 @@ export function SiteIdentityCard({
               type="text"
               value={siteIcon}
               onChange={(e) => setSiteIcon(e.target.value)}
-              placeholder="/icon.svg hoặc URL / tải từ máy"
+              placeholder="./assets/aistudio/1794978557793_3b5d5cb0.png hoặc URL"
               style={{
                 backgroundColor: palette.canvas,
                 borderColor: palette.border,
@@ -481,7 +489,7 @@ export function SiteIdentityCard({
             type="text"
             value={headerTitle}
             onChange={(e) => setHeaderTitle(e.target.value)}
-            placeholder="VD: BlogVN hoặc Bùi Trung Tín"
+            placeholder="VD: Đạo Ký hoặc tên cá nhân"
             style={{
               backgroundColor: palette.canvas,
               borderColor: palette.border,
@@ -607,7 +615,7 @@ export function SiteIdentityCard({
           ) : (
             <div className="space-y-2">
               {headerNavLinks.map((item, idx) => (
-                <div key={idx} className="flex items-center gap-2">
+                <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2">
                   <input
                     type="text"
                     placeholder="Tên link"
@@ -622,8 +630,9 @@ export function SiteIdentityCard({
                       borderColor: palette.border,
                       color: palette.textPrimary,
                     }}
-                    className="w-1/3 px-2.5 min-h-[38px] text-xs rounded-lg border"
+                    className="w-full sm:w-1/3 px-2.5 min-h-[38px] text-xs rounded-lg border"
                   />
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                   <input
                     type="text"
                     placeholder="https://..."
@@ -651,6 +660,7 @@ export function SiteIdentityCard({
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -679,7 +689,7 @@ export function SiteIdentityCard({
           ) : (
             <div className="space-y-2">
               {footerLinks.map((item, idx) => (
-                <div key={idx} className="flex items-center gap-2">
+                <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2">
                   <input
                     type="text"
                     placeholder="Tên link"
@@ -694,8 +704,9 @@ export function SiteIdentityCard({
                       borderColor: palette.border,
                       color: palette.textPrimary,
                     }}
-                    className="w-1/3 px-2.5 min-h-[38px] text-xs rounded-lg border"
+                    className="w-full sm:w-1/3 px-2.5 min-h-[38px] text-xs rounded-lg border"
                   />
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                   <input
                     type="text"
                     placeholder="https://..."
@@ -721,6 +732,7 @@ export function SiteIdentityCard({
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -992,6 +1004,10 @@ export function SiteIdentityCard({
                 setAstroTemplate(tplId);
                 onUpdateConfig(buildDraftConfig(tplId));
               }}
+              previewMode={config.themeMode}
+              onToggleThemeMode={(mode) =>
+                onUpdateConfig({ ...buildDraftConfig(), themeMode: mode })
+              }
               previewSiteTitle={siteTitle}
               previewHeaderTitle={headerTitle}
               previewTagline={tagline}

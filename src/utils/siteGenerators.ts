@@ -116,7 +116,7 @@ export function generateRssXml(params: {
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
     '  <channel>',
-    `    <title>${escapeXml(config.siteTitle || 'BlogVN')}</title>`,
+    `    <title>${escapeXml(config.siteTitle || 'Đạo Ký')}</title>`,
     `    <link>${escapeXml(base)}/</link>`,
     `    <description>${escapeXml(config.tagline || config.siteTitle)}</description>`,
     '    <language>vi</language>',
@@ -143,7 +143,7 @@ export function generateJsonFeed(params: {
 
   const feed = {
     version: 'https://jsonfeed.org/version/1.1',
-    title: config.siteTitle || 'BlogVN',
+    title: config.siteTitle || 'Đạo Ký',
     home_page_url: `${base}/`,
     feed_url: `${base}/feed.json`,
     description: config.tagline || config.siteTitle,

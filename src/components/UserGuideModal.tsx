@@ -63,7 +63,7 @@ export function UserGuideModal({
                 style={{ fontFamily: fonts.display }}
                 className="text-base sm:text-lg font-bold truncate"
               >
-                Hướng dẫn sử dụng BlogVN từ A–Z
+                Hướng dẫn sử dụng Đạo Ký từ A–Z
               </h2>
               <p style={{ color: palette.textMuted }} className="text-xs truncate">
                 Quy trình kết nối GitHub Pages, triển khai Astro 5, tuỳ chỉnh thương hiệu và viết bài SEO

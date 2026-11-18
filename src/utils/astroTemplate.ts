@@ -20,7 +20,7 @@ export const ASTRO_TEMPLATE_PRESETS: AstroTemplatePresetMeta[] = [
     badge: 'Sáng · Tiểu luận',
     isDark: false,
     description:
-      'Giấy ngà ấm (#FAF7F2), kẻ chỉ đôi thanh mảnh, tiêu đề Serif cổ điển và nhịp đọc bài luận sâu sắc.',
+      'Giấy ngà ấm (#FAF7F2), kẻ chỉ đôi thanh mảnh, tiêu đề Serif cổ điển (hỗ trợ Sáng/Tối).',
   },
   {
     id: 'nytimes-light',
@@ -30,17 +30,17 @@ export const ASTRO_TEMPLATE_PRESETS: AstroTemplatePresetMeta[] = [
     badge: 'Sáng · Báo in',
     isDark: false,
     description:
-      'Nền trắng tinh khôi (#FFFFFF), bài tiêu điểm lớn cạnh cột tin nhanh, lưới nhật báo 1px sắc nét.',
+      'Nền trắng tinh khôi (#FFFFFF), bài tiêu điểm lớn cạnh cột tin nhanh, lưới nhật báo 1px (hỗ trợ Sáng/Tối).',
   },
   {
     id: 'bbc-dark',
-    name: 'BBC Studio Tối',
+    name: 'BBC Studio',
     inspiration: 'Cảm hứng BBC News',
     toneLabel: 'Tối',
     badge: 'Tối · Thời sự',
     isDark: true,
     description:
-      'Than chì studio (#121214), điểm nhấn đỏ thẫm, lưới đa bài viết hiện đại tôn vinh ảnh bìa & video.',
+      'Than chì studio (#121214), điểm nhấn đỏ thẫm, lưới đa bài viết hiện đại tôn vinh ảnh bìa (hỗ trợ Sáng/Tối).',
   },
   {
     id: 'obsidian-broadsheet',
@@ -50,7 +50,7 @@ export const ASTRO_TEMPLATE_PRESETS: AstroTemplatePresetMeta[] = [
     badge: 'Tối · Nhật báo',
     isDark: true,
     description:
-      'Mực đêm xanh thẫm (#0B0D12), tiêu đề Serif uy nghiêm và ánh xanh coban dịu mắt đọc ban đêm.',
+      'Mực đêm xanh thẫm (#0B0D12), tiêu đề Serif uy nghiêm và ánh xanh coban dịu mắt (hỗ trợ Sáng/Tối).',
   },
   {
     id: 'espresso-salon',
@@ -60,7 +60,7 @@ export const ASTRO_TEMPLATE_PRESETS: AstroTemplatePresetMeta[] = [
     badge: 'Tối · Đọc sâu',
     isDark: true,
     description:
-      'Nền gỗ espresso ấm áp (#161210), điểm nhấn hổ phách dịu nhẹ và chữ Serif êm cho bài viết dài.',
+      'Nền gỗ espresso ấm áp (#161210), điểm nhấn hổ phách dịu nhẹ cho bài viết dài (hỗ trợ Sáng/Tối).',
   },
 ];
 
@@ -98,76 +98,159 @@ interface ThemeTokenPair {
   fontBody: string;
 }
 
-const TEMPLATE_TOKENS: Record<AstroTemplateId, ThemeTokenPair> = {
+const TEMPLATE_DUAL_TOKENS: Record<
+  AstroTemplateId,
+  { light: ThemeTokenPair; dark: ThemeTokenPair }
+> = {
   'newyorker-light': {
-    bg: '#FAF7F2',
-    surface: '#F2EDE4',
-    card: '#FFFFFF',
-    border: '#DDD5C7',
-    text: '#141414',
-    text2: '#3A352E',
-    muted: '#6E665A',
-    accent: '#141414',
-    accentText: '#FAF7F2',
-    link: '#B91C1C',
-    fontDisplay: "'Playfair Display', 'Fraunces', Georgia, serif",
-    fontBody: "'Lora', Georgia, serif",
+    light: {
+      bg: '#FAF7F2',
+      surface: '#F2EDE4',
+      card: '#FFFFFF',
+      border: '#DDD5C7',
+      text: '#141414',
+      text2: '#3A352E',
+      muted: '#6E665A',
+      accent: '#141414',
+      accentText: '#FAF7F2',
+      link: '#B91C1C',
+      fontDisplay: "'Playfair Display', 'Fraunces', Georgia, serif",
+      fontBody: "'Lora', Georgia, serif",
+    },
+    dark: {
+      bg: '#161411',
+      surface: '#201D18',
+      card: '#28241E',
+      border: '#3A332A',
+      text: '#F5EFE6',
+      text2: '#D8CFC2',
+      muted: '#A19585',
+      accent: '#FAF7F2',
+      accentText: '#161411',
+      link: '#F87171',
+      fontDisplay: "'Playfair Display', 'Fraunces', Georgia, serif",
+      fontBody: "'Lora', Georgia, serif",
+    },
   },
   'nytimes-light': {
-    bg: '#FFFFFF',
-    surface: '#F5F6F8',
-    card: '#FFFFFF',
-    border: '#D4D4D8',
-    text: '#0F172A',
-    text2: '#334155',
-    muted: '#64748B',
-    accent: '#0F172A',
-    accentText: '#FFFFFF',
-    link: '#1E3A8A',
-    fontDisplay: "'Fraunces', 'Playfair Display', Georgia, serif",
-    fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    light: {
+      bg: '#FFFFFF',
+      surface: '#F5F6F8',
+      card: '#FFFFFF',
+      border: '#D4D4D8',
+      text: '#0F172A',
+      text2: '#334155',
+      muted: '#64748B',
+      accent: '#0F172A',
+      accentText: '#FFFFFF',
+      link: '#1E3A8A',
+      fontDisplay: "'Fraunces', 'Playfair Display', Georgia, serif",
+      fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    },
+    dark: {
+      bg: '#0E1218',
+      surface: '#161C26',
+      card: '#1D2432',
+      border: '#2C3548',
+      text: '#F8FAFC',
+      text2: '#CBD5E1',
+      muted: '#94A3B8',
+      accent: '#F8FAFC',
+      accentText: '#0E1218',
+      link: '#60A5FA',
+      fontDisplay: "'Fraunces', 'Playfair Display', Georgia, serif",
+      fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    },
   },
   'bbc-dark': {
-    bg: '#121214',
-    surface: '#1A1B1F',
-    card: '#22242A',
-    border: '#2E313A',
-    text: '#F4F4F5',
-    text2: '#D4D4D8',
-    muted: '#A1A1AA',
-    accent: '#E11D48',
-    accentText: '#FFFFFF',
-    link: '#FB7185',
-    fontDisplay: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
-    fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    light: {
+      bg: '#F6F7F9',
+      surface: '#EBEDF2',
+      card: '#FFFFFF',
+      border: '#D4D7DF',
+      text: '#111216',
+      text2: '#374151',
+      muted: '#6B7280',
+      accent: '#E11D48',
+      accentText: '#FFFFFF',
+      link: '#BE123C',
+      fontDisplay: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+      fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    },
+    dark: {
+      bg: '#121214',
+      surface: '#1A1B1F',
+      card: '#22242A',
+      border: '#2E313A',
+      text: '#F4F4F5',
+      text2: '#D4D4D8',
+      muted: '#A1A1AA',
+      accent: '#E11D48',
+      accentText: '#FFFFFF',
+      link: '#FB7185',
+      fontDisplay: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+      fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    },
   },
   'obsidian-broadsheet': {
-    bg: '#0B0D12',
-    surface: '#131722',
-    card: '#1A1F2E',
-    border: '#273043',
-    text: '#F3F4F6',
-    text2: '#CBD5E1',
-    muted: '#94A3B8',
-    accent: '#F3F4F6',
-    accentText: '#0B0D12',
-    link: '#60A5FA',
-    fontDisplay: "'Fraunces', Georgia, serif",
-    fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    light: {
+      bg: '#F3F6FB',
+      surface: '#E6ECF5',
+      card: '#FFFFFF',
+      border: '#CBD5E1',
+      text: '#0F172A',
+      text2: '#334155',
+      muted: '#64748B',
+      accent: '#0F172A',
+      accentText: '#FFFFFF',
+      link: '#1D4ED8',
+      fontDisplay: "'Fraunces', Georgia, serif",
+      fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    },
+    dark: {
+      bg: '#0B0D12',
+      surface: '#131722',
+      card: '#1A1F2E',
+      border: '#273043',
+      text: '#F3F4F6',
+      text2: '#CBD5E1',
+      muted: '#94A3B8',
+      accent: '#F3F4F6',
+      accentText: '#0B0D12',
+      link: '#60A5FA',
+      fontDisplay: "'Fraunces', Georgia, serif",
+      fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    },
   },
   'espresso-salon': {
-    bg: '#161210',
-    surface: '#201A17',
-    card: '#29221E',
-    border: '#3B312B',
-    text: '#F5EFE6',
-    text2: '#D6CBC0',
-    muted: '#A39589',
-    accent: '#E5A93C',
-    accentText: '#161210',
-    link: '#FBBF24',
-    fontDisplay: "'Playfair Display', 'Fraunces', Georgia, serif",
-    fontBody: "'Lora', Georgia, serif",
+    light: {
+      bg: '#FAF4EC',
+      surface: '#F1E7DA',
+      card: '#FFFFFF',
+      border: '#DECDB9',
+      text: '#261C15',
+      text2: '#4E3E31',
+      muted: '#7D6A5A',
+      accent: '#9A5B13',
+      accentText: '#FFFFFF',
+      link: '#B45309',
+      fontDisplay: "'Playfair Display', 'Fraunces', Georgia, serif",
+      fontBody: "'Lora', Georgia, serif",
+    },
+    dark: {
+      bg: '#161210',
+      surface: '#201A17',
+      card: '#29221E',
+      border: '#3B312B',
+      text: '#F5EFE6',
+      text2: '#D6CBC0',
+      muted: '#A39589',
+      accent: '#E5A93C',
+      accentText: '#161210',
+      link: '#FBBF24',
+      fontDisplay: "'Playfair Display', 'Fraunces', Georgia, serif",
+      fontBody: "'Lora', Georgia, serif",
+    },
   },
 };
 
@@ -175,44 +258,60 @@ function escapeSingleQuote(val: string): string {
   return String(val || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
+function isBundledDefaultIcon(rawIcon: string): boolean {
+  const clean = rawIcon.trim();
+  return (
+    !clean ||
+    clean === './icon.svg' ||
+    clean === '/icon.svg' ||
+    clean.includes('1794978557793_3b5d5cb0.png') ||
+    clean === './pwa-192x192.png' ||
+    clean === '/pwa-192x192.png'
+  );
+}
+
 export function buildAstroSiteConfigModule(params: {
   owner: string;
   repo: string;
   config: Partial<BlogConfig>;
   templateId?: AstroTemplateId | string;
+  hasBundledPngFavicon?: boolean;
 }): string {
-  const { owner, repo, config } = params;
-  const fallbackMode: ThemeMode = config.themeMode === 'dark' ? 'dark' : 'light';
+  const { owner, repo, config, hasBundledPngFavicon = false } = params;
+  const requestedMode: ThemeMode | undefined =
+    config.themeMode === 'dark' ? 'dark' : config.themeMode === 'light' ? 'light' : undefined;
   const templateStyle = normalizeAstroTemplateId(
     params.templateId || config.astroTemplate,
-    fallbackMode
+    requestedMode || 'light'
   );
   const presetMeta =
     ASTRO_TEMPLATE_PRESETS.find((p) => p.id === templateStyle) || ASTRO_TEMPLATE_PRESETS[0];
+  const resolvedMode: ThemeMode = requestedMode || (presetMeta.isDark ? 'dark' : 'light');
   const isUserSite = repo.toLowerCase() === `${owner.toLowerCase()}.github.io`;
   const defaultPagesUrl = isUserSite ? `https://${repo}` : `https://${owner}.github.io/${repo}`;
 
   const rawIcon = (config.siteIcon || '').trim();
-  const normalizedIcon = rawIcon.startsWith('data:image/')
+  const usePngFavicon = rawIcon.startsWith('data:image/') || (hasBundledPngFavicon && isBundledDefaultIcon(rawIcon));
+  const normalizedIcon = usePngFavicon
     ? '/favicon.png'
-    : rawIcon === './icon.svg' || rawIcon === '/icon.svg' || !rawIcon
+    : isBundledDefaultIcon(rawIcon)
     ? '/favicon.svg'
     : rawIcon;
 
   const siteCfg = {
-    siteTitle: (config.siteTitle || repo || 'BlogVN').trim(),
+    siteTitle: (config.siteTitle || repo || 'Đạo Ký').trim(),
     tagline: (
       config.tagline ||
       `Nhật ký chia sẻ góc nhìn, tiểu luận và ghi chép cá nhân của ${config.authorName || owner}.`
     ).trim(),
     siteIcon: normalizedIcon,
-    headerTitle: (config.headerTitle || config.siteTitle || 'BlogVN').trim(),
+    headerTitle: (config.headerTitle || config.siteTitle || 'Đạo Ký').trim(),
     headerNavLinks: Array.isArray(config.headerNavLinks)
       ? config.headerNavLinks.filter((l) => l?.label?.trim() && l?.url?.trim())
       : [],
     footerText: (
       config.footerText ||
-      `© ${new Date().getFullYear()} ${(config.siteTitle || repo || 'BlogVN').trim()} · Xuất bản trên GitHub Pages.`
+      `© ${new Date().getFullYear()} ${(config.siteTitle || repo || 'Đạo Ký').trim()} · Xuất bản trên GitHub Pages.`
     ).trim(),
     footerLinks: Array.isArray(config.footerLinks)
       ? config.footerLinks.filter((l) => l?.label?.trim() && l?.url?.trim())
@@ -222,7 +321,7 @@ export function buildAstroSiteConfigModule(params: {
       config.authorBio ||
       'Tác giả blog cá nhân chia sẻ bài viết, quan điểm và ghi chép dài hạn.'
     ).trim(),
-    themeMode: presetMeta.isDark ? 'dark' : 'light',
+    themeMode: resolvedMode,
     templateStyle,
     pagesUrl: (config.pagesUrl || defaultPagesUrl).trim().replace(/\/+$/, ''),
     githubOwner: owner,
@@ -300,18 +399,27 @@ export function buildVietnameseAstroTemplateFiles(params: {
   config: Partial<BlogConfig>;
   templateId?: AstroTemplateId | string;
   includeStarterPosts?: boolean;
+  defaultFaviconPngBase64?: string;
 }): Array<{ path: string; content: string; isBase64?: boolean }> {
-  const { owner, repo, config, includeStarterPosts = true } = params;
-  const fallbackMode: ThemeMode = config.themeMode === 'dark' ? 'dark' : 'light';
+  const {
+    owner,
+    repo,
+    config,
+    includeStarterPosts = true,
+    defaultFaviconPngBase64,
+  } = params;
+  const requestedMode: ThemeMode | undefined =
+    config.themeMode === 'dark' ? 'dark' : config.themeMode === 'light' ? 'light' : undefined;
   const templateStyle = normalizeAstroTemplateId(
     params.templateId || config.astroTemplate,
-    fallbackMode
+    requestedMode || 'light'
   );
   const presetMeta =
     ASTRO_TEMPLATE_PRESETS.find((p) => p.id === templateStyle) || ASTRO_TEMPLATE_PRESETS[0];
-  const tokens = TEMPLATE_TOKENS[templateStyle];
+  const resolvedMode: ThemeMode = requestedMode || (presetMeta.isDark ? 'dark' : 'light');
+  const tokens = TEMPLATE_DUAL_TOKENS[templateStyle][resolvedMode];
 
-  const siteTitle = (config.siteTitle || repo || 'Blog Việt').trim();
+  const siteTitle = (config.siteTitle || repo || 'Đạo Ký').trim();
   const tagline = (
     config.tagline ||
     'Ghi chép cá nhân, bài luận chuyên sâu và góc nhìn tĩnh tại trên GitHub Pages.'
@@ -319,8 +427,20 @@ export function buildVietnameseAstroTemplateFiles(params: {
   const headerBrand = (config.headerTitle || siteTitle).trim();
   const authorName = (config.authorName || owner || 'Tác giả').trim();
   const today = new Date().toISOString().slice(0, 10);
+  const dayOffsetStr = (daysAgo: number) => {
+    const d = new Date(Date.now() - daysAgo * 86400_000);
+    return d.toISOString().slice(0, 10);
+  };
   const rawIcon = (config.siteIcon || '').trim();
   const hasDataIcon = rawIcon.startsWith('data:image/');
+  const hasBundledPngFavicon = Boolean(
+    hasDataIcon || (defaultFaviconPngBase64 && isBundledDefaultIcon(rawIcon))
+  );
+  const faviconPngBase64 = hasDataIcon
+    ? rawIcon.replace(/^data:[^;]+;base64,/, '')
+    : defaultFaviconPngBase64 && isBundledDefaultIcon(rawIcon)
+    ? defaultFaviconPngBase64.replace(/^data:[^;]+;base64,/, '')
+    : undefined;
   const isUserSite = repo.toLowerCase() === `${owner.toLowerCase()}.github.io`;
   const defaultPagesUrl = isUserSite ? `https://${repo}` : `https://${owner}.github.io/${repo}`;
 
@@ -334,7 +454,7 @@ export function buildVietnameseAstroTemplateFiles(params: {
     githubRepo: repo,
     pagesUrl: (config.pagesUrl || defaultPagesUrl).trim().replace(/\/+$/, ''),
     postsDirectory: 'src/content/bai_viet',
-    themeMode: presetMeta.isDark ? 'dark' : 'light',
+    themeMode: resolvedMode,
     astroTemplate: templateStyle,
   };
 
@@ -348,7 +468,7 @@ export function buildVietnameseAstroTemplateFiles(params: {
 
   const packageJson = JSON.stringify(
     {
-      name: `blogvn-astro-${repo.toLowerCase().replace(/[^a-z0-9-]/g, '-') || 'site'}`,
+      name: `daoky-astro-${repo.toLowerCase().replace(/[^a-z0-9-]/g, '-') || 'site'}`,
       type: 'module',
       version: '1.0.0',
       private: true,
@@ -432,7 +552,7 @@ export default defineConfig({
 });
 `;
 
-  const deployWorkflowYml = `name: Build & Deploy Astro Blog (BlogVN)
+  const deployWorkflowYml = `name: Build & Deploy Astro Blog (Đạo Ký)
 
 on:
   push:
@@ -497,19 +617,82 @@ jobs:
 `;
 
   const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect width="64" height="64" rx="14" fill="${tokens.accent}"/>
-  <text x="32" y="42" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="28" fill="${tokens.accentText}">${(headerBrand[0] || 'B').toUpperCase()}</text>
+  <circle cx="32" cy="32" r="30" fill="#FAF7F2" stroke="#141414" stroke-width="4.5" stroke-dasharray="165 18" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#141414" stroke-width="1.2" opacity="0.35"/>
+  <text x="32" y="38" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="22" fill="#141414">${(headerBrand[0] || 'Đ').toUpperCase()}</text>
 </svg>
 `;
+
+  const escXml = (s: string) =>
+    String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+  const buildCoverSvg = (index: 1 | 2 | 3, kicker: string, headline: string): string => {
+    const safeHeadline = escXml(headline.slice(0, 52));
+    const safeKicker = escXml(kicker.toUpperCase());
+    const safeBrand = escXml(siteTitle.slice(0, 32));
+    const motifByTemplate: Record<AstroTemplateId, string> = {
+      'newyorker-light': `
+        <rect x="44" y="44" width="1112" height="542" fill="none" stroke="${tokens.border}" stroke-width="2"/>
+        <rect x="54" y="54" width="1092" height="522" fill="none" stroke="${tokens.border}" stroke-width="1"/>
+        <circle cx="960" cy="240" r="120" fill="${tokens.surface}" stroke="${tokens.border}" stroke-width="1.5"/>
+        <path d="M900 295 Q960 170 1020 295" fill="none" stroke="${tokens.link}" stroke-width="3"/>
+        <circle cx="960" cy="215" r="24" fill="${tokens.accent}" opacity="0.88"/>`,
+      'nytimes-light': `
+        <line x1="72" y1="88" x2="1128" y2="88" stroke="${tokens.text}" stroke-width="3"/>
+        <line x1="72" y1="96" x2="1128" y2="96" stroke="${tokens.border}" stroke-width="1"/>
+        <rect x="760" y="136" width="368" height="320" fill="${tokens.surface}" stroke="${tokens.border}" stroke-width="1.5"/>
+        <line x1="790" y1="184" x2="1098" y2="184" stroke="${tokens.link}" stroke-width="4"/>
+        <line x1="790" y1="224" x2="1060" y2="224" stroke="${tokens.border}" stroke-width="2"/>
+        <line x1="790" y1="254" x2="1020" y2="254" stroke="${tokens.border}" stroke-width="2"/>
+        <line x1="790" y1="284" x2="1080" y2="284" stroke="${tokens.border}" stroke-width="2"/>`,
+      'bbc-dark': `
+        <rect x="0" y="0" width="1200" height="10" fill="${tokens.accent}"/>
+        <rect x="750" y="120" width="380" height="240" rx="14" fill="${tokens.surface}" stroke="${tokens.border}" stroke-width="2"/>
+        <polygon points="920,205 920,275 980,240" fill="${tokens.accent}"/>
+        <rect x="88" y="420" width="140" height="6" fill="${tokens.accent}"/>`,
+      'obsidian-broadsheet': `
+        <defs>
+          <pattern id="grid-${index}" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="${tokens.border}" stroke-width="0.8" opacity="0.45"/>
+          </pattern>
+        </defs>
+        <rect x="64" y="64" width="1072" height="502" fill="url(#grid-${index})" stroke="${tokens.border}" stroke-width="1.5"/>
+        <circle cx="960" cy="250" r="110" fill="none" stroke="${tokens.link}" stroke-width="2" opacity="0.65"/>
+        <circle cx="960" cy="250" r="64" fill="none" stroke="${tokens.link}" stroke-width="1.5" stroke-dasharray="8 6"/>
+        <circle cx="960" cy="250" r="12" fill="${tokens.link}"/>`,
+      'espresso-salon': `
+        <radialGradient id="lamp-${index}" cx="78%" cy="32%" r="48%">
+          <stop offset="0%" stop-color="${tokens.link}" stop-opacity="0.28"/>
+          <stop offset="100%" stop-color="${tokens.bg}" stop-opacity="0"/>
+        </radialGradient>
+        <rect width="1200" height="630" fill="url(#lamp-${index})"/>
+        <circle cx="940" cy="220" r="95" fill="none" stroke="${tokens.link}" stroke-width="1.5" opacity="0.5"/>
+        <path d="M845 310 C890 250, 990 250, 1035 310" fill="none" stroke="${tokens.accent}" stroke-width="2.5"/>`,
+    };
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="${tokens.bg}"/>
+  ${motifByTemplate[templateStyle]}
+  <text x="90" y="165" font-family="monospace" font-size="20" font-weight="700" letter-spacing="2" fill="${tokens.link}">${safeKicker}</text>
+  <text x="90" y="255" font-family="Georgia, serif" font-weight="700" font-size="44" fill="${tokens.text}">${safeHeadline}</text>
+  <text x="90" y="325" font-family="sans-serif" font-size="22" fill="${tokens.text2}">${safeBrand} · ${escXml(presetMeta.name)}</text>
+  <line x1="90" y1="470" x2="1110" y2="470" stroke="${tokens.border}" stroke-width="1.5"/>
+  <text x="90" y="520" font-family="monospace" font-size="20" fill="${tokens.muted}">${escXml(authorName)} · Số ${index}/03</text>
+</svg>
+`;
+  };
 
   const ogDefaultSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
   <rect width="1200" height="630" fill="${tokens.bg}"/>
   <rect x="48" y="48" width="1104" height="534" rx="16" fill="${tokens.surface}" stroke="${tokens.border}" stroke-width="2"/>
-  <text x="96" y="190" font-family="monospace" font-size="20" fill="${tokens.link}">${presetMeta.name.toUpperCase()}</text>
-  <text x="96" y="280" font-family="Georgia, serif" font-weight="700" font-size="58" fill="${tokens.text}">${siteTitle.replace(/[<>&]/g, '')}</text>
-  <text x="96" y="355" font-family="sans-serif" font-size="26" fill="${tokens.text2}">${tagline.slice(0, 78).replace(/[<>&]/g, '')}</text>
+  <text x="96" y="190" font-family="monospace" font-size="20" fill="${tokens.link}">${escXml(presetMeta.name.toUpperCase())}</text>
+  <text x="96" y="280" font-family="Georgia, serif" font-weight="700" font-size="58" fill="${tokens.text}">${escXml(siteTitle)}</text>
+  <text x="96" y="355" font-family="sans-serif" font-size="26" fill="${tokens.text2}">${escXml(tagline.slice(0, 78))}</text>
   <line x1="96" y1="450" x2="1104" y2="450" stroke="${tokens.border}" stroke-width="1"/>
-  <text x="96" y="510" font-family="monospace" font-size="22" fill="${tokens.muted}">${authorName.replace(/[<>&]/g, '')} · GitHub Pages Blog</text>
+  <text x="96" y="510" font-family="monospace" font-size="22" fill="${tokens.muted}">${escXml(authorName)} · GitHub Pages Blog</text>
 </svg>
 `;
 
@@ -524,9 +707,9 @@ jobs:
       theme_color: tokens.accent,
       icons: [
         {
-          src: hasDataIcon ? './favicon.png' : './favicon.svg',
-          sizes: hasDataIcon ? '256x256' : 'any',
-          type: hasDataIcon ? 'image/png' : 'image/svg+xml',
+          src: hasBundledPngFavicon ? './favicon.png' : './favicon.svg',
+          sizes: hasBundledPngFavicon ? '192x192' : 'any',
+          type: hasBundledPngFavicon ? 'image/png' : 'image/svg+xml',
         },
       ],
     },
@@ -673,7 +856,8 @@ const fullTitle =
   title === SITE_CONFIG.siteTitle ? title : \`\${title} | \${SITE_CONFIG.siteTitle}\`;
 const iconHref = withBase(SITE_CONFIG.siteIcon || '/favicon.svg');
 const ogImgHref = withBase(ogImage);
-const initialDark = SITE_CONFIG.themeMode === 'dark';
+const initialMode = SITE_CONFIG.themeMode === 'dark' ? 'dark' : 'light';
+const initialDark = initialMode === 'dark';
 const currentPath = Astro.url.pathname;
 const liveChat = SITE_CONFIG.liveChat;
 const activeChatChannels = (liveChat?.channels || []).filter(
@@ -707,7 +891,7 @@ const mainNav = [
 ---
 
 <!doctype html>
-<html lang="vi" class={initialDark ? 'dark' : ''}>
+<html lang="vi" data-mode={initialMode} class={initialDark ? 'dark' : ''}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -715,6 +899,17 @@ const mainNav = [
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex" />}
     {canonical && <link rel="canonical" href={canonical} />}
+
+    <script is:inline define:vars={{ defaultMode: initialMode }}>
+      (function () {
+        try {
+          var saved = localStorage.getItem('daoky_theme_mode');
+          var mode = saved === 'dark' || saved === 'light' ? saved : defaultMode;
+          document.documentElement.setAttribute('data-mode', mode);
+          document.documentElement.classList.toggle('dark', mode === 'dark');
+        } catch (e) {}
+      })();
+    </script>
 
     <meta property="og:type" content="website" />
     <meta property="og:title" content={fullTitle} />
@@ -742,7 +937,7 @@ const mainNav = [
     <header class="site-header">
       <div class="wrap nav-inner">
         <a class="brand" href={withBase('/')}>
-          <img src={iconHref} alt={SITE_CONFIG.headerTitle} width="28" height="28" />
+          <img src={iconHref} alt={SITE_CONFIG.headerTitle} width="30" height="30" />
           <span>{SITE_CONFIG.headerTitle}</span>
         </a>
 
@@ -767,6 +962,21 @@ const mainNav = [
         </nav>
 
         <div class="nav-actions">
+          <button
+            id="themeToggleBtn"
+            class="icon-btn theme-toggle-btn"
+            type="button"
+            aria-label="Chuyển chế độ Sáng / Tối"
+            title="Chuyển chế độ Sáng / Tối"
+          >
+            <svg class="sun-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4"/>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+            </svg>
+            <svg class="moon-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+          </button>
           <a class="icon-btn" href={withBase('/rss.xml')} title="RSS Feed" aria-label="RSS Feed">
             RSS
           </a>
@@ -815,7 +1025,7 @@ const mainNav = [
     </footer>
 
     {liveChat?.enabled && directChatChannels.length > 0 && (
-      <div id="blogvnLiveChat" class="livechat-dock">
+      <div id="daokyLiveChat" class="livechat-dock">
         <div id="livechatPanel" class="livechat-panel hidden" role="dialog" aria-label={liveChat.title || 'Live Chat'}>
           <div class="livechat-head">
             <div>
@@ -885,6 +1095,18 @@ const mainNav = [
     )}
 
     <script is:inline>
+      const themeBtn = document.getElementById('themeToggleBtn');
+      if (themeBtn) {
+        themeBtn.addEventListener('click', () => {
+          const cur = document.documentElement.getAttribute('data-mode') === 'dark' ? 'dark' : 'light';
+          const next = cur === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-mode', next);
+          document.documentElement.classList.toggle('dark', next === 'dark');
+          try {
+            localStorage.setItem('daoky_theme_mode', next);
+          } catch (e) {}
+        });
+      }
       const mBtn = document.getElementById('mobileMenuBtn');
       const mDrawer = document.getElementById('mobileDrawer');
       if (mBtn && mDrawer) {
@@ -928,80 +1150,27 @@ const mainNav = [
     --font-mono: 'JetBrains Mono', ui-monospace, monospace;
   }
 
-  body[data-template='newyorker-light'] {
-    --bg: ${TEMPLATE_TOKENS['newyorker-light'].bg};
-    --surface: ${TEMPLATE_TOKENS['newyorker-light'].surface};
-    --card: ${TEMPLATE_TOKENS['newyorker-light'].card};
-    --border: ${TEMPLATE_TOKENS['newyorker-light'].border};
-    --text: ${TEMPLATE_TOKENS['newyorker-light'].text};
-    --text-2: ${TEMPLATE_TOKENS['newyorker-light'].text2};
-    --muted: ${TEMPLATE_TOKENS['newyorker-light'].muted};
-    --accent: ${TEMPLATE_TOKENS['newyorker-light'].accent};
-    --accent-text: ${TEMPLATE_TOKENS['newyorker-light'].accentText};
-    --link: ${TEMPLATE_TOKENS['newyorker-light'].link};
-    --font-display: ${TEMPLATE_TOKENS['newyorker-light'].fontDisplay};
-    --font-body: ${TEMPLATE_TOKENS['newyorker-light'].fontBody};
-  }
-
-  body[data-template='nytimes-light'] {
-    --bg: ${TEMPLATE_TOKENS['nytimes-light'].bg};
-    --surface: ${TEMPLATE_TOKENS['nytimes-light'].surface};
-    --card: ${TEMPLATE_TOKENS['nytimes-light'].card};
-    --border: ${TEMPLATE_TOKENS['nytimes-light'].border};
-    --text: ${TEMPLATE_TOKENS['nytimes-light'].text};
-    --text-2: ${TEMPLATE_TOKENS['nytimes-light'].text2};
-    --muted: ${TEMPLATE_TOKENS['nytimes-light'].muted};
-    --accent: ${TEMPLATE_TOKENS['nytimes-light'].accent};
-    --accent-text: ${TEMPLATE_TOKENS['nytimes-light'].accentText};
-    --link: ${TEMPLATE_TOKENS['nytimes-light'].link};
-    --font-display: ${TEMPLATE_TOKENS['nytimes-light'].fontDisplay};
-    --font-body: ${TEMPLATE_TOKENS['nytimes-light'].fontBody};
-  }
-
-  body[data-template='bbc-dark'] {
-    --bg: ${TEMPLATE_TOKENS['bbc-dark'].bg};
-    --surface: ${TEMPLATE_TOKENS['bbc-dark'].surface};
-    --card: ${TEMPLATE_TOKENS['bbc-dark'].card};
-    --border: ${TEMPLATE_TOKENS['bbc-dark'].border};
-    --text: ${TEMPLATE_TOKENS['bbc-dark'].text};
-    --text-2: ${TEMPLATE_TOKENS['bbc-dark'].text2};
-    --muted: ${TEMPLATE_TOKENS['bbc-dark'].muted};
-    --accent: ${TEMPLATE_TOKENS['bbc-dark'].accent};
-    --accent-text: ${TEMPLATE_TOKENS['bbc-dark'].accentText};
-    --link: ${TEMPLATE_TOKENS['bbc-dark'].link};
-    --font-display: ${TEMPLATE_TOKENS['bbc-dark'].fontDisplay};
-    --font-body: ${TEMPLATE_TOKENS['bbc-dark'].fontBody};
-  }
-
-  body[data-template='obsidian-broadsheet'] {
-    --bg: ${TEMPLATE_TOKENS['obsidian-broadsheet'].bg};
-    --surface: ${TEMPLATE_TOKENS['obsidian-broadsheet'].surface};
-    --card: ${TEMPLATE_TOKENS['obsidian-broadsheet'].card};
-    --border: ${TEMPLATE_TOKENS['obsidian-broadsheet'].border};
-    --text: ${TEMPLATE_TOKENS['obsidian-broadsheet'].text};
-    --text-2: ${TEMPLATE_TOKENS['obsidian-broadsheet'].text2};
-    --muted: ${TEMPLATE_TOKENS['obsidian-broadsheet'].muted};
-    --accent: ${TEMPLATE_TOKENS['obsidian-broadsheet'].accent};
-    --accent-text: ${TEMPLATE_TOKENS['obsidian-broadsheet'].accentText};
-    --link: ${TEMPLATE_TOKENS['obsidian-broadsheet'].link};
-    --font-display: ${TEMPLATE_TOKENS['obsidian-broadsheet'].fontDisplay};
-    --font-body: ${TEMPLATE_TOKENS['obsidian-broadsheet'].fontBody};
-  }
-
-  body[data-template='espresso-salon'] {
-    --bg: ${TEMPLATE_TOKENS['espresso-salon'].bg};
-    --surface: ${TEMPLATE_TOKENS['espresso-salon'].surface};
-    --card: ${TEMPLATE_TOKENS['espresso-salon'].card};
-    --border: ${TEMPLATE_TOKENS['espresso-salon'].border};
-    --text: ${TEMPLATE_TOKENS['espresso-salon'].text};
-    --text-2: ${TEMPLATE_TOKENS['espresso-salon'].text2};
-    --muted: ${TEMPLATE_TOKENS['espresso-salon'].muted};
-    --accent: ${TEMPLATE_TOKENS['espresso-salon'].accent};
-    --accent-text: ${TEMPLATE_TOKENS['espresso-salon'].accentText};
-    --link: ${TEMPLATE_TOKENS['espresso-salon'].link};
-    --font-display: ${TEMPLATE_TOKENS['espresso-salon'].fontDisplay};
-    --font-body: ${TEMPLATE_TOKENS['espresso-salon'].fontBody};
-  }
+  ${(Object.keys(TEMPLATE_DUAL_TOKENS) as AstroTemplateId[])
+    .flatMap((tplId) =>
+      (['light', 'dark'] as const).map((mode) => {
+        const t = TEMPLATE_DUAL_TOKENS[tplId][mode];
+        return `html[data-mode='${mode}'] body[data-template='${tplId}'] {
+    --bg: ${t.bg};
+    --surface: ${t.surface};
+    --card: ${t.card};
+    --border: ${t.border};
+    --text: ${t.text};
+    --text-2: ${t.text2};
+    --muted: ${t.muted};
+    --accent: ${t.accent};
+    --accent-text: ${t.accentText};
+    --link: ${t.link};
+    --font-display: ${t.fontDisplay};
+    --font-body: ${t.fontBody};
+  }`;
+      })
+    )
+    .join('\n\n  ')}
 
   * {
     box-sizing: border-box;
@@ -1011,6 +1180,7 @@ const mainNav = [
   body {
     margin: 0;
     padding: 0;
+    overflow-x: hidden;
     background: var(--bg);
     color: var(--text);
     font-family: var(--font-body);
@@ -1029,20 +1199,16 @@ const mainNav = [
   }
 
   .wrap {
-    max-width: 1080px;
+    width: 100%;
+    max-width: 1120px;
     margin: 0 auto;
     padding: 0 20px;
   }
 
-  body[data-template='newyorker-light'] .wrap,
-  body[data-template='espresso-salon'] .wrap {
-    max-width: 900px;
-  }
-
-  body[data-template='nytimes-light'] .wrap,
-  body[data-template='obsidian-broadsheet'] .wrap,
-  body[data-template='bbc-dark'] .wrap {
-    max-width: 1180px;
+  @media (max-width: 639px) {
+    .wrap {
+      padding: 0 16px;
+    }
   }
 
   .site-header {
@@ -1062,7 +1228,7 @@ const mainNav = [
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: 12px;
     min-height: 60px;
   }
 
@@ -1070,17 +1236,26 @@ const mainNav = [
     display: inline-flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
     color: var(--text);
     font-family: var(--font-display);
     font-weight: 700;
-    font-size: 1.2rem;
+    font-size: 1.15rem;
     letter-spacing: -0.02em;
     text-decoration: none !important;
   }
 
   .brand img {
-    border-radius: 6px;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
     object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .brand span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .nav-links {
@@ -1094,6 +1269,7 @@ const mainNav = [
   .nav-links a {
     color: var(--text-2);
     text-decoration: none;
+    white-space: nowrap;
   }
 
   .nav-links a:hover,
@@ -1106,6 +1282,7 @@ const mainNav = [
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0;
   }
 
   .icon-btn,
@@ -1114,7 +1291,7 @@ const mainNav = [
     align-items: center;
     justify-content: center;
     min-height: 36px;
-    padding: 0 11px;
+    padding: 0 10px;
     border-radius: 8px;
     border: 1px solid var(--border);
     background: var(--surface);
@@ -1124,6 +1301,29 @@ const mainNav = [
     font-weight: 500;
     cursor: pointer;
     text-decoration: none !important;
+  }
+
+  .theme-toggle-btn {
+    min-width: 38px;
+    padding: 0;
+  }
+
+  .theme-toggle-btn .sun-icon {
+    display: none;
+    color: #f59e0b;
+  }
+
+  .theme-toggle-btn .moon-icon {
+    display: block;
+    color: var(--link);
+  }
+
+  html[data-mode='dark'] .theme-toggle-btn .sun-icon {
+    display: block;
+  }
+
+  html[data-mode='dark'] .theme-toggle-btn .moon-icon {
+    display: none;
   }
 
   .mobile-menu-btn {
@@ -1444,6 +1644,7 @@ const minutes = estimateReadingTime(entry.body || '');
 
 <style>
   .post-card {
+    height: 100%;
     border: 1px solid var(--border);
     background: var(--card);
     border-radius: 12px;
@@ -1475,6 +1676,7 @@ const minutes = estimateReadingTime(entry.body || '');
     overflow: hidden;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
   }
 
   .post-cover-wrap img {
@@ -1485,6 +1687,7 @@ const minutes = estimateReadingTime(entry.body || '');
   }
 
   .post-body {
+    flex: 1;
     padding: 18px 20px 20px;
     display: flex;
     flex-direction: column;
@@ -1714,9 +1917,10 @@ const homeJsonLd = {
   }
 
   .search-input {
-    flex: 1;
+    flex: 1 1 220px;
     max-width: 420px;
-    min-width: 220px;
+    min-width: 0;
+    width: 100%;
     min-height: 44px;
     padding: 0 14px;
     border-radius: 10px;
@@ -1739,6 +1943,17 @@ const homeJsonLd = {
     font-size: 0.86rem;
     font-weight: 600;
     text-decoration: none !important;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 639px) {
+    .masthead-tools {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .masthead-cta {
+      width: 100%;
+    }
   }
 
   .lead-section {
@@ -1996,7 +2211,9 @@ const categories = Array.from(
     gap: 12px;
   }
   .archive-search {
+    width: 100%;
     max-width: 420px;
+    min-width: 0;
     min-height: 42px;
     padding: 0 14px;
     border-radius: 10px;
@@ -2284,7 +2501,7 @@ const blogPostingJsonLd = {
   }
 
   .related-section {
-    max-width: 960px;
+    max-width: 1120px;
     margin: 48px auto 0;
     padding-top: 28px;
     border-top: 1px solid var(--border);
@@ -2302,7 +2519,13 @@ const blogPostingJsonLd = {
     gap: 18px;
   }
 
-  @media (min-width: 720px) {
+  @media (min-width: 640px) {
+    .related-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 960px) {
     .related-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
@@ -2467,76 +2690,337 @@ export const GET: APIRoute = async ({ site }) => {
   const makeMarkdown = (fm: Record<string, any>, body: string) =>
     `---\n${dumpYaml(fm, { lineWidth: -1 }).trim()}\n---\n\n${body.trim()}\n`;
 
-  const starterPost1 = makeMarkdown(
-    {
-      tieu_de: `Chào mừng đến với ${siteTitle}`,
-      danh_muc: 'Tiểu luận',
-      chuyen_muc: 'tieu-luan',
-      slug: 'chao-mung-den-voi-blog',
-      tags: ['astro', 'blogvn', 'github-pages'],
-      mo_ta: `Bài viết khởi đầu của ${siteTitle} với giao diện ${presetMeta.name}, tối ưu cho việc đọc sâu và xuất bản lâu dài.`,
-      ngay: today,
-      anh_bia: '/tainguyen/hinhanh/og-default.svg',
-      nhap: false,
-    },
-    `Chào mừng bạn ghé thăm **${siteTitle}** — không gian viết và lưu trữ suy nghĩ cá nhân do **${authorName}** biên soạn và xuất bản trực tiếp lên GitHub Pages.
+  interface StarterSeed {
+    fileName: string;
+    coverIndex: 1 | 2 | 3;
+    title: string;
+    category: string;
+    categorySlug: string;
+    slug: string;
+    tags: string[];
+    excerpt: string;
+    date: string;
+    body: string;
+  }
 
-## Tinh thần của một ấn phẩm cá nhân
+  const STARTER_SEEDS_BY_TEMPLATE: Record<AstroTemplateId, StarterSeed[]> = {
+    'newyorker-light': [
+      {
+        fileName: 'giu-tam-tri-tinh-tai.md',
+        coverIndex: 1,
+        title: 'Nghệ thuật giữ tâm trí tĩnh tại giữa dòng tin tức hối hả',
+        category: 'Tiểu luận · Văn hoá',
+        categorySlug: 'tieu-luan-van-hoa',
+        slug: 'giu-tam-tri-tinh-tai',
+        tags: ['tieu-luan', 'van-hoa', 'dao-ky'],
+        excerpt:
+          'Một bài tiểu luận về thói quen viết chậm, đọc sâu và giữ một thư phòng chữ nghĩa độc lập khỏi thuật toán trên ' +
+          siteTitle +
+          '.',
+        date: today,
+        body: `Giữa dòng chảy thông tin ngắn hạn thay đổi từng phút, việc giữ một không gian viết lách chậm rãi giống như mở một ô cửa nhìn ra khu vườn tĩnh lặng. **${siteTitle}** được ${authorName} dựng nên từ tinh thần đó: mỗi bài viết là một mảnh suy tư có đầu có cuối, không chạy theo lượt bấm vội vàng.
 
-Khi viết trên một nền tảng do chính bạn làm chủ, từng câu chữ không bị cuốn vào vòng xoáy thuật toán hay giao diện rối mắt. Trang blog này chỉ phục vụ một mục tiêu duy nhất: giúp người viết tập trung viết hay và người đọc tập trung đọc sâu.
+## Đọc chậm để hiểu sâu
 
-## Những gì đã được cấu hình sẵn
+Khi tốc độ lướt tin tăng lên, khả năng kiên nhẫn với một lập luận kéo dài bảy tám trăm chữ lại trở thành điều hiếm hoi. Tạp chí văn chương truyền thống tồn tại bền bỉ hàng trăm năm bởi họ tôn trọng nhịp thở tự nhiên của người viết lẫn người đọc.
 
-- **Hạ tầng SEO hoàn chỉnh**: \`sitemap.xml\`, \`robots.txt\`, RSS Feed và dữ liệu có cấu trúc \`BlogPosting\` JSON-LD được sinh tự động.
-- **Định dạng Markdown bền vững**: Mọi bài viết được lưu trong thư mục \`src/content/bai_viet\` ngay trên GitHub của riêng bạn.
-- **Ảnh bìa linh hoạt**: Hỗ trợ tải ảnh nén trực tiếp hoặc trích xuất ảnh đại diện độ phân giải cao từ video YouTube.
+> Một trang viết tốt không chỉ truyền đạt thông tin, mà còn tạo ra khoảng lặng để người đọc tự đối thoại với chính mình.
 
-> Chúc bạn luôn giữ được niềm vui viết lách đều đặn và những trang viết sáng rõ theo năm tháng.`
-  );
+## Giữ độc lập khỏi thuật toán
 
-  const starterPost2 = makeMarkdown(
-    {
-      tieu_de: 'Nghệ thuật giữ cấu trúc bài viết sáng rõ trên di động',
-      danh_muc: 'Kỹ năng viết',
-      chuyen_muc: 'ky-nang-viet',
-      slug: 'giu-cau-truc-bai-viet-sang-ro',
-      tags: ['viet-lach', 'markdown', 'bien-tap'],
-      mo_ta: 'Cách chia đoạn, đặt tiêu đề phụ và chọn ảnh bìa thu hút để bài blog luôn dễ đọc trên cả điện thoại và máy tính.',
-      ngay: today,
-      anh_bia: '/tainguyen/hinhanh/og-default.svg',
-      nhap: false,
-    },
-    `## Độc giả ngày nay đọc trên màn hình nhỏ
+- **Chữ nghĩa thuần Markdown**: Lưu trữ ngay trên GitHub repository cá nhân dưới quyền kiểm soát 100% của bạn.
+- **Nhịp trình bày thư thái**: Độ rộng dòng chữ vừa tầm mắt, giấy ngà dịu nhẹ và hỗ trợ bật tắt chế độ Sáng/Tối bất cứ lúc nào.
+- **Định danh rõ ràng**: Tích hợp sẵn dữ liệu cấu trúc \`BlogPosting\`, RSS Feed và Sitemap chuẩn mực.`,
+      },
+      {
+        fileName: 'nhip-cau-chu-tap-chi-van-chuong.md',
+        coverIndex: 2,
+        title: 'Bàn về nhịp câu chữ trong tạp chí văn chương hiện đại',
+        category: 'Văn chương',
+        categorySlug: 'van-chuong',
+        slug: 'nhip-cau-chu-tap-chi-van-chuong',
+        tags: ['van-chuong', 'bien-tap', 'serif'],
+        excerpt:
+          'Cách sắp xếp độ dài đoạn văn, đề mục và khoảng trống để trang tiểu luận giữ được sự trang nhã cổ điển trên màn hình điện thoại.',
+        date: dayOffsetStr(1),
+        body: `## Nhịp điệu của đoạn văn và khoảng trắng
 
-Phần lớn người đọc sẽ tiếp cận bài viết của bạn từ điện thoại trước khi mở máy tính. Một đoạn văn dài mười dòng trên màn hình rộng có thể biến thành một bức tường chữ dày đặc trên màn hình 390px.
+Một bài tiểu luận dù giàu ý tưởng đến đâu cũng khó đi hết lòng người đọc nếu thiếu nhịp nghỉ hợp lý. Xen kẽ giữa những đoạn phân tích chiều sâu là một trích dẫn súc tích hay một tiêu đề phụ giàu sức gợi.
 
-### Ba thói quen biên tập hiệu quả
+### Ba nguyên tắc biên tập chữ nghĩa
 
-1. **Giữ đoạn mở đầu súc tích**: Nêu thẳng vấn đề hoặc câu hỏi trung tâm trong 2–3 câu đầu tiên.
-2. **Dùng đề mục \`##\` làm nhịp thở**: Cứ sau khoảng 250–300 chữ nên có một tiêu đề phụ rõ ý.
-3. **Tối ưu phần mô tả ngắn và Slug**: Giúp đường dẫn sạch đẹp khi chia sẻ lên mạng xã hội hoặc Google Search.`
-  );
+1. **Mở đầu giàu hình ảnh**: Đưa người đọc bước thẳng vào bối cảnh câu chuyện trong ba câu đầu.
+2. **Đề mục vừa đủ**: Chia mạch ý thành 2–4 chặng lớn giúp đọc trên điện thoại vẫn mạch lạc.
+3. **Kết bài dư âm**: Để lại một câu hỏi mở hoặc một suy ngẫm đọng lại lâu hơn sau khi khép trang.`,
+      },
+      {
+        fileName: 'ghi-chep-so-tay-bia-vai.md',
+        coverIndex: 3,
+        title: 'Ghi chép bên tách cà phê sáng và cuốn sổ tay bìa vải',
+        category: 'Thư phòng',
+        categorySlug: 'thu-phong',
+        slug: 'ghi-chep-so-tay-bia-vai',
+        tags: ['so-tay', 'thu-phong', 'ghi-chep'],
+        excerpt:
+          'Vì sao thói quen ghi chép mỗi sáng biến thành kho tư liệu quý giá cho những bài viết dài hơi về sau.',
+        date: dayOffsetStr(2),
+        body: `## Từ trang giấy nháp đến kho lưu trữ số
 
-  const starterPost3 = makeMarkdown(
-    {
-      tieu_de: 'Vì sao Markdown và Git là kho lưu trữ lâu dài tốt nhất cho người viết',
-      danh_muc: 'Góc nhìn',
-      chuyen_muc: 'goc-nhin',
-      slug: 'markdown-va-git-cho-nguoi-viet',
-      tags: ['markdown', 'git', 'tu-chu'],
-      mo_ta: 'Làm chủ hoàn toàn dữ liệu bài viết bằng tệp văn bản thuần túy, không phụ thuộc nền tảng đóng.',
-      ngay: today,
-      anh_bia: '/tainguyen/hinhanh/og-default.svg',
-      nhap: false,
-    },
-    `## Tuổi thọ của tệp văn bản thuần
+Mỗi ý tưởng lớn hiếm khi xuất hiện trọn vẹn ngay lập tức. Chúng thường bắt đầu từ một câu ghi chú vội bên lề sách, một đoạn quan sát ngoài phố hay một thắc mắc nhỏ buổi sớm mai.
 
-Nhiều nền tảng blog miễn phí xuất hiện rồi biến mất sau vài năm, kéo theo toàn bộ công sức viết lách của tác giả. Ngược lại, một tệp \`.md\` thuần túy luôn có thể mở được bằng bất kỳ trình soạn thảo nào từ nay đến hàng chục năm sau.
+## Xuất bản đơn giản cùng Đạo Ký
 
-## Kết hợp sức mạnh GitHub Pages
+Khi chuyển những ghi chép ấy vào kho Markdown trên **${siteTitle}**, bạn giữ nguyên được tính nguyên bản của giọng văn cá nhân và lưu giữ trọn đời trên GitHub Pages.`,
+      },
+    ],
+    'nytimes-light': [
+      {
+        fileName: 'bo-cuc-bao-in-ro-rang.md',
+        coverIndex: 1,
+        title: 'Vì sao các toà soạn lớn quay lại bố cục báo in rõ ràng?',
+        category: 'Tiêu điểm · Phân tích',
+        categorySlug: 'tieu-diem',
+        slug: 'bo-cuc-bao-in-ro-rang',
+        tags: ['bao-chi', 'bo-cuc', 'editorial'],
+        excerpt:
+          'Cấu trúc cột tin mạch lạc, đường kẻ chỉ sắc nét và hệ phân cấp tiêu đề giúp độc giả của ' +
+          siteTitle +
+          ' nắm bắt vấn đề trong vài giây.',
+        date: today,
+        body: `Các ấn phẩm tin tức và phân tích uy tín đều chia sẻ một triết lý thiết kế chung: đừng bắt độc giả phải đoán xem đâu là bài quan trọng nhất trên trang. Trên **${siteTitle}**, bài tiêu điểm được đặt trang trọng ngay dưới măng-sét để dẫn dắt toàn bộ câu chuyện trong ngày.
 
-Mỗi lần nhấn xuất bản trong BlogVN, bài viết của bạn được lưu như một bản commit minh bạch có lịch sử chỉnh sửa rõ ràng — vừa an toàn vừa hoàn toàn miễn phí hosting trọn đời.`
-  );
+## Sức mạnh của hệ phân cấp báo in
+
+Một đường kẻ 1px sắc nét, một dòng kicker ngắn bằng font Monospace kết hợp cùng tiêu đề Serif khổ lớn đủ sức tạo ra trật tự thị giác rõ ràng mà không cần bất kỳ hiệu ứng rối mắt nào.
+
+- **Bài tiêu điểm (Lead Story)**: Tập trung trọn vẹn vào câu chuyện trung tâm và hình ảnh chủ đạo.
+- **Lưới tin theo chuyên mục**: Cho phép độc giả lướt nhanh tiêu đề, tóm tắt và thời gian đọc ước lượng.
+- **Chế độ Sáng / Tối linh hoạt**: Chuyển đổi mượt mà chỉ bằng một chạm ngay trên thanh tiêu đề.`,
+      },
+      {
+        fileName: 'kien-truc-web-tinh-github-pages.md',
+        coverIndex: 2,
+        title: 'Toàn cảnh kiến trúc web tĩnh tốc độ cao trên GitHub Pages',
+        category: 'Kỹ thuật',
+        categorySlug: 'ky-thuat',
+        slug: 'kien-truc-web-tinh-github-pages',
+        tags: ['astro', 'web-tinh', 'hieu-nang'],
+        excerpt:
+          'Astro biên dịch trước toàn bộ HTML/CSS giúp trang blog đạt điểm tải gần như tức thì ở mọi nơi.',
+        date: dayOffsetStr(1),
+        body: `## Không cơ sở dữ liệu cồng kềnh, không chi phí vận hành
+
+Thay vì chờ máy chủ truy vấn mỗi khi có người mở bài viết, toàn bộ các trang trên **${siteTitle}** được biên dịch sẵn thành tệp tĩnh siêu nhẹ. Kết hợp với mạng phân phối toàn cầu của GitHub Pages, thời gian phản hồi đầu tiên luôn ở mức thấp nhất.
+
+### Lợi ích thực tế cho người viết
+
+1. **Ổn định tuyệt đối**: Không lo sập cơ sở dữ liệu hay lỗ hổng plugin.
+2. **Bảo mật lịch sử sửa đổi**: Mọi lần cập nhật nội dung đều nằm gọn trong lịch sử commit của Git.`,
+      },
+      {
+        fileName: 'chuan-seo-an-pham-bao-chi.md',
+        coverIndex: 3,
+        title: 'Chuẩn SEO tự nhiên cho ấn phẩm báo chí cá nhân',
+        category: 'SEO & Dữ liệu',
+        categorySlug: 'seo-du-lieu',
+        slug: 'chuan-seo-an-pham-bao-chi',
+        tags: ['seo', 'json-ld', 'rss'],
+        excerpt:
+          'Từ Sitemap XML, OpenGraph đến dữ liệu có cấu trúc BlogPosting — mọi tiêu chuẩn cốt lõi đều được sinh tự động.',
+        date: dayOffsetStr(2),
+        body: `## Viết hay đi đôi với cấu trúc kỹ thuật chuẩn
+
+Mỗi bài viết xuất bản từ Đạo Ký lên **${siteTitle}** đều tự động sở hữu thẻ Meta chuẩn xác, URL slug sạch tiếng Việt không dấu, Sitemap XML cập nhật liên tục và JSON-LD \`BlogPosting\` để công cụ tìm kiếm hiểu đúng chủ đề lẫn tác giả **${authorName}**.`,
+      },
+    ],
+    'bbc-dark': [
+      {
+        fileName: 'trang-tin-da-phuong-tien.md',
+        coverIndex: 1,
+        title: 'Tổ chức trang tin đa phương tiện & video YouTube sắc bén',
+        category: 'Thời sự · Media',
+        categorySlug: 'thoi-su-media',
+        slug: 'trang-tin-da-phuong-tien',
+        tags: ['media', 'studio', 'video'],
+        excerpt:
+          'Phong cách phòng tin tương phản cao trên ' +
+          siteTitle +
+          ' làm nổi bật ảnh bìa khổ rộng, trích xuất trực tiếp từ video hoặc ảnh chụp thực tế.',
+        date: today,
+        body: `Trong kỷ nguyên nội dung đa phương tiện, hình ảnh đại diện 16:9 và nhịp lưới thẻ tin hiện đại quyết định ấn tượng đầu tiên của độc giả. Giao diện **BBC Studio** trên **${siteTitle}** đặt trọng tâm vào độ tương phản sắc nét và điểm nhấn đỏ thẫm đặc trưng phòng tin.
+
+## Tối ưu ảnh bìa và video nhúng
+
+- **Ảnh chụp trực tiếp từ điện thoại**: Được nén tự động sang WebP nhẹ nhưng giữ trọn độ chi tiết.
+- **Lấy ảnh thumbnail YouTube**: Dán đường dẫn video là có ngay ảnh bìa phân giải cao cho bài phân tích hoặc podcast.
+- **Hỗ trợ Sáng / Tối chủ động**: Phù hợp cả khi đọc ngoài trời lẫn trong phòng tối.`,
+      },
+      {
+        fileName: 'trai-nghiem-doc-di-dong.md',
+        coverIndex: 2,
+        title: 'Góc nhìn quốc tế: Tối ưu trải nghiệm đọc trên màn hình nhỏ',
+        category: 'Góc nhìn',
+        categorySlug: 'goc-nhin',
+        slug: 'trai-nghiem-doc-di-dong',
+        tags: ['mobile', 'ui-ux', 'doc-nhanh'],
+        excerpt:
+          'Thiết kế ưu tiên điện thoại giúp người đọc lướt tiêu điểm, tìm kiếm và lọc chuyên mục mượt mà bằng một ngón tay.',
+        date: dayOffsetStr(1),
+        body: `## 70% độc giả đọc tin trên thiết bị cầm tay
+
+Từ kích thước nút chạm tối thiểu 44px đến khoảng cách lề gọn gàng không bị tràn ngang, từng khối giao diện trên **${siteTitle}** đều được cân chỉnh để đọc dễ chịu trên cả màn hình 375px lẫn màn hình máy tính rộng.`,
+      },
+      {
+        fileName: 'bien-tap-markdown-di-dong.md',
+        coverIndex: 3,
+        title: 'Quy trình biên tập và xuất bản Markdown từ điện thoại',
+        category: 'Quy trình',
+        categorySlug: 'quy-trinh',
+        slug: 'bien-tap-markdown-di-dong',
+        tags: ['markdown', 'workflow', 'xuat-ban'],
+        excerpt:
+          'Viết nháp nhanh mọi lúc mọi nơi với thanh công cụ định dạng ổn định ngay phía trên bàn phím.',
+        date: dayOffsetStr(2),
+        body: `## Biến mọi khoảnh khắc thành bài viết hoàn chỉnh
+
+Với trình soạn thảo tách biệt không gian viết và tối ưu SEO trong **Đạo Ký**, **${authorName}** có thể định dạng tiêu đề, danh sách hay trích dẫn ngay tại vị trí con trỏ mà không bị nhảy màn hình, sau đó đồng bộ một chạm lên GitHub.`,
+      },
+    ],
+    'obsidian-broadsheet': [
+      {
+        fileName: 'he-thong-blog-markdown-ben-vung.md',
+        coverIndex: 1,
+        title: 'Thiết kế hệ thống blog Markdown bền vững suốt hàng chục năm',
+        category: 'Nhật báo Đêm · Công nghệ',
+        categorySlug: 'cong-nghe',
+        slug: 'he-thong-blog-markdown-ben-vung',
+        tags: ['markdown', 'kien-truc', 'ben-vung'],
+        excerpt:
+          'Mực đêm xanh thẫm dịu mắt kết hợp tiêu đề Serif uy nghiêm, mang lại sự tập trung tối đa cho độc giả trên ' +
+          siteTitle +
+          '.',
+        date: today,
+        body: `Những hệ thống quản trị nội dung nặng nề thường lỗi thời sau vài năm nâng cấp, khiến việc bảo trì trở thành gánh nặng thay vì niềm vui viết lách. **${siteTitle}** chọn hướng đi tối giản mà trường tồn: dữ liệu thuần Markdown lưu trữ trên Git kết hợp bộ khung biên dịch tĩnh Astro 5.
+
+## Kiến trúc hướng đến sự tĩnh lặng và dài hạn
+
+- **Độ tương phản tính toán kỹ**: Nền mực đêm xanh thẫm kết hợp ánh xanh coban giúp giảm chói khi đọc bài phân tích dài vào ban đêm.
+- **Đổi chế độ Sáng / Tối tức thì**: Đáp ứng linh hoạt mọi môi trường ánh sáng của độc giả.
+- **Tài sản sở hữu trọn vẹn**: Toàn bộ tệp \`.md\` và hình ảnh đều nằm trong kho lưu trữ cá nhân của ${authorName}.`,
+      },
+      {
+        fileName: 'luu-tru-tron-doi-tren-git.md',
+        coverIndex: 2,
+        title: 'Lưu trữ trọn đời bằng tệp văn bản thuần trên Git repository',
+        category: 'Lưu trữ Git',
+        categorySlug: 'luu-tru-git',
+        slug: 'luu-tru-tron-doi-tren-git',
+        tags: ['git', 'luu-tru', 'tu-chu'],
+        excerpt:
+          'Làm chủ hoàn toàn lịch sử chỉnh sửa, sao lưu tức thì và không bao giờ phụ thuộc vào định dạng đóng.',
+        date: dayOffsetStr(1),
+        body: `## Mọi bản thảo đều có thể đọc sau 30 năm
+
+Một tệp văn bản Markdown hoàn toàn trong suốt với mọi trình soạn thảo và hệ điều hành. Khi kết hợp với Git, từng dòng sửa nhỏ nhất của bạn đều được ghi nhận minh bạch và dễ dàng khôi phục bất kỳ lúc nào.`,
+      },
+      {
+        fileName: 'toi-uu-blogposting-json-ld.md',
+        coverIndex: 3,
+        title: 'Tối ưu dữ liệu có cấu trúc BlogPosting JSON-LD cho Google',
+        category: 'Cấu trúc Dữ liệu',
+        categorySlug: 'cau-truc-du-lieu',
+        slug: 'toi-uu-blogposting-json-ld',
+        tags: ['json-ld', 'schema', 'google-search'],
+        excerpt:
+          'Giúp bọ tìm kiếm nhận diện chuẩn xác tác giả, ngày đăng, ảnh đại diện và chủ đề của từng bài viết.',
+        date: dayOffsetStr(2),
+        body: `## Ngôn ngữ chung với công cụ tìm kiếm
+
+Thẻ lược đồ \`BlogPosting\` được nhúng tự động trong phần đầu mỗi trang bài viết trên **${siteTitle}**, đảm bảo liên kết khi chia sẻ lên mạng xã hội hay xuất hiện trên kết quả tìm kiếm luôn rõ ràng và chuyên nghiệp.`,
+      },
+    ],
+    'espresso-salon': [
+      {
+        fileName: 'nhung-trang-viet-cuoi-ngay.md',
+        coverIndex: 1,
+        title: 'Những trang viết cuối ngày bên ánh đèn vàng ấm áp',
+        category: 'Thư phòng · Suy tư',
+        categorySlug: 'thu-phong-suy-tu',
+        slug: 'nhung-trang-viet-cuoi-ngay',
+        tags: ['suy-tu', 'thu-phong', 'hoi-ky'],
+        excerpt:
+          'Sắc nền thư phòng êm dịu với chữ Serif cổ điển trên ' +
+          siteTitle +
+          ', giảm mỏi mắt cho những bài viết phân tích và hồi ký dài hơi.',
+        date: today,
+        body: `Cuối ngày là lúc những tạp âm thường nhật lắng xuống, nhường chỗ cho các suy nghĩ trung thực nhất cất lời. **${siteTitle}** với giao diện **Salon Suy tư** được ${authorName} lựa chọn như một góc thư phòng nhỏ — nơi chữ nghĩa mang hơi ấm giấy cũ và ánh đèn hổ phách dịu dàng.
+
+## Không gian dành riêng cho những bài viết dài
+
+> Hãy viết như thể đang trò chuyện chân thành với một người bạn tri kỷ ngồi đối diện qua chiếc bàn gỗ nhỏ.
+
+- **Phông chữ Serif êm mắt**: Khơi gợi cảm giác đọc sách giấy dù đang xem trên màn hình.
+- **Mở đầu bằng chữ hoa thả (Drop Cap)**: Điểm nhấn cổ điển tôn vinh từng bài tiểu luận và hồi ký.
+- **Chuyển đổi Mặt trời / Mặt trăng**: Chuyển từ ánh đèn vàng thư phòng sang giấy ấm ban ngày chỉ trong một cú chạm.`,
+      },
+      {
+        fileName: 'rut-gon-doan-mo-dau.md',
+        coverIndex: 2,
+        title: 'Sổ tay đọc sách: Rút gọn đoạn mở đầu để giữ mạch cảm xúc',
+        category: 'Sổ tay Đọc sách',
+        categorySlug: 'so-tay-doc-sach',
+        slug: 'rut-gon-doan-mo-dau',
+        tags: ['doc-sach', 'viet-lach', 'bien-tap'],
+        excerpt:
+          'Bí quyết gọt bỏ những lời rào đón dư thừa để câu đầu tiên chạm thẳng vào tâm trạng người đọc.',
+        date: dayOffsetStr(1),
+        body: `## Đừng khởi động quá lâu trước khi vào câu chuyện
+
+Phần lớn người viết hay dành hai đoạn đầu chỉ để rào đón lý do vì sao mình viết. Khi mạnh dạn cắt bớt lớp sương mù đó và bắt đầu ngay tại chi tiết sống động nhất, cả bài viết lập tức có sức nặng riêng.`,
+      },
+      {
+        fileName: 'nhip-tho-de-muc-bai-viet.md',
+        coverIndex: 3,
+        title: 'Xây dựng nhịp thở đều đặn qua từng đề mục bài viết',
+        category: 'Ghi chép',
+        categorySlug: 'ghi-chep',
+        slug: 'nhip-tho-de-muc-bai-viet',
+        tags: ['nhip-dieu', 'cau-truc', 'dao-ky'],
+        excerpt:
+          'Mỗi tiêu đề phụ là một trạm nghỉ giúp độc giả đi trọn vẹn hành trình câu chữ từ đầu đến cuối.',
+        date: dayOffsetStr(2),
+        body: `## Cân bằng giữa chiều sâu và sự thanh thoát
+
+Dù viết về triết lý sống, ghi chép đọc sách hay câu chuyện nghề nghiệp, việc giữ cho mỗi đề mục giải quyết trọn vẹn một ý sẽ giúp trang blog **${siteTitle}** luôn sáng sủa và lôi cuốn.`,
+      },
+    ],
+  };
+
+  const selectedSeeds = STARTER_SEEDS_BY_TEMPLATE[templateStyle] || STARTER_SEEDS_BY_TEMPLATE['newyorker-light'];
+  const coverSvgs = [
+    buildCoverSvg(1, selectedSeeds[0].category, selectedSeeds[0].title),
+    buildCoverSvg(2, selectedSeeds[1].category, selectedSeeds[1].title),
+    buildCoverSvg(3, selectedSeeds[2].category, selectedSeeds[2].title),
+  ];
+
+  const starterFiles = selectedSeeds.map((seed) => ({
+    path: `src/content/bai_viet/${seed.fileName}`,
+    content: makeMarkdown(
+      {
+        tieu_de: seed.title,
+        danh_muc: seed.category,
+        chuyen_muc: seed.categorySlug,
+        slug: seed.slug,
+        tags: seed.tags,
+        mo_ta: seed.excerpt,
+        ngay: seed.date,
+        anh_bia: `/tainguyen/hinhanh/cover-${seed.coverIndex}.svg`,
+        nhap: false,
+        tac_gia: authorName,
+      },
+      seed.body
+    ),
+  }));
 
   const files: Array<{ path: string; content: string; isBase64?: boolean }> = [
     { path: '.gitignore', content: gitignore },
@@ -2550,6 +3034,9 @@ Mỗi lần nhấn xuất bản trong BlogVN, bài viết của bạn được l
     { path: 'public/favicon.svg', content: faviconSvg },
     { path: 'public/manifest.webmanifest', content: manifestJson },
     { path: 'public/tainguyen/hinhanh/og-default.svg', content: ogDefaultSvg },
+    { path: 'public/tainguyen/hinhanh/cover-1.svg', content: coverSvgs[0] },
+    { path: 'public/tainguyen/hinhanh/cover-2.svg', content: coverSvgs[1] },
+    { path: 'public/tainguyen/hinhanh/cover-3.svg', content: coverSvgs[2] },
     { path: 'public/tainguyen/hinhanh/uploads/.gitkeep', content: '' },
     {
       path: 'src/cau_hinh/trang_web.ts',
@@ -2558,6 +3045,7 @@ Mỗi lần nhấn xuất bản trong BlogVN, bài viết của bạn được l
         repo,
         config: persistedConfig,
         templateId: templateStyle,
+        hasBundledPngFavicon,
       }),
     },
     { path: 'src/utils/url.ts', content: urlUtilsTs },
@@ -2573,17 +3061,13 @@ Mỗi lần nhấn xuất bản trong BlogVN, bài viết của bạn được l
   ];
 
   if (includeStarterPosts) {
-    files.push(
-      { path: 'src/content/bai_viet/chao-mung-den-voi-blog.md', content: starterPost1 },
-      { path: 'src/content/bai_viet/giu-cau-truc-bai-viet-sang-ro.md', content: starterPost2 },
-      { path: 'src/content/bai_viet/markdown-va-git-cho-nguoi-viet.md', content: starterPost3 }
-    );
+    files.push(...starterFiles);
   }
 
-  if (hasDataIcon) {
+  if (faviconPngBase64) {
     files.push({
       path: 'public/favicon.png',
-      content: rawIcon.replace(/^data:[^;]+;base64,/, ''),
+      content: faviconPngBase64,
       isBase64: true,
     });
   }

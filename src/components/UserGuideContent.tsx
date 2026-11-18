@@ -54,8 +54,8 @@ export function UserGuideContent({
       a: 'Vào tab GitHub & App → Mục 4 ("Template Web Blog Astro 5 chuẩn tiếng Việt") → chọn mẫu bố cục → bấm "Triển khai Template Astro Việt" để xoá sạch tệp xung đột cũ và nạp mới hoàn chỉnh kèm nhận dạng web của bạn.',
     },
     {
-      q: 'Dùng chung URL BlogVN với người khác có bị lộ bài nháp hay Token không?',
-      a: 'Không. BlogVN chạy hoàn toàn phía trình duyệt (client-side) và phân tách toàn bộ cấu hình, bản nháp, lịch đăng bài và GitHub Token theo từng tài khoản Google UID riêng trên máy.',
+      q: 'Dùng chung URL Đạo Ký với người khác có bị lộ bài nháp hay Token không?',
+      a: 'Không. Đạo Ký chạy hoàn toàn phía trình duyệt (client-side) và phân tách toàn bộ cấu hình, bản nháp, lịch đăng bài và GitHub Token theo từng tài khoản Google UID riêng trên máy.',
     },
     {
       q: 'Lỗi "auth/unauthorized-domain" khi đăng nhập Google trên tên miền riêng?',
@@ -103,7 +103,7 @@ export function UserGuideContent({
             </h3>
           </div>
           <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm leading-relaxed">
-            BlogVN đóng vai trò như một trình soạn thảo &amp; quản trị Blog tĩnh chạy trực tiếp trên trình duyệt của bạn — không lưu bài viết lên máy chủ trung gian.
+            Đạo Ký đóng vai trò như một trình soạn thảo &amp; quản trị Blog tĩnh chạy trực tiếp trên trình duyệt của bạn — không lưu bài viết lên máy chủ trung gian.
           </p>
           <div className={`grid grid-cols-1 ${compact ? '' : 'sm:grid-cols-3'} gap-2.5 text-xs`}>
             <div
@@ -251,7 +251,7 @@ export function UserGuideContent({
               <li className="flex items-start gap-2">
                 <Rocket className="w-4 h-4 shrink-0 mt-0.5" style={{ color: palette.link }} />
                 <span>
-                  Chọn 1 trong 5 giao diện blog chuyên viết (<strong>2 mẫu Sáng</strong>: New Yorker Classic, NYTimes Editorial; <strong>3 mẫu Tối</strong>: BBC Studio Dark, Obsidian Broadsheet, Espresso Salon) với bản xem trước trực quan ngay trên màn hình, rồi bấm <strong>Triển khai Template Astro Việt</strong> (có tuỳ chọn <strong>giữ nguyên bài viết &amp; ảnh cũ</strong> hoặc reset sạch hoàn toàn).
+                  Chọn 1 trong 5 giao diện blog chuyên viết (<strong>2 mẫu Sáng</strong>: New Yorker Classic, NYTimes Editorial; <strong>3 mẫu Tối</strong>: BBC Studio, Broadsheet Đêm, Espresso Salon — tất cả đều hỗ trợ nút chuyển <strong>Sáng/Tối Mặt trời &amp; Mặt trăng</strong>) với bản xem trước trực quan ngay trên màn hình, rồi bấm <strong>Triển khai Template Astro Việt</strong> (có tuỳ chọn <strong>giữ nguyên bài viết &amp; ảnh cũ</strong> hoặc reset sạch hoàn toàn).
                 </span>
               </li>
               <li className="flex items-start gap-2">

@@ -83,9 +83,24 @@ function loadConfigForUid(user: User): BlogConfig {
           : null;
         return match ? { ...def, ...match } : { ...def };
       });
+      const migratedIcon =
+        !parsed?.siteIcon || parsed.siteIcon === './icon.svg' || parsed.siteIcon === '/icon.svg'
+          ? DEFAULT_BLOG_CONFIG.siteIcon
+          : parsed.siteIcon;
+      const migratedHeader =
+        !parsed?.headerTitle || parsed.headerTitle === 'BlogVN'
+          ? DEFAULT_BLOG_CONFIG.headerTitle
+          : parsed.headerTitle;
+      const migratedTitle =
+        !parsed?.siteTitle || parsed.siteTitle === 'Huyền Không Thư Quán' || parsed.siteTitle === 'BlogVN'
+          ? DEFAULT_BLOG_CONFIG.siteTitle
+          : parsed.siteTitle;
       return {
         ...DEFAULT_BLOG_CONFIG,
         ...parsed,
+        siteIcon: migratedIcon,
+        headerTitle: migratedHeader,
+        siteTitle: migratedTitle,
         themeMode: mode,
         astroTemplate: normalizeAstroTemplateId(parsed?.astroTemplate, mode),
         liveChat: {
@@ -213,13 +228,13 @@ export default function App() {
   // Synchronize Website Identity (document.title, description, favicon, apple-touch-icon) with config
   useEffect(() => {
     if (!firebaseUser) {
-      document.title = 'BlogVN — Đăng nhập';
+      document.title = 'Đạo Ký — Đăng nhập';
       return;
     }
-    const title = (config.siteTitle || 'BlogVN').trim();
+    const title = (config.siteTitle || 'Đạo Ký').trim();
     const desc = (config.tagline || '').trim();
-    const icon = (config.siteIcon || './icon.svg').trim();
-    const appTitle = (config.headerTitle || title || 'BlogVN').trim();
+    const icon = (config.siteIcon || './assets/aistudio/1794978557793_3b5d5cb0.png').trim();
+    const appTitle = (config.headerTitle || title || 'Đạo Ký').trim();
 
     document.title = title;
     const descMeta = document.querySelector('meta[name="description"]');
@@ -637,17 +652,11 @@ export default function App() {
     } catch {
       // ignore
     }
-    setConfig((prev) => {
-      const currentPresetId = normalizeAstroTemplateId(prev.astroTemplate, prev.themeMode);
-      const currentPreset = EDITORIAL_THEMES[currentPresetId];
-      const nextTemplate =
-        currentPreset && currentPreset.isDark === (themeMode === 'dark')
-          ? currentPresetId
-          : themeMode === 'dark'
-          ? 'obsidian-broadsheet'
-          : 'newyorker-light';
-      return { ...prev, themeMode, astroTemplate: nextTemplate };
-    });
+    setConfig((prev) => ({
+      ...prev,
+      themeMode,
+      astroTemplate: normalizeAstroTemplateId(prev.astroTemplate, themeMode),
+    }));
   };
 
   const handleSaveLocalDraft = (draftPost: BlogPost) => {
@@ -827,7 +836,7 @@ export default function App() {
         backgroundColor: activeTheme.palette.canvas,
         color: activeTheme.palette.textPrimary,
       }}
-      className="min-h-screen flex flex-col transition-colors duration-200"
+      className="min-h-screen flex flex-col overflow-x-hidden transition-colors duration-200"
     >
       <TopBar
         activeTab={activeTab}
@@ -975,12 +984,12 @@ export default function App() {
           backgroundColor: activeTheme.palette.canvas,
           color: activeTheme.palette.textMuted,
         }}
-        className="hidden md:block border-t py-6 px-6 text-xs"
+        className="hidden md:block border-t py-6 px-4 sm:px-6 text-xs"
       >
-        <div className="max-w-[1360px] mx-auto flex flex-wrap items-center justify-between gap-4">
+        <div className="max-w-[1200px] mx-auto flex flex-wrap items-center justify-between gap-4">
           <span>
             {config.footerText?.trim() ||
-              `${config.headerTitle || 'BlogVN'} · ${config.githubOwner}/${config.githubRepo}`}
+              `${config.headerTitle || 'Đạo Ký'} · ${config.githubOwner}/${config.githubRepo}`}
           </span>
           <div className="flex flex-wrap items-center gap-4">
             {config.footerLinks?.map((item, idx) => (

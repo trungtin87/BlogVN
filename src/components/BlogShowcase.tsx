@@ -283,7 +283,7 @@ export function BlogShowcase({
         }}
         className="border-b"
       >
-        <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
           <div
             style={{ color: palette.textSecondary }}
             className="flex flex-wrap items-center gap-2 text-xs sm:text-sm"
@@ -331,10 +331,10 @@ export function BlogShowcase({
               ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             <PWAInstallButton theme={theme} compact />
 
-            {/* Âm — Dương Mode Switch matching toan_cuc.css */}
+            {/* Light / Dark Mode Switch */}
             <button
               type="button"
               onClick={() => onToggleThemeMode(isDark ? 'light' : 'dark')}
@@ -343,11 +343,11 @@ export function BlogShowcase({
                 backgroundColor: palette.canvas,
                 color: palette.textPrimary,
               }}
-              className="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0"
-              title="Đổi chế độ Dương (Sáng) / Âm (Tối)"
+              className="inline-flex items-center gap-1.5 px-3 min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0"
+              title="Đổi chế độ Sáng (Mặt trời) / Tối (Mặt trăng)"
             >
               {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-              <span>{isDark ? 'Dương' : 'Âm'}</span>
+              <span>{isDark ? 'Sáng' : 'Tối'}</span>
             </button>
 
             <button
@@ -359,7 +359,7 @@ export function BlogShowcase({
                 backgroundColor: palette.canvas,
                 color: palette.textPrimary,
               }}
-              className="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-3 min-h-[38px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0"
               title="Làm mới dữ liệu từ GitHub"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -370,7 +370,7 @@ export function BlogShowcase({
       </div>
 
       {/* Site Header Summary */}
-      <section className="max-w-[1100px] mx-auto px-4 sm:px-6 pt-8 sm:pt-12 pb-8">
+      <section className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-8 sm:pt-12 pb-8">
         <div
           style={{ borderColor: palette.border }}
           className="pb-8 border-b flex flex-col md:flex-row md:items-end justify-between gap-6"
@@ -471,7 +471,7 @@ export function BlogShowcase({
       </section>
 
       {/* Collection & Site Insights Filter Bar */}
-      <section className="max-w-[1100px] mx-auto px-4 sm:px-6">
+      <section className="max-w-[1200px] mx-auto px-4 sm:px-6">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-4">
           {(hasMultipleCollections
             ? COLLECTION_TABS
@@ -536,7 +536,7 @@ export function BlogShowcase({
               style={{ fontFamily: fonts.display, color: palette.textPrimary }}
               className="text-xl font-semibold"
             >
-              {repoConnected ? 'Chưa có bài viết nào' : 'Chào mừng đến với BlogVN'}
+              {repoConnected ? 'Chưa có bài viết nào' : 'Chào mừng đến với Đạo Ký'}
             </h2>
             <p style={{ color: palette.textSecondary }} className="text-sm">
               {repoConnected
@@ -583,7 +583,7 @@ export function BlogShowcase({
                   key={post.id}
                   onClick={() => setSelectedPostId(post.id)}
                   style={{ borderColor: palette.border }}
-                  className="py-6 sm:py-8 grid grid-cols-1 md:grid-cols-12 gap-5 items-center cursor-pointer group"
+                  className="py-5 sm:py-7 grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-5 items-start md:items-center cursor-pointer group"
                 >
                   <div className={post.cover ? 'md:col-span-8' : 'md:col-span-12'}>
                     <div

@@ -549,7 +549,7 @@ async function commitMultipleFilesClient(params: {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: 'Initialize repository',
-            content: utf8ToBase64('BlogVN\n'),
+            content: utf8ToBase64('Đạo Ký\n'),
             branch: params.branch,
           }),
         },
@@ -1296,7 +1296,7 @@ export async function ghUploadImagesBatch(
     repo: params.repo,
     branch,
     files: prepared.map((p) => ({ path: p.repoPath, content: p.base64Data, isBase64: true })),
-    message: params.commitMessage || `Upload ${prepared.length} images via BlogVN`,
+    message: params.commitMessage || `Upload ${prepared.length} images via Đạo Ký`,
     token: pat,
   });
 
@@ -1332,7 +1332,7 @@ export async function ghCreateStarterPagesSite(
   const owner = userResp.data.login;
   const cleanRepo = params.repoName.trim().replace(/[^a-zA-Z0-9._-]/g, '-') || `${owner}.github.io`;
   const finalTitle = params.siteTitle.trim() || `Blog của ${userResp.data.name || owner}`;
-  const finalTagline = params.tagline.trim() || 'Ghi chép cá nhân tạo từ BlogVN.';
+  const finalTagline = params.tagline.trim() || 'Ghi chép cá nhân tạo từ Đạo Ký.';
 
   let defaultBranch = 'main';
   const createResp = await ghApiRequest<any>(
@@ -1363,7 +1363,7 @@ export async function ghCreateStarterPagesSite(
     branch: defaultBranch,
     filePath: '_config.yml',
     content: `title: "${finalTitle.replace(/"/g, '\\"')}"\ndescription: "${finalTagline.replace(/"/g, '\\"')}"\ntheme: minima\n`,
-    message: 'Khởi tạo BlogVN (_config.yml)',
+    message: 'Khởi tạo Đạo Ký (_config.yml)',
     token: pat,
   });
   await upsertRepoFileClient({
@@ -1921,7 +1921,7 @@ export async function ghSyncSchedulerWorkflow(
       t.repo.toLowerCase() === params.repo.toLowerCase()
   );
 
-  const workflowYml = `name: BlogVN Scheduled Publish & Auto-Delete\n\non:\n  schedule:\n    - cron: '*/30 * * * *'\n  workflow_dispatch:\n\npermissions:\n  contents: write\n\njobs:\n  run-schedules:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: '20'\n      - run: |\n          node -e '\n          const fs = require("fs");\n          const path = require("path");\n          const p = ".blogvn/schedules.json";\n          if (!fs.existsSync(p)) process.exit(0);\n          const jobs = JSON.parse(fs.readFileSync(p, "utf8"));\n          let changed = false;\n          for (const j of jobs) {\n            if (j.status !== "pending" || Date.parse(j.scheduledAt) > Date.now()) continue;\n            if (j.type === "publish" && j.rawContent) {\n              fs.mkdirSync(path.dirname(j.filePath), { recursive: true });\n              fs.writeFileSync(j.filePath, j.rawContent, "utf8");\n              j.status = "completed"; j.executedAt = new Date().toISOString(); changed = true;\n            } else if (j.type === "delete" && fs.existsSync(j.filePath)) {\n              fs.unlinkSync(j.filePath);\n              j.status = "completed"; j.executedAt = new Date().toISOString(); changed = true;\n            }\n          }\n          if (changed) fs.writeFileSync(p, JSON.stringify(jobs, null, 2));\n          '\n      - run: |\n          git config user.name "BlogVN Scheduler"\n          git config user.email "actions@users.noreply.github.com"\n          git add -A\n          if ! git diff --staged --quiet; then git commit -m "BlogVN: Scheduled update" && git push; fi\n`;
+  const workflowYml = `name: Đạo Ký Scheduled Publish & Auto-Delete\n\non:\n  schedule:\n    - cron: '*/30 * * * *'\n  workflow_dispatch:\n\npermissions:\n  contents: write\n\njobs:\n  run-schedules:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: '20'\n      - run: |\n          node -e '\n          const fs = require("fs");\n          const path = require("path");\n          const p = ".blogvn/schedules.json";\n          if (!fs.existsSync(p)) process.exit(0);\n          const jobs = JSON.parse(fs.readFileSync(p, "utf8"));\n          let changed = false;\n          for (const j of jobs) {\n            if (j.status !== "pending" || Date.parse(j.scheduledAt) > Date.now()) continue;\n            if (j.type === "publish" && j.rawContent) {\n              fs.mkdirSync(path.dirname(j.filePath), { recursive: true });\n              fs.writeFileSync(j.filePath, j.rawContent, "utf8");\n              j.status = "completed"; j.executedAt = new Date().toISOString(); changed = true;\n            } else if (j.type === "delete" && fs.existsSync(j.filePath)) {\n              fs.unlinkSync(j.filePath);\n              j.status = "completed"; j.executedAt = new Date().toISOString(); changed = true;\n            }\n          }\n          if (changed) fs.writeFileSync(p, JSON.stringify(jobs, null, 2));\n          '\n      - run: |\n          git config user.name "Đạo Ký Scheduler"\n          git config user.email "actions@users.noreply.github.com"\n          git add -A\n          if ! git diff --staged --quiet; then git commit -m "Đạo Ký: Scheduled update" && git push; fi\n`;
 
   const serializedTasks = pendingRepoTasks.map((t) => ({
     id: t.id,
@@ -1952,11 +1952,39 @@ export async function ghSyncSchedulerWorkflow(
       { path: '.github/workflows/blogvn-scheduler.yml', content: workflowYml },
       { path: '.blogvn/schedules.json', content: JSON.stringify(serializedTasks, null, 2) + '\n' },
     ],
-    message: `BlogVN: Sync ${serializedTasks.length} scheduled jobs`,
+    message: `Đạo Ký: Sync ${serializedTasks.length} scheduled jobs`,
     token: pat,
   });
   if (!res.ok) return { ok: false, error: res.error };
   return { ok: true, syncedCount: serializedTasks.length, commitUrl: res.commitHtmlUrl };
+}
+
+async function fetchDefaultDaoKyPngBase64(): Promise<string | undefined> {
+  try {
+    const resp = await fetch('./pwa-192x192.png');
+    if (!resp.ok) return undefined;
+    const buf = await resp.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  } catch {
+    return undefined;
+  }
+}
+
+function shouldBundleDefaultDaoKyLogo(siteIcon?: string): boolean {
+  const clean = (siteIcon || '').trim();
+  return (
+    !clean ||
+    clean === './icon.svg' ||
+    clean === '/icon.svg' ||
+    clean.includes('1794978557793_3b5d5cb0.png') ||
+    clean === './pwa-192x192.png' ||
+    clean === '/pwa-192x192.png'
+  );
 }
 
 export async function ghSaveSiteConfig(
@@ -2003,18 +2031,28 @@ export async function ghSaveSiteConfig(
     pat
   );
   if (existingAstroCfg.ok) {
+    const defaultPngB64 = shouldBundleDefaultDaoKyLogo(params.config.siteIcon)
+      ? await fetchDefaultDaoKyPngBase64()
+      : undefined;
     files.push({
       path: 'src/cau_hinh/trang_web.ts',
       content: buildAstroSiteConfigModule({
         owner: params.owner,
         repo: params.repo,
         config: params.config,
+        hasBundledPngFavicon: Boolean(params.config.siteIcon?.startsWith('data:image/') || defaultPngB64),
       }),
     });
     if (params.config.siteIcon?.startsWith('data:image/')) {
       files.push({
         path: 'public/favicon.png',
         content: params.config.siteIcon.replace(/^data:[^;]+;base64,/, ''),
+        isBase64: true,
+      });
+    } else if (defaultPngB64) {
+      files.push({
+        path: 'public/favicon.png',
+        content: defaultPngB64,
         isBase64: true,
       });
     }
@@ -2025,7 +2063,11 @@ export async function ghSaveSiteConfig(
     const tagline = params.config.tagline || `Blog ${title}`;
     const headerBrand = params.config.headerTitle || title;
     const footerText = params.config.footerText || `© ${new Date().getFullYear()} ${title}`;
-    const iconHref = params.config.siteIcon || './icon.svg';
+    const defaultPngB64 = shouldBundleDefaultDaoKyLogo(params.config.siteIcon)
+      ? await fetchDefaultDaoKyPngBase64()
+      : undefined;
+    const hasPngIcon = Boolean(params.config.siteIcon?.startsWith('data:image/') || defaultPngB64);
+    const iconHref = hasPngIcon ? './favicon.png' : params.config.siteIcon || './favicon.png';
     const cleanPosts = params.posts.filter((p) => !p.draft).map((p) => ({
       id: p.id,
       path: p.path,
@@ -2056,7 +2098,7 @@ export async function ghSaveSiteConfig(
             display: 'standalone',
             background_color: '#FAFAFA',
             theme_color: '#111827',
-            icons: [{ src: iconHref.startsWith('data:') ? './favicon.png' : iconHref, sizes: '512x512', type: 'image/png' }],
+            icons: [{ src: iconHref, sizes: '512x512', type: 'image/png' }],
           },
           null,
           2
@@ -2069,6 +2111,8 @@ export async function ghSaveSiteConfig(
     );
     if (params.config.siteIcon?.startsWith('data:image/')) {
       files.push({ path: 'favicon.png', content: params.config.siteIcon.replace(/^data:[^;]+;base64,/, ''), isBase64: true });
+    } else if (defaultPngB64) {
+      files.push({ path: 'favicon.png', content: defaultPngB64, isBase64: true });
     }
   }
 
@@ -2078,8 +2122,8 @@ export async function ghSaveSiteConfig(
     branch: params.branch,
     files,
     message: params.publishWebApp
-      ? `BlogVN: Xuất bản Web App GitHub Pages (${params.config.siteTitle})`
-      : `BlogVN: Cập nhật cấu hình nhận dạng (${params.config.siteTitle})`,
+      ? `Đạo Ký: Xuất bản Web App GitHub Pages (${params.config.siteTitle})`
+      : `Đạo Ký: Cập nhật cấu hình nhận dạng (${params.config.siteTitle})`,
     token: pat,
   });
   if (!commitRes.ok) return { ok: false, error: commitRes.error };
@@ -2159,12 +2203,17 @@ export async function ghDeployAstroTemplate(
     }
   }
 
+  const defaultFaviconPngBase64 = shouldBundleDefaultDaoKyLogo(params.config.siteIcon)
+    ? await fetchDefaultDaoKyPngBase64()
+    : undefined;
+
   const files = buildVietnameseAstroTemplateFiles({
     owner: params.owner,
     repo: params.repo,
     config: params.config,
     templateId: params.templateId || params.config.astroTemplate,
     includeStarterPosts: !preservePosts || preservedPostsCount === 0,
+    defaultFaviconPngBase64,
   });
 
   const commitRes = await commitMultipleFilesClient({
@@ -2174,8 +2223,8 @@ export async function ghDeployAstroTemplate(
     files,
     message:
       preservePosts && preservedPostsCount > 0
-        ? `BlogVN: Cập nhật giao diện Astro 5 (giữ nguyên ${preservedPostsCount} bài viết) (${params.config.siteTitle || params.repo})`
-        : `BlogVN: Triển khai Template Astro Blog Việt sạch & nhận dạng web (${params.config.siteTitle || params.repo})`,
+        ? `Đạo Ký: Cập nhật giao diện Astro 5 (giữ nguyên ${preservedPostsCount} bài viết) (${params.config.siteTitle || params.repo})`
+        : `Đạo Ký: Triển khai Template Astro Đạo Ký sạch & nhận dạng web (${params.config.siteTitle || params.repo})`,
     token: pat,
     replaceAllFiles: true,
     preservedTreeEntries,

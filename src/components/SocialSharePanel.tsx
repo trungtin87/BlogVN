@@ -150,7 +150,7 @@ export function SocialSharePanel({
         </div>
 
         <p style={{ color: palette.textMuted }} className="text-[11px] leading-relaxed">
-          Sau khi commit lên GitHub thành công, BlogVN tự động đăng link{' '}
+          Sau khi commit lên GitHub thành công, Đạo Ký tự động đăng link{' '}
           <code style={{ fontFamily: fonts.mono }}>{postUrl}</code> lên các nền tảng bạn chọn bên dưới.
         </p>
 

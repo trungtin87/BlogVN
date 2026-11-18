@@ -36,6 +36,10 @@ export interface EditorialThemePreset {
     mono: string;
   };
   palette: BlogTheme['palette'];
+  palettes: {
+    light: BlogTheme['palette'];
+    dark: BlogTheme['palette'];
+  };
 }
 
 export const EDITORIAL_THEME_ORDER: AstroTemplateId[] = [
@@ -46,6 +50,136 @@ export const EDITORIAL_THEME_ORDER: AstroTemplateId[] = [
   'espresso-salon',
 ];
 
+const NEWYORKER_LIGHT_PALETTE: BlogTheme['palette'] = {
+  canvas: '#FAF7F2',
+  surface: '#F2EDE4',
+  surfaceElevated: '#FFFFFF',
+  border: '#DDD5C7',
+  textPrimary: '#141414',
+  textSecondary: '#3A352E',
+  textMuted: '#6E665A',
+  accent: '#141414',
+  accentText: '#FAF7F2',
+  link: '#B91C1C',
+};
+
+const NEWYORKER_DARK_PALETTE: BlogTheme['palette'] = {
+  canvas: '#161411',
+  surface: '#201D18',
+  surfaceElevated: '#28241E',
+  border: '#3A332A',
+  textPrimary: '#F5EFE6',
+  textSecondary: '#D8CFC2',
+  textMuted: '#A19585',
+  accent: '#FAF7F2',
+  accentText: '#161411',
+  link: '#F87171',
+};
+
+const NYTIMES_LIGHT_PALETTE: BlogTheme['palette'] = {
+  canvas: '#FFFFFF',
+  surface: '#F5F6F8',
+  surfaceElevated: '#FFFFFF',
+  border: '#D4D4D8',
+  textPrimary: '#0F172A',
+  textSecondary: '#334155',
+  textMuted: '#64748B',
+  accent: '#0F172A',
+  accentText: '#FFFFFF',
+  link: '#1E3A8A',
+};
+
+const NYTIMES_DARK_PALETTE: BlogTheme['palette'] = {
+  canvas: '#0E1218',
+  surface: '#161C26',
+  surfaceElevated: '#1D2432',
+  border: '#2C3548',
+  textPrimary: '#F8FAFC',
+  textSecondary: '#CBD5E1',
+  textMuted: '#94A3B8',
+  accent: '#F8FAFC',
+  accentText: '#0E1218',
+  link: '#60A5FA',
+};
+
+const BBC_LIGHT_PALETTE: BlogTheme['palette'] = {
+  canvas: '#F6F7F9',
+  surface: '#EBEDF2',
+  surfaceElevated: '#FFFFFF',
+  border: '#D4D7DF',
+  textPrimary: '#111216',
+  textSecondary: '#374151',
+  textMuted: '#6B7280',
+  accent: '#E11D48',
+  accentText: '#FFFFFF',
+  link: '#BE123C',
+};
+
+const BBC_DARK_PALETTE: BlogTheme['palette'] = {
+  canvas: '#121214',
+  surface: '#1A1B1F',
+  surfaceElevated: '#22242A',
+  border: '#2E313A',
+  textPrimary: '#F4F4F5',
+  textSecondary: '#D4D4D8',
+  textMuted: '#A1A1AA',
+  accent: '#E11D48',
+  accentText: '#FFFFFF',
+  link: '#FB7185',
+};
+
+const OBSIDIAN_LIGHT_PALETTE: BlogTheme['palette'] = {
+  canvas: '#F3F6FB',
+  surface: '#E6ECF5',
+  surfaceElevated: '#FFFFFF',
+  border: '#CBD5E1',
+  textPrimary: '#0F172A',
+  textSecondary: '#334155',
+  textMuted: '#64748B',
+  accent: '#0F172A',
+  accentText: '#FFFFFF',
+  link: '#1D4ED8',
+};
+
+const OBSIDIAN_DARK_PALETTE: BlogTheme['palette'] = {
+  canvas: '#0B0D12',
+  surface: '#131722',
+  surfaceElevated: '#1A1F2E',
+  border: '#273043',
+  textPrimary: '#F3F4F6',
+  textSecondary: '#CBD5E1',
+  textMuted: '#94A3B8',
+  accent: '#F3F4F6',
+  accentText: '#0B0D12',
+  link: '#60A5FA',
+};
+
+const ESPRESSO_LIGHT_PALETTE: BlogTheme['palette'] = {
+  canvas: '#FAF4EC',
+  surface: '#F1E7DA',
+  surfaceElevated: '#FFFFFF',
+  border: '#DECDB9',
+  textPrimary: '#261C15',
+  textSecondary: '#4E3E31',
+  textMuted: '#7D6A5A',
+  accent: '#9A5B13',
+  accentText: '#FFFFFF',
+  link: '#B45309',
+};
+
+const ESPRESSO_DARK_PALETTE: BlogTheme['palette'] = {
+  canvas: '#161210',
+  surface: '#201A17',
+  surfaceElevated: '#29221E',
+  border: '#3B312B',
+  textPrimary: '#F5EFE6',
+  textSecondary: '#D6CBC0',
+  textMuted: '#A39589',
+  accent: '#E5A93C',
+  accentText: '#161210',
+  link: '#FBBF24',
+};
+
 export const EDITORIAL_THEMES: Record<AstroTemplateId, EditorialThemePreset> = {
   'newyorker-light': {
     id: 'newyorker-light',
@@ -54,24 +188,17 @@ export const EDITORIAL_THEMES: Record<AstroTemplateId, EditorialThemePreset> = {
     toneLabel: 'Sáng',
     layoutTag: 'Tạp chí tiểu luận',
     description:
-      'Nền giấy ngà ấm, măng-sét kẻ chỉ đôi cổ điển và chữ Serif thanh lịch dành cho bài luận chuyên sâu.',
+      'Nền giấy ngà ấm, măng-sét kẻ chỉ đôi cổ điển và chữ Serif thanh lịch dành cho bài luận chuyên sâu (hỗ trợ Sáng/Tối).',
     isDark: false,
     fonts: {
       display: "'Playfair Display', 'Fraunces', Georgia, serif",
       body: "'Lora', Georgia, serif",
       mono: "'JetBrains Mono', monospace",
     },
-    palette: {
-      canvas: '#FAF7F2',
-      surface: '#F2EDE4',
-      surfaceElevated: '#FFFFFF',
-      border: '#DDD5C7',
-      textPrimary: '#141414',
-      textSecondary: '#3A352E',
-      textMuted: '#6E665A',
-      accent: '#141414',
-      accentText: '#FAF7F2',
-      link: '#B91C1C',
+    palette: NEWYORKER_LIGHT_PALETTE,
+    palettes: {
+      light: NEWYORKER_LIGHT_PALETTE,
+      dark: NEWYORKER_DARK_PALETTE,
     },
   },
   'nytimes-light': {
@@ -81,51 +208,37 @@ export const EDITORIAL_THEMES: Record<AstroTemplateId, EditorialThemePreset> = {
     toneLabel: 'Sáng',
     layoutTag: 'Báo in đa cột',
     description:
-      'Nền trắng tinh khôi, bài tiêu điểm lớn kết hợp cột tin nhanh sắc sảo với đường kẻ báo in 1px.',
+      'Bố cục báo in tiêu điểm kết hợp cột tin nhanh sắc sảo với đường kẻ 1px tinh tế (hỗ trợ Sáng/Tối).',
     isDark: false,
     fonts: {
       display: "'Fraunces', 'Playfair Display', Georgia, serif",
       body: "'Plus Jakarta Sans', system-ui, sans-serif",
       mono: "'JetBrains Mono', monospace",
     },
-    palette: {
-      canvas: '#FFFFFF',
-      surface: '#F5F6F8',
-      surfaceElevated: '#FFFFFF',
-      border: '#D4D4D8',
-      textPrimary: '#0F172A',
-      textSecondary: '#334155',
-      textMuted: '#64748B',
-      accent: '#0F172A',
-      accentText: '#FFFFFF',
-      link: '#1E3A8A',
+    palette: NYTIMES_LIGHT_PALETTE,
+    palettes: {
+      light: NYTIMES_LIGHT_PALETTE,
+      dark: NYTIMES_DARK_PALETTE,
     },
   },
   'bbc-dark': {
     id: 'bbc-dark',
-    name: 'BBC Studio Tối',
+    name: 'BBC Studio',
     inspiration: 'Cảm hứng BBC News',
     toneLabel: 'Tối',
     layoutTag: 'Lưới tin hiện đại',
     description:
-      'Than chì studio tương phản cao, điểm nhấn đỏ thẫm, lưới bài viết & ảnh bìa video sắc bén.',
+      'Phong cách phòng tin tương phản cao, điểm nhấn đỏ thẫm tôn vinh ảnh bìa & video (hỗ trợ Sáng/Tối).',
     isDark: true,
     fonts: {
       display: "'Plus Jakarta Sans', system-ui, sans-serif",
       body: "'Plus Jakarta Sans', system-ui, sans-serif",
       mono: "'JetBrains Mono', monospace",
     },
-    palette: {
-      canvas: '#121214',
-      surface: '#1A1B1F',
-      surfaceElevated: '#22242A',
-      border: '#2E313A',
-      textPrimary: '#F4F4F5',
-      textSecondary: '#D4D4D8',
-      textMuted: '#A1A1AA',
-      accent: '#E11D48',
-      accentText: '#FFFFFF',
-      link: '#FB7185',
+    palette: BBC_DARK_PALETTE,
+    palettes: {
+      light: BBC_LIGHT_PALETTE,
+      dark: BBC_DARK_PALETTE,
     },
   },
   'obsidian-broadsheet': {
@@ -133,53 +246,39 @@ export const EDITORIAL_THEMES: Record<AstroTemplateId, EditorialThemePreset> = {
     name: 'Broadsheet Đêm',
     inspiration: 'Cảm hứng NYT Đêm',
     toneLabel: 'Tối',
-    layoutTag: 'Nhật báo ban đêm',
+    layoutTag: 'Nhật báo chuyên sâu',
     description:
-      'Mực đêm xanh thẫm dịu mắt, tiêu đề Serif uy nghiêm kết hợp ánh xanh coban dễ đọc suốt nhiều giờ.',
+      'Tiêu đề Serif uy nghiêm kết hợp ánh xanh coban dễ đọc suốt nhiều giờ (hỗ trợ Sáng/Tối).',
     isDark: true,
     fonts: {
       display: "'Fraunces', Georgia, serif",
       body: "'Plus Jakarta Sans', system-ui, sans-serif",
       mono: "'JetBrains Mono', monospace",
     },
-    palette: {
-      canvas: '#0B0D12',
-      surface: '#131722',
-      surfaceElevated: '#1A1F2E',
-      border: '#273043',
-      textPrimary: '#F3F4F6',
-      textSecondary: '#CBD5E1',
-      textMuted: '#94A3B8',
-      accent: '#F3F4F6',
-      accentText: '#0B0D12',
-      link: '#60A5FA',
+    palette: OBSIDIAN_DARK_PALETTE,
+    palettes: {
+      light: OBSIDIAN_LIGHT_PALETTE,
+      dark: OBSIDIAN_DARK_PALETTE,
     },
   },
   'espresso-salon': {
     id: 'espresso-salon',
     name: 'Salon Suy tư',
-    inspiration: 'Cảm hứng Thư phòng Đêm',
+    inspiration: 'Cảm hứng Thư phòng',
     toneLabel: 'Tối',
     layoutTag: 'Đọc sâu ấm áp',
     description:
-      'Nền nâu espresso ấm áp với điểm nhấn vàng hổ phách và chữ Serif êm dịu cho những bài viết dài.',
+      'Gam màu hổ phách & espresso ấm áp cùng chữ Serif êm dịu cho bài viết dài (hỗ trợ Sáng/Tối).',
     isDark: true,
     fonts: {
       display: "'Playfair Display', 'Fraunces', Georgia, serif",
       body: "'Lora', Georgia, serif",
       mono: "'JetBrains Mono', monospace",
     },
-    palette: {
-      canvas: '#161210',
-      surface: '#201A17',
-      surfaceElevated: '#29221E',
-      border: '#3B312B',
-      textPrimary: '#F5EFE6',
-      textSecondary: '#D6CBC0',
-      textMuted: '#A39589',
-      accent: '#E5A93C',
-      accentText: '#161210',
-      link: '#FBBF24',
+    palette: ESPRESSO_DARK_PALETTE,
+    palettes: {
+      light: ESPRESSO_LIGHT_PALETTE,
+      dark: ESPRESSO_DARK_PALETTE,
     },
   },
 };
@@ -203,41 +302,39 @@ export function normalizeAstroTemplateId(
   return fallbackMode === 'dark' ? 'obsidian-broadsheet' : 'newyorker-light';
 }
 
-export function toBlogTheme(preset: EditorialThemePreset): BlogTheme {
+export function toBlogTheme(preset: EditorialThemePreset, modeOverride?: ThemeMode): BlogTheme {
+  const mode: ThemeMode = modeOverride || (preset.isDark ? 'dark' : 'light');
+  const activePalette = preset.palettes[mode] || preset.palette;
   return {
-    id: preset.isDark ? 'dark' : 'light',
+    id: mode,
     name: preset.name,
-    isDark: preset.isDark,
+    isDark: mode === 'dark',
     fonts: preset.fonts,
-    palette: preset.palette,
+    palette: activePalette,
   };
 }
 
 export const AM_DUONG_THEMES: Record<ThemeMode, BlogTheme> = {
-  light: toBlogTheme(EDITORIAL_THEMES['newyorker-light']),
-  dark: toBlogTheme(EDITORIAL_THEMES['obsidian-broadsheet']),
+  light: toBlogTheme(EDITORIAL_THEMES['newyorker-light'], 'light'),
+  dark: toBlogTheme(EDITORIAL_THEMES['newyorker-light'], 'dark'),
 };
 
 export function resolveBlogTheme(config: Partial<BlogConfig>, fallbackMode?: ThemeMode): BlogTheme {
-  const mode: ThemeMode = config.themeMode || fallbackMode || 'light';
-  const presetId = normalizeAstroTemplateId(config.astroTemplate, mode);
+  const requestedMode: ThemeMode | undefined = config.themeMode || fallbackMode;
+  const presetId = normalizeAstroTemplateId(config.astroTemplate, requestedMode || 'light');
   const preset = EDITORIAL_THEMES[presetId];
-  // If user toggled dark/light mode via Quick Toggle and it disagrees with the preset polarity,
-  // honor the requested mode using the paired editorial theme.
-  if (config.themeMode && preset.isDark !== (config.themeMode === 'dark')) {
-    return AM_DUONG_THEMES[config.themeMode];
-  }
-  return toBlogTheme(preset);
+  const effectiveMode: ThemeMode = requestedMode || (preset.isDark ? 'dark' : 'light');
+  return toBlogTheme(preset, effectiveMode);
 }
 
 export const DEFAULT_BLOG_CONFIG: BlogConfig = {
-  siteTitle: 'Huyền Không Thư Quán',
+  siteTitle: 'Đạo Ký',
   tagline:
-    'Nhật ký nghiên cứu kỹ thuật, thiết kế hệ thống và những ghi chép tĩnh tại trên GitHub Pages.',
-  siteIcon: './icon.svg',
-  headerTitle: 'BlogVN',
+    'Nhật ký nghiên cứu, tiểu luận và những ghi chép tĩnh tại xuất bản trên GitHub Pages.',
+  siteIcon: './assets/aistudio/1794978557793_3b5d5cb0.png',
+  headerTitle: 'Đạo Ký',
   headerNavLinks: [],
-  footerText: 'Xuất bản trực tiếp qua GitHub Pages & BlogVN.',
+  footerText: 'Xuất bản trực tiếp qua GitHub Pages & Đạo Ký.',
   footerLinks: [],
   authorName: 'Tác giả',
   authorBio:

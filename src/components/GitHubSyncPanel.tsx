@@ -259,7 +259,7 @@ export function GitHubSyncPanel({
         >
           <div>
             <div style={{ color: palette.textMuted, fontFamily: fonts.mono }} className="text-xs mb-2">
-              BlogVN Workspace · {config.githubOwner}/{config.githubRepo}
+              Đạo Ký Workspace · {config.githubOwner}/{config.githubRepo}
             </div>
             <h1 style={{ fontFamily: fonts.display }} className="text-2xl sm:text-3xl font-bold tracking-tight">
               Kết nối GitHub &amp; Cài đặt App
@@ -488,7 +488,7 @@ export function GitHubSyncPanel({
                   GitHub Personal Access Token (Lưu riêng trên máy theo Google UID)
                 </span>
                 <a
-                  href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=BlogVN"
+                  href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=DaoKyBlog"
                   target="_blank"
                   rel="noreferrer"
                   style={{ color: palette.link }}
@@ -600,7 +600,7 @@ export function GitHubSyncPanel({
             </h2>
 
             <form onSubmit={handleApplyRepo} className="space-y-3">
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label style={{ color: palette.textMuted }} className="block text-xs mb-1">
                     Chủ sở hữu (Owner)
@@ -763,7 +763,7 @@ export function GitHubSyncPanel({
                 2. Tạo Blog GitHub Pages mới trong 1 chạm (Dành cho người mới)
               </h2>
               <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
-                Chưa có trang web? BlogVN sẽ tự tạo repository, nạp Template Blog chuẩn tiếng Việt kết hợp nhận dạng cá nhân và tự bật GitHub Pages cho bạn.
+                Chưa có trang web? Đạo Ký sẽ tự tạo repository, nạp Template Blog chuẩn tiếng Việt kết hợp nhận dạng cá nhân và tự bật GitHub Pages cho bạn.
               </p>
             </div>
           </div>
@@ -864,6 +864,8 @@ export function GitHubSyncPanel({
                 theme={theme}
                 selectedTemplate={selectedAstroPreset}
                 onSelectTemplate={(tplId) => setSelectedAstroPreset(tplId)}
+                previewMode={config.themeMode}
+                onToggleThemeMode={(mode) => onUpdateConfig({ ...config, themeMode: mode })}
                 previewSiteTitle={newSiteTitle || config.siteTitle}
                 previewHeaderTitle={config.headerTitle}
                 previewTagline={newTagline || config.tagline}
@@ -937,7 +939,7 @@ export function GitHubSyncPanel({
               </div>
               <div>
                 <h2 style={{ fontFamily: fonts.display }} className="text-lg font-bold">
-                  Cài đặt BlogVN như Web App (PWA) &amp; Quyền riêng tư
+                  Cài đặt Đạo Ký như Web App (PWA) &amp; Quyền riêng tư
                 </h2>
                 <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
                   Chạy trực tiếp trên trình duyệt hoặc ghim thành ứng dụng web (PWA) trên điện thoại và máy tính mà không cần cài gói ứng dụng.
@@ -960,7 +962,7 @@ export function GitHubSyncPanel({
                 Quyền riêng tư &amp; Dữ liệu tách biệt trên máy
               </div>
               <p style={{ color: palette.textSecondary }} className="text-xs leading-relaxed">
-                Mọi bản nháp, cấu hình nhận dạng web và GitHub Token được lưu riêng theo tài khoản Google trên trình duyệt của bạn. BlogVN chỉ thao tác trên repository bạn trực tiếp chọn.
+                Mọi bản nháp, cấu hình nhận dạng web và GitHub Token được lưu riêng theo tài khoản Google trên trình duyệt của bạn. Đạo Ký chỉ thao tác trên repository bạn trực tiếp chọn.
               </p>
             </div>
             <button
@@ -1192,7 +1194,7 @@ export function GitHubSyncPanel({
                 <div
                   key={post.id}
                   style={{ borderColor: palette.border }}
-                  className="px-5 sm:px-6 py-4 flex items-center justify-between gap-4"
+                  className="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4"
                 >
                   <div className="min-w-0">
                     <div className="font-semibold text-sm truncate">{post.title}</div>

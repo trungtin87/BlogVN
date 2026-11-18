@@ -51,15 +51,16 @@ export function GoogleAuthGate({ theme, onToggleTheme }: GoogleAuthGateProps) {
         color: palette.textPrimary,
         fontFamily: fonts.body,
       }}
-      className="min-h-screen flex flex-col justify-between p-4 sm:p-6 transition-colors duration-200"
+      className="min-h-screen flex flex-col justify-between p-4 sm:p-6 overflow-x-hidden transition-colors duration-200"
     >
       {/* Top minimal bar */}
-      <div className="max-w-[1180px] w-full mx-auto flex items-center justify-between gap-4">
+      <div className="max-w-[1200px] w-full mx-auto flex items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
           <img
-            src="./icon.svg"
-            alt="BlogVN"
-            className="w-7 h-7 rounded-md object-cover shrink-0"
+            src="./assets/aistudio/1794978557793_3b5d5cb0.png"
+            alt="Đạo Ký"
+            className="w-8 h-8 rounded-full object-cover shrink-0 border"
+            style={{ borderColor: palette.border }}
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = 'none';
             }}
@@ -68,7 +69,7 @@ export function GoogleAuthGate({ theme, onToggleTheme }: GoogleAuthGateProps) {
             style={{ fontFamily: fonts.display }}
             className="text-lg font-bold tracking-tight"
           >
-            BlogVN
+            Đạo Ký
           </span>
         </div>
 
@@ -83,12 +84,12 @@ export function GoogleAuthGate({ theme, onToggleTheme }: GoogleAuthGateProps) {
           className="inline-flex items-center gap-1.5 px-3 min-h-[40px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85"
         >
           {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          <span>{isDark ? 'Dương' : 'Âm'}</span>
+          <span>{isDark ? 'Sáng' : 'Tối'}</span>
         </button>
       </div>
 
       {/* Main Split Onboarding: Google Auth + Detailed User Guide */}
-      <main className="max-w-[1180px] w-full mx-auto my-8 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+      <main className="max-w-[1200px] w-full mx-auto my-8 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
         {/* Left: Google Sign-In Card */}
         <div className="lg:col-span-5 lg:sticky lg:top-8">
           <div
@@ -111,7 +112,7 @@ export function GoogleAuthGate({ theme, onToggleTheme }: GoogleAuthGateProps) {
                 style={{ fontFamily: fonts.display, color: palette.textPrimary }}
                 className="text-2xl sm:text-3xl font-bold tracking-tight leading-snug text-balance"
               >
-                Đăng nhập bằng Google để vào BlogVN
+                Đăng nhập bằng Google để vào Đạo Ký
               </h1>
 
               <p style={{ color: palette.textSecondary }} className="text-sm leading-relaxed">
@@ -177,7 +178,7 @@ export function GoogleAuthGate({ theme, onToggleTheme }: GoogleAuthGateProps) {
             <BookOpenCheck className="w-5 h-5 shrink-0" style={{ color: palette.link }} />
             <div>
               <h2 style={{ fontFamily: fonts.display }} className="text-xl font-bold">
-                Hướng dẫn sử dụng BlogVN chi tiết
+                Hướng dẫn sử dụng Đạo Ký chi tiết
               </h2>
               <p style={{ color: palette.textMuted }} className="text-xs">
                 Xem nhanh quy trình thiết lập blog GitHub Pages, triển khai Astro 5 và viết bài chuẩn SEO ngay sau khi đăng nhập.
@@ -191,9 +192,9 @@ export function GoogleAuthGate({ theme, onToggleTheme }: GoogleAuthGateProps) {
 
       <footer
         style={{ color: palette.textMuted, fontFamily: fonts.mono }}
-        className="max-w-[1180px] w-full mx-auto text-center text-[11px] py-2"
+        className="max-w-[1200px] w-full mx-auto text-center text-[11px] py-2"
       >
-        BlogVN · Client-side GitHub Pages CMS
+        Đạo Ký · Client-side GitHub Pages CMS
       </footer>
     </div>
   );

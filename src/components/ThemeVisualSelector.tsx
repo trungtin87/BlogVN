@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, Eye, Moon, Sun } from 'lucide-react';
-import type { AstroTemplateId, BlogTheme } from '../types/blog';
+import type { AstroTemplateId, BlogTheme, ThemeMode } from '../types/blog';
 import { EDITORIAL_ASSETS } from '../data/assets';
 import {
   EDITORIAL_THEME_ORDER,
@@ -12,6 +12,8 @@ interface ThemeVisualSelectorProps {
   theme: BlogTheme;
   selectedTemplate: AstroTemplateId | string | undefined;
   onSelectTemplate: (templateId: AstroTemplateId) => void;
+  previewMode?: ThemeMode;
+  onToggleThemeMode?: (mode: ThemeMode) => void;
   previewSiteTitle?: string;
   previewHeaderTitle?: string;
   previewTagline?: string;
@@ -58,7 +60,7 @@ const THEME_PREVIEW_ART: Record<
     sampleKicker: 'Thời sự · Media',
     sampleHeadline: 'Tổ chức trang tin đa phương tiện & video YouTube sắc bén',
     sampleLead:
-      'Nền than chì studio tương phản cao làm nổi bật ảnh bìa khổ rộng, trích xuất trực tiếp từ video hoặc ảnh chụp thực tế.',
+      'Phong cách phòng tin tương phản cao làm nổi bật ảnh bìa khổ rộng, trích xuất trực tiếp từ video hoặc ảnh chụp thực tế.',
     brief1: 'Góc nhìn quốc tế: Tối ưu trải nghiệm đọc trên màn hình nhỏ',
     brief2: 'Quy trình biên tập và xuất bản Markdown từ điện thoại',
   },
@@ -68,7 +70,7 @@ const THEME_PREVIEW_ART: Record<
     sampleKicker: 'Nhật báo Đêm · Công nghệ',
     sampleHeadline: 'Thiết kế hệ thống blog Markdown bền vững suốt hàng chục năm',
     sampleLead:
-      'Mực đêm xanh thẫm dịu mắt kết hợp tiêu đề Serif uy nghiêm, mang lại sự tập trung tối đa cho người đọc buổi tối.',
+      'Mực đêm xanh thẫm dịu mắt kết hợp tiêu đề Serif uy nghiêm, mang lại sự tập trung tối đa cho người đọc.',
     brief1: 'Lưu trữ trọn đời bằng tệp văn bản thuần trên Git repository',
     brief2: 'Tối ưu dữ liệu có cấu trúc BlogPosting JSON-LD cho Google',
   },
@@ -78,7 +80,7 @@ const THEME_PREVIEW_ART: Record<
     sampleKicker: 'Thư phòng · Suy tư',
     sampleHeadline: 'Những trang viết cuối ngày bên ánh đèn vàng ấm áp',
     sampleLead:
-      'Sắc nền espresso êm dịu với chữ Serif cổ điển, giảm mỏi mắt cho những bài viết phân tích và hồi ký dài hơi.',
+      'Sắc nền thư phòng êm dịu với chữ Serif cổ điển, giảm mỏi mắt cho những bài viết phân tích và hồi ký dài hơi.',
     brief1: 'Sổ tay đọc sách: Rút gọn đoạn mở đầu để giữ mạch cảm xúc',
     brief2: 'Xây dựng nhịp thở đều đặn qua từng đề mục bài viết',
   },
@@ -88,6 +90,8 @@ export function ThemeVisualSelector({
   theme,
   selectedTemplate,
   onSelectTemplate,
+  previewMode,
+  onToggleThemeMode,
   previewSiteTitle,
   previewHeaderTitle,
   previewTagline,
@@ -96,12 +100,11 @@ export function ThemeVisualSelector({
   compact = false,
 }: ThemeVisualSelectorProps) {
   const { palette, fonts } = theme;
-  const normalizedSelected = normalizeAstroTemplateId(
-    selectedTemplate,
-    theme.isDark ? 'dark' : 'light'
-  );
+  const currentMode: ThemeMode = previewMode || (theme.isDark ? 'dark' : 'light');
+  const normalizedSelected = normalizeAstroTemplateId(selectedTemplate, currentMode);
   const [toneFilter, setToneFilter] = useState<'all' | 'light' | 'dark'>('all');
   const [livePreviewView, setLivePreviewView] = useState<'home' | 'article'>('home');
+  const [applyGlobalModeOnCards, setApplyGlobalModeOnCards] = useState(false);
 
   const visibleThemes = EDITORIAL_THEME_ORDER.map((id) => EDITORIAL_THEMES[id]).filter((preset) => {
     if (toneFilter === 'light') return !preset.isDark;
@@ -110,67 +113,105 @@ export function ThemeVisualSelector({
   });
 
   const activePreset = EDITORIAL_THEMES[normalizedSelected];
+  const activePalette = activePreset.palettes[currentMode] || activePreset.palette;
   const activeArt = THEME_PREVIEW_ART[normalizedSelected];
-  const displaySiteTitle = (previewSiteTitle || 'Huyền Không Thư Quán').trim();
+  const displaySiteTitle = (previewSiteTitle || 'Đạo Ký').trim();
   const displayBrand = (previewHeaderTitle || displaySiteTitle).trim();
   const displayTagline = (
     previewTagline || 'Ghi chép cá nhân, tiểu luận chuyên sâu và góc nhìn tĩnh tại.'
   ).trim();
   const displayAuthor = (previewAuthorName || 'Tác giả').trim();
+  const displayIcon = (previewSiteIcon || './assets/aistudio/1794978557793_3b5d5cb0.png').trim();
+
+  const handleToggleMode = (nextMode: ThemeMode) => {
+    setApplyGlobalModeOnCards(true);
+    onToggleThemeMode?.(nextMode);
+  };
 
   return (
     <div className="space-y-5">
-      {/* Header & 2 Light / 3 Dark Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Header & Filter + Sun/Moon Switch */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
           <div className="text-sm font-semibold">
-            Chọn mẫu giao diện Blog (2 mẫu Sáng · 3 mẫu Tối)
+            Chọn mẫu giao diện Blog (2 mẫu Sáng · 3 mẫu Tối · Hỗ trợ Sáng/Tối)
           </div>
           <p style={{ color: palette.textMuted }} className="text-xs mt-0.5">
-            Thiết kế thuần túy cho viết &amp; đọc blog — xem trực quan trước khi áp dụng và triển khai Astro.
+            Mỗi mẫu đều có nút chuyển Mặt trời / Mặt trăng (Sáng &amp; Tối) trên cả trình soạn thảo lẫn blog Astro xuất bản.
           </p>
         </div>
 
-        <div
-          style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
-          className="inline-flex p-1 rounded-xl border self-start"
-          role="group"
-          aria-label="Lọc giao diện sáng tối"
-        >
-          {(
-            [
-              { id: 'all', label: 'Tất cả (5)' },
-              { id: 'light', label: '2 Sáng', icon: Sun },
-              { id: 'dark', label: '3 Tối', icon: Moon },
-            ] as const
-          ).map((tab) => {
-            const active = toneFilter === tab.id;
-            const Icon = 'icon' in tab ? tab.icon : null;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setToneFilter(tab.id)}
-                style={{
-                  backgroundColor: active ? palette.accent : 'transparent',
-                  color: active ? palette.accentText : palette.textSecondary,
-                }}
-                className="inline-flex items-center gap-1.5 px-3 min-h-[36px] text-xs font-medium rounded-lg cursor-pointer whitespace-nowrap"
-              >
-                {Icon && <Icon className="w-3.5 h-3.5" />}
-                {tab.label}
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
+            className="inline-flex p-1 rounded-xl border"
+            role="group"
+            aria-label="Lọc giao diện sáng tối"
+          >
+            {(
+              [
+                { id: 'all', label: 'Tất cả (5)' },
+                { id: 'light', label: '2 Sáng', icon: Sun },
+                { id: 'dark', label: '3 Tối', icon: Moon },
+              ] as const
+            ).map((tab) => {
+              const active = toneFilter === tab.id;
+              const Icon = 'icon' in tab ? tab.icon : null;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setToneFilter(tab.id)}
+                  style={{
+                    backgroundColor: active ? palette.accent : 'transparent',
+                    color: active ? palette.accentText : palette.textSecondary,
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 min-h-[34px] text-xs font-medium rounded-lg cursor-pointer whitespace-nowrap"
+                >
+                  {Icon && <Icon className="w-3.5 h-3.5" />}
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handleToggleMode(currentMode === 'dark' ? 'light' : 'dark')}
+            style={{
+              borderColor: palette.border,
+              backgroundColor: palette.canvas,
+              color: palette.textPrimary,
+            }}
+            className="inline-flex items-center gap-1.5 px-3 min-h-[42px] sm:min-h-[38px] text-xs font-semibold rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap"
+            title={
+              currentMode === 'dark'
+                ? 'Đang ở chế độ Tối — nhấn để chuyển sang Sáng (Mặt trời)'
+                : 'Đang ở chế độ Sáng — nhấn để chuyển sang Tối (Mặt trăng)'
+            }
+          >
+            {currentMode === 'dark' ? (
+              <Sun className="w-3.5 h-3.5 text-amber-400" />
+            ) : (
+              <Moon className="w-3.5 h-3.5 text-indigo-500" />
+            )}
+            <span>{currentMode === 'dark' ? 'Chế độ Sáng' : 'Chế độ Tối'}</span>
+          </button>
         </div>
       </div>
 
       {/* 5 Visual Theme Cards with Authentic Scaled Miniature Blog Mockup */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
         {visibleThemes.map((preset) => {
           const isSelected = normalizedSelected === preset.id;
           const art = THEME_PREVIEW_ART[preset.id];
-          const p = preset.palette;
+          const cardMode: ThemeMode =
+            applyGlobalModeOnCards || isSelected
+              ? currentMode
+              : preset.isDark
+              ? 'dark'
+              : 'light';
+          const p = preset.palettes[cardMode] || preset.palette;
           const isNewYorker = preset.id === 'newyorker-light';
           const isBroadsheet =
             preset.id === 'nytimes-light' || preset.id === 'obsidian-broadsheet';
@@ -179,12 +220,15 @@ export function ThemeVisualSelector({
             <button
               key={preset.id}
               type="button"
-              onClick={() => onSelectTemplate(preset.id)}
+              onClick={() => {
+                setApplyGlobalModeOnCards(false);
+                onSelectTemplate(preset.id);
+              }}
               style={{
                 backgroundColor: palette.surfaceElevated,
                 borderColor: isSelected ? palette.link : palette.border,
               }}
-              className={`group text-left rounded-2xl border overflow-hidden transition-all cursor-pointer flex flex-col ${
+              className={`group text-left rounded-2xl border overflow-hidden transition-all cursor-pointer flex flex-col h-full ${
                 isSelected ? 'ring-2 ring-offset-0' : 'hover:opacity-95'
               }`}
             >
@@ -196,26 +240,26 @@ export function ThemeVisualSelector({
                   borderColor: p.border,
                   fontFamily: preset.fonts.body,
                 }}
-                className="p-3.5 border-b space-y-2.5 select-none"
+                className="p-3.5 border-b space-y-2.5 select-none w-full"
               >
-                {/* Mini Masthead Bar */}
+                {/* Mini Masthead Bar (Uniform height across all 5 cards) */}
                 <div
                   style={{
                     borderColor: p.border,
                     borderBottomWidth: isNewYorker ? '3px' : '1px',
                     borderBottomStyle: isNewYorker ? 'double' : 'solid',
                   }}
-                  className={`pb-2 flex items-center justify-between gap-2 ${
-                    isNewYorker ? 'flex-col text-center' : ''
+                  className={`pb-2 min-h-[36px] flex items-center justify-between gap-2 ${
+                    isNewYorker ? 'flex-col sm:flex-row text-center sm:text-left' : ''
                   }`}
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      style={{ backgroundColor: p.accent, color: p.accentText }}
-                      className="w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center shrink-0"
-                    >
-                      {(displayBrand[0] || 'B').toUpperCase()}
-                    </span>
+                    <img
+                      src={displayIcon}
+                      alt=""
+                      className="w-4 h-4 rounded-full object-cover shrink-0 border"
+                      style={{ borderColor: p.border }}
+                    />
                     <span
                       style={{ fontFamily: preset.fonts.display }}
                       className="text-xs font-bold tracking-tight truncate"
@@ -225,10 +269,11 @@ export function ThemeVisualSelector({
                   </div>
                   <div
                     style={{ color: p.textMuted, fontFamily: preset.fonts.mono }}
-                    className="text-[9px] flex items-center gap-2 shrink-0"
+                    className="text-[9px] flex items-center gap-1.5 shrink-0"
                   >
                     <span>Trang nhất</span>
                     <span>Bài viết</span>
+                    <span aria-hidden="true">{cardMode === 'dark' ? '☾' : '☀'}</span>
                   </div>
                 </div>
 
@@ -243,7 +288,7 @@ export function ThemeVisualSelector({
                     </div>
                     <div
                       style={{ fontFamily: preset.fonts.display, color: p.textPrimary }}
-                      className="text-[11px] font-bold leading-snug line-clamp-2"
+                      className="text-[11px] font-bold leading-snug line-clamp-2 min-h-[28px]"
                     >
                       {art.sampleHeadline}
                     </div>
@@ -271,7 +316,7 @@ export function ThemeVisualSelector({
                 {/* Mini Secondary Broadsheet / Story Strip */}
                 <div
                   style={{ borderColor: p.border }}
-                  className="pt-2 border-t grid grid-cols-2 gap-2 text-[9px]"
+                  className="pt-2 border-t grid grid-cols-2 gap-2 text-[9px] min-h-[36px]"
                 >
                   <div className="flex items-start gap-1.5 min-w-0">
                     <img
@@ -301,18 +346,18 @@ export function ThemeVisualSelector({
               </div>
 
               {/* Card Metadata Footer */}
-              <div className="p-3.5 space-y-1.5 flex-1 flex flex-col justify-between">
+              <div className="p-3.5 space-y-2 flex-1 flex flex-col justify-between w-full">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-bold flex items-center gap-1.5">
-                      {preset.name}
+                    <span className="text-sm font-bold flex items-center gap-1.5 min-w-0 truncate">
+                      <span className="truncate">{preset.name}</span>
                       {isSelected && (
                         <Check className="w-4 h-4 shrink-0" style={{ color: palette.link }} />
                       )}
                     </span>
                     <span
                       style={{ color: isSelected ? palette.link : palette.textMuted, fontFamily: fonts.mono }}
-                      className="text-[11px] font-medium whitespace-nowrap"
+                      className="text-[11px] font-medium whitespace-nowrap shrink-0"
                     >
                       {preset.toneLabel} · {preset.layoutTag}
                     </span>
@@ -364,46 +409,68 @@ export function ThemeVisualSelector({
             className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-3"
           >
             <div className="flex items-center gap-2 text-xs font-semibold">
-              <Eye className="w-4 h-4" style={{ color: palette.link }} />
+              <Eye className="w-4 h-4 shrink-0" style={{ color: palette.link }} />
               <span>
-                Xem trực quan Blog của bạn theo mẫu: <strong>{activePreset.name}</strong>
+                Xem trực quan: <strong>{activePreset.name}</strong> ({currentMode === 'dark' ? 'Tối' : 'Sáng'})
               </span>
             </div>
 
-            <div
-              style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
-              className="inline-flex p-0.5 rounded-lg border"
-            >
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Sun / Moon Toggle right in Live Preview */}
               <button
                 type="button"
-                onClick={() => setLivePreviewView('home')}
+                onClick={() => handleToggleMode(currentMode === 'dark' ? 'light' : 'dark')}
                 style={{
-                  backgroundColor: livePreviewView === 'home' ? palette.accent : 'transparent',
-                  color: livePreviewView === 'home' ? palette.accentText : palette.textSecondary,
+                  borderColor: palette.border,
+                  backgroundColor: palette.canvas,
+                  color: palette.textPrimary,
                 }}
-                className="px-3 min-h-[32px] text-xs font-medium rounded-md cursor-pointer whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-2.5 min-h-[34px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 whitespace-nowrap"
+                title="Đổi Sáng/Tối cho mẫu đang chọn"
               >
-                Trang nhất
+                {currentMode === 'dark' ? (
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                ) : (
+                  <Moon className="w-3.5 h-3.5 text-indigo-500" />
+                )}
+                <span>{currentMode === 'dark' ? 'Sáng' : 'Tối'}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setLivePreviewView('article')}
-                style={{
-                  backgroundColor: livePreviewView === 'article' ? palette.accent : 'transparent',
-                  color: livePreviewView === 'article' ? palette.accentText : palette.textSecondary,
-                }}
-                className="px-3 min-h-[32px] text-xs font-medium rounded-md cursor-pointer whitespace-nowrap"
+
+              <div
+                style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
+                className="inline-flex p-0.5 rounded-lg border"
               >
-                Trang đọc bài
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setLivePreviewView('home')}
+                  style={{
+                    backgroundColor: livePreviewView === 'home' ? palette.accent : 'transparent',
+                    color: livePreviewView === 'home' ? palette.accentText : palette.textSecondary,
+                  }}
+                  className="px-3 min-h-[32px] text-xs font-medium rounded-md cursor-pointer whitespace-nowrap"
+                >
+                  Trang nhất
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLivePreviewView('article')}
+                  style={{
+                    backgroundColor: livePreviewView === 'article' ? palette.accent : 'transparent',
+                    color: livePreviewView === 'article' ? palette.accentText : palette.textSecondary,
+                  }}
+                  className="px-3 min-h-[32px] text-xs font-medium rounded-md cursor-pointer whitespace-nowrap"
+                >
+                  Trang đọc bài
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Authentic Scaled Live Render with User's Brand & Selected Editorial Palette */}
           <div
             style={{
-              backgroundColor: activePreset.palette.canvas,
-              color: activePreset.palette.textPrimary,
+              backgroundColor: activePalette.canvas,
+              color: activePalette.textPrimary,
               fontFamily: activePreset.fonts.body,
             }}
             className="p-5 sm:p-7 transition-colors duration-200"
@@ -411,7 +478,7 @@ export function ThemeVisualSelector({
             {/* Preview Site Header */}
             <div
               style={{
-                borderColor: activePreset.palette.border,
+                borderColor: activePalette.border,
                 borderBottomWidth: activePreset.id === 'newyorker-light' ? '3px' : '1px',
                 borderBottomStyle: activePreset.id === 'newyorker-light' ? 'double' : 'solid',
               }}
@@ -420,16 +487,15 @@ export function ThemeVisualSelector({
               }`}
             >
               <div className="flex items-center gap-2.5">
-                {previewSiteIcon ? (
-                  <img
-                    src={previewSiteIcon}
-                    alt=""
-                    className="w-6 h-6 rounded object-cover"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                ) : null}
+                <img
+                  src={displayIcon}
+                  alt=""
+                  className="w-7 h-7 rounded-full object-cover border"
+                  style={{ borderColor: activePalette.border }}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
+                />
                 <span
                   style={{ fontFamily: activePreset.fonts.display }}
                   className="text-lg sm:text-xl font-bold tracking-tight"
@@ -439,7 +505,7 @@ export function ThemeVisualSelector({
               </div>
               <div
                 style={{
-                  color: activePreset.palette.textMuted,
+                  color: activePalette.textMuted,
                   fontFamily: activePreset.fonts.mono,
                 }}
                 className="text-[11px] flex items-center gap-4"
@@ -447,20 +513,21 @@ export function ThemeVisualSelector({
                 <span>Trang nhất</span>
                 <span>Kho bài viết</span>
                 <span>RSS</span>
+                <span aria-hidden="true">{currentMode === 'dark' ? '☀' : '☾'}</span>
               </div>
             </div>
 
             {livePreviewView === 'home' ? (
               <div className="space-y-5">
                 <div
-                  style={{ borderColor: activePreset.palette.border }}
+                  style={{ borderColor: activePalette.border }}
                   className={`pb-4 border-b ${
                     activePreset.id === 'newyorker-light' ? 'text-center' : ''
                   }`}
                 >
                   <div
                     style={{
-                      color: activePreset.palette.link,
+                      color: activePalette.link,
                       fontFamily: activePreset.fonts.mono,
                     }}
                     className="text-[11px] uppercase tracking-wider mb-1"
@@ -468,8 +535,10 @@ export function ThemeVisualSelector({
                     {displayAuthor} · Ấn phẩm cá nhân
                   </div>
                   <p
-                    style={{ color: activePreset.palette.textSecondary }}
-                    className="text-xs sm:text-sm max-w-2xl mx-auto"
+                    style={{ color: activePalette.textSecondary }}
+                    className={`text-xs sm:text-sm max-w-2xl ${
+                      activePreset.id === 'newyorker-light' ? 'mx-auto' : ''
+                    }`}
                   >
                     {displayTagline}
                   </p>
@@ -479,7 +548,7 @@ export function ThemeVisualSelector({
                   <div className="md:col-span-7 space-y-2">
                     <div
                       style={{
-                        color: activePreset.palette.link,
+                        color: activePalette.link,
                         fontFamily: activePreset.fonts.mono,
                       }}
                       className="text-[11px] uppercase tracking-wider font-semibold"
@@ -493,14 +562,14 @@ export function ThemeVisualSelector({
                       {activeArt.sampleHeadline}
                     </h3>
                     <p
-                      style={{ color: activePreset.palette.textSecondary }}
+                      style={{ color: activePalette.textSecondary }}
                       className="text-xs sm:text-sm leading-relaxed"
                     >
                       {activeArt.sampleLead}
                     </p>
                     <div
                       style={{
-                        color: activePreset.palette.textMuted,
+                        color: activePalette.textMuted,
                         fontFamily: activePreset.fonts.mono,
                       }}
                       className="text-[11px] pt-1"
@@ -509,7 +578,7 @@ export function ThemeVisualSelector({
                     </div>
                   </div>
                   <div
-                    style={{ borderColor: activePreset.palette.border }}
+                    style={{ borderColor: activePalette.border }}
                     className="md:col-span-5 aspect-[16/10] overflow-hidden rounded-lg border"
                   >
                     <img
@@ -524,7 +593,7 @@ export function ThemeVisualSelector({
               <div className="max-w-xl mx-auto space-y-4">
                 <div
                   style={{
-                    color: activePreset.palette.link,
+                    color: activePalette.link,
                     fontFamily: activePreset.fonts.mono,
                   }}
                   className="text-[11px] uppercase tracking-wider font-semibold"
@@ -538,7 +607,7 @@ export function ThemeVisualSelector({
                   {activeArt.sampleHeadline}
                 </h3>
                 <div
-                  style={{ color: activePreset.palette.textMuted }}
+                  style={{ color: activePalette.textMuted }}
                   className="text-xs"
                 >
                   Bởi <strong>{displayAuthor}</strong>
@@ -549,13 +618,13 @@ export function ThemeVisualSelector({
                   className="w-full h-44 object-cover rounded-lg"
                 />
                 <p
-                  style={{ color: activePreset.palette.textSecondary }}
+                  style={{ color: activePalette.textSecondary }}
                   className="text-sm leading-relaxed"
                 >
                   <span
                     style={{
                       fontFamily: activePreset.fonts.display,
-                      color: activePreset.palette.textPrimary,
+                      color: activePalette.textPrimary,
                     }}
                     className="float-left text-4xl font-bold leading-none mr-2 mt-1"
                   >

@@ -170,7 +170,7 @@ export function SiteEssentialsCard({
         repo: config.githubRepo,
         branch,
         files: filesToPublish,
-        message: `BlogVN: Cập nhật ${filesToPublish.length} tệp SEO & RSS`,
+        message: `Đạo Ký: Cập nhật ${filesToPublish.length} tệp SEO & RSS`,
       });
       if (!res.ok) {
         setPublishError(res.error || 'Không thể đồng bộ RSS/Sitemap lên GitHub.');
