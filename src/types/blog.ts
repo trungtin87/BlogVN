@@ -86,7 +86,12 @@ export type AstroTemplateId =
   | 'nytimes-light'
   | 'bbc-dark'
   | 'obsidian-broadsheet'
-  | 'espresso-salon';
+  | 'espresso-salon'
+  | 'monocle-magazine'
+  | 'guardian-portal'
+  | 'kyoto-folio'
+  | 'economist-digest'
+  | 'nordic-atlas';
 
 export type LiveChatPlatformId =
   | 'messenger'

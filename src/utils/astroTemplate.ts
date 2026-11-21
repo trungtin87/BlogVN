@@ -8,6 +8,7 @@ export interface AstroTemplatePresetMeta {
   toneLabel: 'Sáng' | 'Tối';
   badge: string;
   isDark: boolean;
+  isMultiPage?: boolean;
   description: string;
 }
 
@@ -19,6 +20,7 @@ export const ASTRO_TEMPLATE_PRESETS: AstroTemplatePresetMeta[] = [
     toneLabel: 'Sáng',
     badge: 'Sáng · Tiểu luận',
     isDark: false,
+    isMultiPage: false,
     description:
       'Giấy ngà ấm (#FAF7F2), kẻ chỉ đôi thanh mảnh, tiêu đề Serif cổ điển (hỗ trợ Sáng/Tối).',
   },
@@ -29,6 +31,7 @@ export const ASTRO_TEMPLATE_PRESETS: AstroTemplatePresetMeta[] = [
     toneLabel: 'Sáng',
     badge: 'Sáng · Báo in',
     isDark: false,
+    isMultiPage: false,
     description:
       'Nền trắng tinh khôi (#FFFFFF), bài tiêu điểm lớn cạnh cột tin nhanh, lưới nhật báo 1px (hỗ trợ Sáng/Tối).',
   },
@@ -39,6 +42,7 @@ export const ASTRO_TEMPLATE_PRESETS: AstroTemplatePresetMeta[] = [
     toneLabel: 'Tối',
     badge: 'Tối · Thời sự',
     isDark: true,
+    isMultiPage: false,
     description:
       'Than chì studio (#121214), điểm nhấn đỏ thẫm, lưới đa bài viết hiện đại tôn vinh ảnh bìa (hỗ trợ Sáng/Tối).',
   },
@@ -49,6 +53,7 @@ export const ASTRO_TEMPLATE_PRESETS: AstroTemplatePresetMeta[] = [
     toneLabel: 'Tối',
     badge: 'Tối · Nhật báo',
     isDark: true,
+    isMultiPage: false,
     description:
       'Mực đêm xanh thẫm (#0B0D12), tiêu đề Serif uy nghiêm và ánh xanh coban dịu mắt (hỗ trợ Sáng/Tối).',
   },
@@ -59,10 +64,76 @@ export const ASTRO_TEMPLATE_PRESETS: AstroTemplatePresetMeta[] = [
     toneLabel: 'Tối',
     badge: 'Tối · Đọc sâu',
     isDark: true,
+    isMultiPage: false,
     description:
       'Nền gỗ espresso ấm áp (#161210), điểm nhấn hổ phách dịu nhẹ cho bài viết dài (hỗ trợ Sáng/Tối).',
   },
+  {
+    id: 'monocle-magazine',
+    name: 'Monocle Đa trang',
+    inspiration: 'Cảm hứng Tạp chí Monocle',
+    toneLabel: 'Sáng',
+    badge: 'Nhiều trang · Tạp chí',
+    isDark: false,
+    isMultiPage: true,
+    description:
+      'Tạp chí nhiều trang gam kem xanh rừng (#F8F6F0), đầy đủ trang Chuyên mục, Chủ đề, Lưu trữ, Giới thiệu & Liên hệ.',
+  },
+  {
+    id: 'guardian-portal',
+    name: 'Guardian Cổng tin',
+    inspiration: 'Cảm hứng Tuần báo Đa chuyên trang',
+    toneLabel: 'Sáng',
+    badge: 'Nhiều trang · Báo chí',
+    isDark: false,
+    isMultiPage: true,
+    description:
+      'Cổng tin nhiều trang xanh navy (#FFFFFF / #0B2A5B), phân chia khối chuyên mục độc lập và phân trang kho bài.',
+  },
+  {
+    id: 'kyoto-folio',
+    name: 'Kyoto Triển lãm',
+    inspiration: 'Cảm hứng Bảo tàng & Hồ sơ',
+    toneLabel: 'Sáng',
+    badge: 'Nhiều trang · Lưu trữ',
+    isDark: false,
+    isMultiPage: true,
+    description:
+      'Hồ sơ triển lãm nhiều trang giấy washi (#FBF9F5) với mục lục đánh số, dòng thời gian lưu trữ và trang tác giả.',
+  },
+  {
+    id: 'economist-digest',
+    name: 'Economist Chuyên san',
+    inspiration: 'Cảm hứng Chuyên san Phân tích',
+    toneLabel: 'Tối',
+    badge: 'Nhiều trang · Phân tích',
+    isDark: true,
+    isMultiPage: true,
+    description:
+      'Chuyên san phân tích tối màu (#101218), điểm nhấn đỏ thẫm cùng đầy đủ trang Chuyên mục, Chủ đề và Lưu trữ.',
+  },
+  {
+    id: 'nordic-atlas',
+    name: 'Nordic Atlas',
+    inspiration: 'Cảm hứng Tạp chí Du ký Bắc Âu',
+    toneLabel: 'Tối',
+    badge: 'Nhiều trang · Du ký',
+    isDark: true,
+    isMultiPage: true,
+    description:
+      'Tạp chí du ký nhiều trang gam xanh băng đêm (#0D1317), phân tách rõ trang Chuyên mục, Chủ đề, Lưu trữ và Liên hệ.',
+  },
 ];
+
+export function isMultiPageTemplate(id?: string | null): boolean {
+  return (
+    id === 'monocle-magazine' ||
+    id === 'guardian-portal' ||
+    id === 'kyoto-folio' ||
+    id === 'economist-digest' ||
+    id === 'nordic-atlas'
+  );
+}
 
 export function normalizeAstroTemplateId(
   raw?: string | null,
@@ -73,7 +144,12 @@ export function normalizeAstroTemplateId(
     raw === 'nytimes-light' ||
     raw === 'bbc-dark' ||
     raw === 'obsidian-broadsheet' ||
-    raw === 'espresso-salon'
+    raw === 'espresso-salon' ||
+    raw === 'monocle-magazine' ||
+    raw === 'guardian-portal' ||
+    raw === 'kyoto-folio' ||
+    raw === 'economist-digest' ||
+    raw === 'nordic-atlas'
   ) {
     return raw;
   }
@@ -252,6 +328,156 @@ const TEMPLATE_DUAL_TOKENS: Record<
       fontBody: "'Lora', Georgia, serif",
     },
   },
+  'monocle-magazine': {
+    light: {
+      bg: '#F8F6F0',
+      surface: '#EFECE3',
+      card: '#FFFFFF',
+      border: '#D7D0C3',
+      text: '#1A1D1A',
+      text2: '#3D423D',
+      muted: '#676E66',
+      accent: '#14532D',
+      accentText: '#F8F6F0',
+      link: '#166534',
+      fontDisplay: "'Playfair Display', Georgia, serif",
+      fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    },
+    dark: {
+      bg: '#111613',
+      surface: '#19211C',
+      card: '#212B25',
+      border: '#2E3B33',
+      text: '#F2F4F1',
+      text2: '#CED6CF',
+      muted: '#92A096',
+      accent: '#86EFAC',
+      accentText: '#0F1A14',
+      link: '#4ADE80',
+      fontDisplay: "'Playfair Display', Georgia, serif",
+      fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    },
+  },
+  'guardian-portal': {
+    light: {
+      bg: '#FFFFFF',
+      surface: '#F3F5F8',
+      card: '#FFFFFF',
+      border: '#D5DCE6',
+      text: '#121826',
+      text2: '#334155',
+      muted: '#64748B',
+      accent: '#0B2A5B',
+      accentText: '#FFFFFF',
+      link: '#B91C1C',
+      fontDisplay: "'Fraunces', Georgia, serif",
+      fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    },
+    dark: {
+      bg: '#0B111E',
+      surface: '#131C2E',
+      card: '#1A253B',
+      border: '#293754',
+      text: '#F8FAFC',
+      text2: '#CBD5E1',
+      muted: '#94A3B8',
+      accent: '#38BDF8',
+      accentText: '#081221',
+      link: '#F87171',
+      fontDisplay: "'Fraunces', Georgia, serif",
+      fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    },
+  },
+  'kyoto-folio': {
+    light: {
+      bg: '#FBF9F5',
+      surface: '#F0ECE4',
+      card: '#FFFFFF',
+      border: '#DCD4C8',
+      text: '#1C1917',
+      text2: '#44403C',
+      muted: '#78716C',
+      accent: '#9A3412',
+      accentText: '#FBF9F5',
+      link: '#9A3412',
+      fontDisplay: "'Cormorant Garamond', 'Playfair Display', Georgia, serif",
+      fontBody: "'Lora', Georgia, serif",
+    },
+    dark: {
+      bg: '#161412',
+      surface: '#211D1A',
+      card: '#2A2521',
+      border: '#3C352F',
+      text: '#F5F2ED',
+      text2: '#D6D0C8',
+      muted: '#A8A29E',
+      accent: '#FDBA74',
+      accentText: '#1C140F',
+      link: '#FB923C',
+      fontDisplay: "'Cormorant Garamond', 'Playfair Display', Georgia, serif",
+      fontBody: "'Lora', Georgia, serif",
+    },
+  },
+  'economist-digest': {
+    light: {
+      bg: '#F7F8FA',
+      surface: '#ECEEF3',
+      card: '#FFFFFF',
+      border: '#D1D5DB',
+      text: '#111827',
+      text2: '#374151',
+      muted: '#6B7280',
+      accent: '#B91C1C',
+      accentText: '#FFFFFF',
+      link: '#B91C1C',
+      fontDisplay: "'Fraunces', Georgia, serif",
+      fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    },
+    dark: {
+      bg: '#101218',
+      surface: '#181B24',
+      card: '#202430',
+      border: '#2E3445',
+      text: '#F3F4F6',
+      text2: '#D1D5DB',
+      muted: '#9CA3AF',
+      accent: '#E11D48',
+      accentText: '#FFFFFF',
+      link: '#FB7185',
+      fontDisplay: "'Fraunces', Georgia, serif",
+      fontBody: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    },
+  },
+  'nordic-atlas': {
+    light: {
+      bg: '#F2F6F7',
+      surface: '#E4ECEE',
+      card: '#FFFFFF',
+      border: '#C6D4D8',
+      text: '#0F1C21',
+      text2: '#2D4249',
+      muted: '#5C737B',
+      accent: '#0F766E',
+      accentText: '#FFFFFF',
+      link: '#0F766E',
+      fontDisplay: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+      fontBody: "'Lora', Georgia, serif",
+    },
+    dark: {
+      bg: '#0D1317',
+      surface: '#141E24',
+      card: '#1B2830',
+      border: '#293B46',
+      text: '#EDF2F4',
+      text2: '#C5D3D9',
+      muted: '#889DA6',
+      accent: '#2DD4BF',
+      accentText: '#0A1416',
+      link: '#2DD4BF',
+      fontDisplay: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+      fontBody: "'Lora', Georgia, serif",
+    },
+  },
 };
 
 function escapeSingleQuote(val: string): string {
@@ -323,6 +549,7 @@ export function buildAstroSiteConfigModule(params: {
     ).trim(),
     themeMode: resolvedMode,
     templateStyle,
+    isMultiPage: isMultiPageTemplate(templateStyle),
     pagesUrl: (config.pagesUrl || defaultPagesUrl).trim().replace(/\/+$/, ''),
     githubOwner: owner,
     githubRepo: repo,
@@ -369,7 +596,12 @@ export type AstroTemplateStyle =
   | 'nytimes-light'
   | 'bbc-dark'
   | 'obsidian-broadsheet'
-  | 'espresso-salon';
+  | 'espresso-salon'
+  | 'monocle-magazine'
+  | 'guardian-portal'
+  | 'kyoto-folio'
+  | 'economist-digest'
+  | 'nordic-atlas';
 
 export interface SiteIdentityConfig {
   siteTitle: string;
@@ -383,6 +615,7 @@ export interface SiteIdentityConfig {
   authorBio: string;
   themeMode: 'light' | 'dark';
   templateStyle: AstroTemplateStyle;
+  isMultiPage: boolean;
   pagesUrl: string;
   githubOwner: string;
   githubRepo: string;
@@ -700,6 +933,40 @@ jobs:
         <rect width="1200" height="630" fill="url(#lamp-${index})"/>
         <circle cx="940" cy="220" r="95" fill="none" stroke="${tokens.link}" stroke-width="1.5" opacity="0.5"/>
         <path d="M845 310 C890 250, 990 250, 1035 310" fill="none" stroke="${tokens.accent}" stroke-width="2.5"/>`,
+      'monocle-magazine': `
+        <rect x="0" y="0" width="1200" height="14" fill="${tokens.accent}"/>
+        <rect x="56" y="64" width="1088" height="502" fill="none" stroke="${tokens.border}" stroke-width="1.5"/>
+        <rect x="780" y="128" width="300" height="310" rx="8" fill="${tokens.surface}" stroke="${tokens.border}" stroke-width="1.5"/>
+        <circle cx="930" cy="240" r="68" fill="none" stroke="${tokens.accent}" stroke-width="2.5"/>
+        <circle cx="930" cy="240" r="18" fill="${tokens.accent}"/>
+        <line x1="820" y1="365" x2="1040" y2="365" stroke="${tokens.border}" stroke-width="2"/>`,
+      'guardian-portal': `
+        <rect x="0" y="0" width="1200" height="12" fill="${tokens.accent}"/>
+        <rect x="760" y="100" width="368" height="150" fill="${tokens.surface}" stroke="${tokens.border}" stroke-width="1.5"/>
+        <rect x="760" y="276" width="174" height="164" fill="${tokens.accent}" opacity="0.14" stroke="${tokens.border}" stroke-width="1.5"/>
+        <rect x="954" y="276" width="174" height="164" fill="${tokens.surface}" stroke="${tokens.border}" stroke-width="1.5"/>
+        <line x1="90" y1="108" x2="260" y2="108" stroke="${tokens.link}" stroke-width="5"/>`,
+      'kyoto-folio': `
+        <rect x="44" y="44" width="1112" height="542" fill="none" stroke="${tokens.border}" stroke-width="1.5"/>
+        <circle cx="945" cy="250" r="118" fill="${tokens.surface}" stroke="${tokens.accent}" stroke-width="1.8" opacity="0.9"/>
+        <circle cx="945" cy="250" r="78" fill="none" stroke="${tokens.border}" stroke-width="1.2"/>
+        <rect x="915" y="220" width="60" height="60" rx="4" fill="none" stroke="${tokens.accent}" stroke-width="2"/>`,
+      'economist-digest': `
+        <rect x="0" y="0" width="1200" height="12" fill="${tokens.accent}"/>
+        <rect x="760" y="120" width="356" height="320" fill="${tokens.surface}" stroke="${tokens.border}" stroke-width="1.5"/>
+        <rect x="804" y="310" width="44" height="90" fill="${tokens.border}"/>
+        <rect x="868" y="255" width="44" height="145" fill="${tokens.link}" opacity="0.8"/>
+        <rect x="932" y="200" width="44" height="200" fill="${tokens.accent}"/>
+        <rect x="996" y="160" width="44" height="240" fill="${tokens.text}" opacity="0.85"/>`,
+      'nordic-atlas': `
+        <defs>
+          <pattern id="atlas-${index}" width="48" height="48" patternUnits="userSpaceOnUse">
+            <circle cx="24" cy="24" r="1.2" fill="${tokens.border}"/>
+          </pattern>
+        </defs>
+        <rect x="56" y="56" width="1088" height="518" fill="url(#atlas-${index})" stroke="${tokens.border}" stroke-width="1.2"/>
+        <path d="M770 370 L890 190 L965 290 L1020 225 L1100 370 Z" fill="${tokens.surface}" stroke="${tokens.accent}" stroke-width="2"/>
+        <circle cx="1015" cy="145" r="24" fill="none" stroke="${tokens.link}" stroke-width="2"/>`,
     };
     const tspanMarkup = headlineLines
       .map(
@@ -766,6 +1033,17 @@ Sitemap: ${persistedConfig.pagesUrl || defaultPagesUrl}/sitemap.xml
   return \`\${cleanBase}\${cleanPath}\` || '/';
 }
 
+export function slugifyVi(raw = ''): string {
+  const s = String(raw || '')
+    .replace(/[đĐ]/g, 'd')
+    .normalize('NFD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return s || 'muc';
+}
+
 export function getPostSlug(entry: { id: string; data?: Record<string, any> }): string {
   const raw = entry.data?.slug || entry.id || 'bai-viet';
   return String(raw).replace(/\\.mdx?$/i, '').split('/').pop() || 'bai-viet';
@@ -778,6 +1056,26 @@ export function getPostTitle(entry: { id: string; data?: Record<string, any> }):
       entry.id ||
       'Chưa đặt tiêu đề'
   );
+}
+
+export function getPostCategory(entry: { data?: Record<string, any> }): string {
+  const raw = entry.data?.danh_muc;
+  if (Array.isArray(raw) && raw.length > 0) return String(raw[0]).trim() || 'Bài viết';
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  const cat = entry.data?.category;
+  if (typeof cat === 'string' && cat.trim()) return cat.trim();
+  return 'Bài viết';
+}
+
+export function getPostCategorySlug(entry: { data?: Record<string, any> }): string {
+  const explicit = typeof entry.data?.chuyen_muc === 'string' ? entry.data.chuyen_muc.trim() : '';
+  return slugifyVi(explicit || getPostCategory(entry));
+}
+
+export function getPostTags(entry: { data?: Record<string, any> }): string[] {
+  const raw = entry.data?.tags;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((t) => String(t).trim()).filter(Boolean);
 }
 
 export function getPostDate(entry: { data?: Record<string, any> }): string {
@@ -924,10 +1222,34 @@ function resolveChatHref(id: string, rawValue: string): string {
   return val;
 }
 
-const mainNav = [
-  { label: 'Trang nhất', href: withBase('/') },
-  { label: 'Kho bài viết', href: withBase('/bai-viet/') },
-];
+const cleanCurrent = currentPath.replace(/\\/+$/, '') || '/';
+const homeClean = withBase('/').replace(/\\/+$/, '') || '/';
+
+function isNavActive(targetHref: string): boolean {
+  const cleanTarget = targetHref.replace(/\\/+$/, '') || '/';
+  if (cleanTarget === homeClean) return cleanCurrent === homeClean;
+  return cleanCurrent === cleanTarget || cleanCurrent.startsWith(\`\${cleanTarget}/\`);
+}
+
+const mainNav = SITE_CONFIG.isMultiPage
+  ? [
+      { label: 'Trang nhất', href: withBase('/') },
+      { label: 'Chuyên mục', href: withBase('/chuyen-muc/') },
+      { label: 'Kho bài', href: withBase('/bai-viet/') },
+      { label: 'Lưu trữ', href: withBase('/luu-tru/') },
+      { label: 'Giới thiệu', href: withBase('/gioi-thieu/') },
+    ]
+  : [
+      { label: 'Trang nhất', href: withBase('/') },
+      { label: 'Kho bài viết', href: withBase('/bai-viet/') },
+    ];
+
+const drawerExtraNav = SITE_CONFIG.isMultiPage
+  ? [
+      { label: 'Chủ đề (#Tags)', href: withBase('/chu-de/') },
+      { label: 'Liên hệ & Chat', href: withBase('/lien-he/') },
+    ]
+  : [];
 ---
 
 <!doctype html>
@@ -969,7 +1291,7 @@ const mainNav = [
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
   </head>
@@ -985,7 +1307,7 @@ const mainNav = [
           {mainNav.map((item) => (
             <a
               href={item.href}
-              class={currentPath === item.href ? 'active' : ''}
+              class={isNavActive(item.href) ? 'active' : ''}
             >
               {item.label}
             </a>
@@ -1031,6 +1353,9 @@ const mainNav = [
           {mainNav.map((item) => (
             <a href={item.href}>{item.label}</a>
           ))}
+          {drawerExtraNav.map((item) => (
+            <a href={item.href}>{item.label}</a>
+          ))}
           {SITE_CONFIG.headerNavLinks.map((link) => (
             <a href={withBase(link.url)}>{link.label}</a>
           ))}
@@ -1049,7 +1374,17 @@ const mainNav = [
           <p class="footer-sub">Tác giả: {SITE_CONFIG.authorName}</p>
         </div>
         <div class="footer-links">
-          <a href={withBase('/bai-viet/')}>Kho bài viết</a>
+          {SITE_CONFIG.isMultiPage ? (
+            <>
+              <a href={withBase('/chuyen-muc/')}>Chuyên mục</a>
+              <a href={withBase('/chu-de/')}>Chủ đề</a>
+              <a href={withBase('/luu-tru/')}>Lưu trữ</a>
+              <a href={withBase('/gioi-thieu/')}>Giới thiệu</a>
+              <a href={withBase('/lien-he/')}>Liên hệ</a>
+            </>
+          ) : (
+            <a href={withBase('/bai-viet/')}>Kho bài viết</a>
+          )}
           <a href={withBase('/rss.xml')}>RSS</a>
           {SITE_CONFIG.footerLinks.map((link) => (
             <a
@@ -1256,6 +1591,12 @@ const mainNav = [
     border-bottom: 3px double var(--border);
   }
 
+  body[data-template='monocle-magazine'] .site-header,
+  body[data-template='guardian-portal'] .site-header,
+  body[data-template='economist-digest'] .site-header {
+    border-top: 3px solid var(--accent);
+  }
+
   .nav-inner {
     display: flex;
     align-items: center;
@@ -1293,8 +1634,8 @@ const mainNav = [
   .nav-links {
     display: none;
     align-items: center;
-    gap: 22px;
-    font-size: 0.9rem;
+    gap: 18px;
+    font-size: 0.88rem;
     font-weight: 500;
   }
 
@@ -1302,12 +1643,18 @@ const mainNav = [
     color: var(--text-2);
     text-decoration: none;
     white-space: nowrap;
+    padding: 4px 0;
+    border-bottom: 2px solid transparent;
   }
 
   .nav-links a:hover,
   .nav-links a.active {
     color: var(--text);
     font-weight: 600;
+  }
+
+  .nav-links a.active {
+    border-bottom-color: var(--accent);
   }
 
   .nav-actions {
@@ -1387,7 +1734,7 @@ const mainNav = [
     padding: 6px 0;
   }
 
-  @media (min-width: 820px) {
+  @media (min-width: 880px) {
     .nav-links {
       display: flex;
     }
@@ -1449,7 +1796,8 @@ const mainNav = [
   }
 
   body[data-template='newyorker-light'] .prose > p:first-of-type::first-letter,
-  body[data-template='espresso-salon'] .prose > p:first-of-type::first-letter {
+  body[data-template='espresso-salon'] .prose > p:first-of-type::first-letter,
+  body[data-template='kyoto-folio'] .prose > p:first-of-type::first-letter {
     float: left;
     font-family: var(--font-display);
     font-size: 3.4rem;
@@ -1626,6 +1974,7 @@ const mainNav = [
 import {
   estimateReadingTime,
   formatVietnameseDate,
+  getPostCategory,
   getPostCover,
   getPostDate,
   getPostExcerpt,
@@ -1646,7 +1995,7 @@ const title = getPostTitle(entry);
 const date = getPostDate(entry);
 const excerpt = getPostExcerpt(entry);
 const cover = getPostCover(entry);
-const category = String(entry.data?.danh_muc || entry.data?.category || 'Bài viết');
+const category = getPostCategory(entry);
 const minutes = estimateReadingTime(entry.body || '');
 ---
 
@@ -1686,7 +2035,9 @@ const minutes = estimateReadingTime(entry.body || '');
 
   :global(body[data-template='nytimes-light']) .post-card,
   :global(body[data-template='obsidian-broadsheet']) .post-card,
-  :global(body[data-template='newyorker-light']) .post-card {
+  :global(body[data-template='newyorker-light']) .post-card,
+  :global(body[data-template='guardian-portal']) .post-card,
+  :global(body[data-template='economist-digest']) .post-card {
     border-radius: 6px;
   }
 
@@ -1776,10 +2127,13 @@ import { SITE_CONFIG } from '../cau_hinh/trang_web';
 import {
   estimateReadingTime,
   formatVietnameseDate,
+  getPostCategory,
+  getPostCategorySlug,
   getPostCover,
   getPostDate,
   getPostExcerpt,
   getPostSlug,
+  getPostTags,
   getPostTitle,
   withBase,
 } from '../utils/url';
@@ -1789,10 +2143,32 @@ const posts = (await getCollection('bai_viet'))
   .sort((a, b) => getPostDate(b).localeCompare(getPostDate(a)));
 
 const leadPost = posts[0] || null;
-const secondaryPosts = posts.slice(1);
+const secondaryPosts = SITE_CONFIG.isMultiPage ? posts.slice(1, 7) : posts.slice(1);
 const leadCover = leadPost ? getPostCover(leadPost) : undefined;
 const leadSlug = leadPost ? getPostSlug(leadPost) : '';
 const leadHref = leadPost ? withBase(\`/bai-viet/\${leadSlug}/\`) : '#';
+
+const categoryMap = new Map<string, { name: string; slug: string; count: number; latestTitle: string }>();
+const tagSet = new Set<string>();
+for (const entry of posts) {
+  const catName = getPostCategory(entry);
+  const catSlug = getPostCategorySlug(entry);
+  const existing = categoryMap.get(catSlug);
+  if (existing) {
+    existing.count += 1;
+  } else {
+    categoryMap.set(catSlug, {
+      name: catName,
+      slug: catSlug,
+      count: 1,
+      latestTitle: getPostTitle(entry),
+    });
+  }
+  for (const tag of getPostTags(entry)) {
+    tagSet.add(tag);
+  }
+}
+const categories = Array.from(categoryMap.values());
 
 const homeJsonLd = {
   '@context': 'https://schema.org',
@@ -1822,14 +2198,28 @@ const homeJsonLd = {
       />
       <a class="masthead-cta" href={withBase('/bai-viet/')}>Kho bài viết ({posts.length})</a>
     </div>
+
+    {SITE_CONFIG.isMultiPage && (
+      <nav class="hub-strip" aria-label="Điều hướng đa trang">
+        <a href={withBase('/chuyen-muc/')}>Chuyên mục ({categories.length})</a>
+        <span>·</span>
+        <a href={withBase('/chu-de/')}>Chủ đề ({tagSet.size})</a>
+        <span>·</span>
+        <a href={withBase('/luu-tru/')}>Lưu trữ theo năm</a>
+        <span>·</span>
+        <a href={withBase('/gioi-thieu/')}>Giới thiệu</a>
+        <span>·</span>
+        <a href={withBase('/lien-he/')}>Liên hệ</a>
+      </nav>
+    )}
   </section>
 
   {leadPost && (
-    <section class="lead-section" data-search={\`\${getPostTitle(leadPost)} \${getPostExcerpt(leadPost)}\`.toLowerCase()}>
+    <section class="lead-section" data-search={\`\${getPostTitle(leadPost)} \${getPostExcerpt(leadPost)} \${getPostCategory(leadPost)}\`.toLowerCase()}>
       <a class="lead-card" href={leadHref}>
         <div class="lead-text">
           <div class="lead-meta">
-            <span class="lead-rubric">{String(leadPost.data?.danh_muc || 'Tiêu điểm')}</span>
+            <span class="lead-rubric">{getPostCategory(leadPost)}</span>
             <span>·</span>
             <span>{formatVietnameseDate(getPostDate(leadPost))}</span>
             <span>·</span>
@@ -1848,9 +2238,32 @@ const homeJsonLd = {
     </section>
   )}
 
+  {SITE_CONFIG.isMultiPage && categories.length > 0 && (
+    <section id="categoryHubSection" class="hub-section">
+      <div class="section-head section-head-row">
+        <h2>Khám phá theo chuyên mục</h2>
+        <a class="section-more" href={withBase('/chuyen-muc/')}>Tất cả chuyên mục →</a>
+      </div>
+      <div class="hub-grid">
+        {categories.slice(0, 4).map((cat) => (
+          <a class="hub-card" href={withBase(\`/chuyen-muc/\${cat.slug}/\`)}>
+            <div class="hub-card-top">
+              <span class="hub-card-name">{cat.name}</span>
+              <span class="hub-card-count">{cat.count} bài</span>
+            </div>
+            <p class="hub-card-latest">{cat.latestTitle}</p>
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+
   <section class="posts-section">
-    <div class="section-head">
+    <div class="section-head section-head-row">
       <h2>Bài viết gần đây</h2>
+      {SITE_CONFIG.isMultiPage && posts.length > 1 && (
+        <a class="section-more" href={withBase('/bai-viet/')}>Xem tất cả ({posts.length}) →</a>
+      )}
     </div>
 
     {posts.length === 0 ? (
@@ -1869,12 +2282,16 @@ const homeJsonLd = {
     const input = document.getElementById('homeSearchInput');
     const grid = document.getElementById('postsGrid');
     const leadSection = document.querySelector('.lead-section');
+    const hubSection = document.getElementById('categoryHubSection');
     const emptyMsg = document.getElementById('searchEmptyMsg');
     if (input && grid) {
       input.addEventListener('input', () => {
         const q = input.value.trim().toLowerCase();
         const cards = grid.querySelectorAll('.post-card');
         let visible = 0;
+        if (hubSection) {
+          hubSection.style.display = q ? 'none' : '';
+        }
         if (leadSection) {
           const leadText = leadSection.getAttribute('data-search') || '';
           const matchLead = !q || leadText.includes(q);
@@ -1949,6 +2366,29 @@ const homeJsonLd = {
     gap: 12px;
     align-items: center;
     width: 100%;
+  }
+
+  .hub-strip {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .hub-strip a {
+    color: var(--text-2);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .hub-strip a:hover {
+    color: var(--link);
   }
 
   .search-input {
@@ -2082,14 +2522,103 @@ const homeJsonLd = {
     display: block;
   }
 
+  .hub-section {
+    padding: 26px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hub-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  @media (min-width: 640px) {
+    .hub-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 960px) {
+    .hub-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .hub-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: inherit;
+    text-decoration: none !important;
+    transition: border-color 0.16s ease, transform 0.16s ease;
+  }
+
+  .hub-card:hover {
+    border-color: var(--link);
+    transform: translateY(-1px);
+  }
+
+  .hub-card-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .hub-card-name {
+    font-family: var(--font-display);
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .hub-card-count {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--link);
+    white-space: nowrap;
+  }
+
+  .hub-card-latest {
+    margin: 0;
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: var(--text-2);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
   .posts-section {
     padding-top: 28px;
+  }
+
+  .section-head-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
   }
 
   .section-head h2 {
     font-family: var(--font-display);
     font-size: 1.4rem;
-    margin: 0 0 18px;
+    margin: 0;
+  }
+
+  .section-more {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
   }
 
   .posts-grid {
@@ -2099,14 +2628,7 @@ const homeJsonLd = {
   }
 
   @media (min-width: 720px) {
-    .posts-grid.template-newyorker-light,
-    .posts-grid.template-espresso-salon {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .posts-grid.template-nytimes-light,
-    .posts-grid.template-obsidian-broadsheet,
-    .posts-grid.template-bbc-dark {
+    .posts-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
@@ -2114,7 +2636,11 @@ const homeJsonLd = {
   @media (min-width: 1024px) {
     .posts-grid.template-nytimes-light,
     .posts-grid.template-obsidian-broadsheet,
-    .posts-grid.template-bbc-dark {
+    .posts-grid.template-bbc-dark,
+    .posts-grid.template-monocle-magazine,
+    .posts-grid.template-guardian-portal,
+    .posts-grid.template-economist-digest,
+    .posts-grid.template-nordic-atlas {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
@@ -2135,19 +2661,16 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostCard from '../../components/PostCard.astro';
 import { SITE_CONFIG } from '../../cau_hinh/trang_web';
-import { getPostDate } from '../../utils/url';
+import { getPostCategory, getPostDate } from '../../utils/url';
 
 const entries = (await getCollection('bai_viet'))
   .filter((e) => !e.data.nhap && !e.data.draft)
   .sort((a, b) => getPostDate(b).localeCompare(getPostDate(a)));
 
 const categories = Array.from(
-  new Set(
-    entries
-      .map((e) => String(e.data?.danh_muc || e.data?.category || 'Bài viết').trim())
-      .filter(Boolean)
-  )
+  new Set(entries.map((e) => getPostCategory(e)).filter(Boolean))
 );
+const pageSize = SITE_CONFIG.isMultiPage ? 4 : 24;
 ---
 
 <BaseLayout title="Kho bài viết" description="Toàn bộ bài viết, tiểu luận và ghi chép trên blog.">
@@ -2184,7 +2707,7 @@ const categories = Array.from(
       {entries.map((entry) => (
         <div
           class="archive-item"
-          data-cat={String(entry.data?.danh_muc || entry.data?.category || 'Bài viết').trim().toLowerCase()}
+          data-cat={getPostCategory(entry).toLowerCase()}
         >
           <PostCard entry={entry} />
         </div>
@@ -2192,47 +2715,94 @@ const categories = Array.from(
     </div>
   )}
   <p id="archiveEmptyMsg" class="empty-archive hidden">Không có bài viết nào khớp bộ lọc hiện tại.</p>
+  <nav id="archivePagination" class="pagination-bar hidden" aria-label="Phân trang kho bài viết"></nav>
 
-  <script is:inline>
+  <script is:inline define:vars={{ pageSize }}>
     const archiveInput = document.getElementById('archiveSearchInput');
     const archiveCatBar = document.getElementById('archiveCatBar');
     const archiveGrid = document.getElementById('archiveGrid');
     const archiveEmpty = document.getElementById('archiveEmptyMsg');
+    const paginationBar = document.getElementById('archivePagination');
     let currentCat = 'all';
+    let currentPage = 1;
 
-    function filterArchive() {
+    function renderArchive() {
       if (!archiveGrid) return;
       const q = (archiveInput ? archiveInput.value : '').trim().toLowerCase();
-      const items = archiveGrid.querySelectorAll('.archive-item');
-      let shown = 0;
+      const items = Array.from(archiveGrid.querySelectorAll('.archive-item'));
+      const matched = [];
+
       items.forEach((item) => {
         const cat = item.getAttribute('data-cat') || '';
         const card = item.querySelector('.post-card');
         const txt = card ? (card.getAttribute('data-search') || '') : '';
         const okCat = currentCat === 'all' || cat === currentCat;
         const okSearch = !q || txt.includes(q);
-        const visible = okCat && okSearch;
-        item.style.display = visible ? '' : 'none';
-        if (visible) shown++;
+        if (okCat && okSearch) {
+          matched.push(item);
+        } else {
+          item.style.display = 'none';
+        }
       });
+
+      const totalPages = Math.max(1, Math.ceil(matched.length / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+      const start = (currentPage - 1) * pageSize;
+      const end = start + pageSize;
+
+      matched.forEach((item, idx) => {
+        item.style.display = idx >= start && idx < end ? '' : 'none';
+      });
+
       if (archiveEmpty) {
-        archiveEmpty.classList.toggle('hidden', shown > 0);
+        archiveEmpty.classList.toggle('hidden', matched.length > 0);
+      }
+
+      if (paginationBar) {
+        if (totalPages <= 1) {
+          paginationBar.classList.add('hidden');
+          paginationBar.innerHTML = '';
+        } else {
+          paginationBar.classList.remove('hidden');
+          let html = '';
+          html += '<button type="button" class="page-btn" data-page="' + (currentPage - 1) + '"' + (currentPage <= 1 ? ' disabled' : '') + '>← Trước</button>';
+          for (let p = 1; p <= totalPages; p++) {
+            html += '<button type="button" class="page-btn' + (p === currentPage ? ' active' : '') + '" data-page="' + p + '">' + p + '</button>';
+          }
+          html += '<button type="button" class="page-btn" data-page="' + (currentPage + 1) + '"' + (currentPage >= totalPages ? ' disabled' : '') + '>Sau →</button>';
+          paginationBar.innerHTML = html;
+          paginationBar.querySelectorAll('.page-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const next = Number(btn.getAttribute('data-page') || '1');
+              if (!Number.isNaN(next) && next >= 1 && next <= totalPages) {
+                currentPage = next;
+                renderArchive();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            });
+          });
+        }
       }
     }
 
     if (archiveInput) {
-      archiveInput.addEventListener('input', filterArchive);
+      archiveInput.addEventListener('input', () => {
+        currentPage = 1;
+        renderArchive();
+      });
     }
     if (archiveCatBar) {
       archiveCatBar.querySelectorAll('.cat-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           currentCat = btn.getAttribute('data-cat') || 'all';
+          currentPage = 1;
           archiveCatBar.querySelectorAll('.cat-btn').forEach((b) => b.classList.remove('active'));
           btn.classList.add('active');
-          filterArchive();
+          renderArchive();
         });
       });
     }
+    renderArchive();
   </script>
 </BaseLayout>
 
@@ -2314,9 +2884,46 @@ const categories = Array.from(
   @media (min-width: 1024px) {
     .col-grid.template-nytimes-light,
     .col-grid.template-obsidian-broadsheet,
-    .col-grid.template-bbc-dark {
+    .col-grid.template-bbc-dark,
+    .col-grid.template-monocle-magazine,
+    .col-grid.template-guardian-portal,
+    .col-grid.template-economist-digest,
+    .col-grid.template-nordic-atlas {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
+  }
+  .pagination-bar {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .pagination-bar :global(.page-btn) {
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .pagination-bar :global(.page-btn.active) {
+    background: var(--accent);
+    color: var(--accent-text);
+    border-color: var(--accent);
+  }
+  .pagination-bar :global(.page-btn:disabled) {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
   .empty-archive {
     color: var(--muted);
@@ -2336,11 +2943,15 @@ import { SITE_CONFIG } from '../../cau_hinh/trang_web';
 import {
   estimateReadingTime,
   formatVietnameseDate,
+  getPostCategory,
+  getPostCategorySlug,
   getPostCover,
   getPostDate,
   getPostExcerpt,
   getPostSlug,
+  getPostTags,
   getPostTitle,
+  slugifyVi,
   withBase,
 } from '../../utils/url';
 
@@ -2360,8 +2971,9 @@ const title = getPostTitle(entry);
 const date = getPostDate(entry);
 const excerpt = getPostExcerpt(entry);
 const cover = getPostCover(entry);
-const category = String(entry.data?.danh_muc || entry.data?.category || 'Bài viết');
-const tags: string[] = Array.isArray(entry.data?.tags) ? entry.data.tags : [];
+const category = getPostCategory(entry);
+const categorySlug = getPostCategorySlug(entry);
+const tags = getPostTags(entry);
 const minutes = estimateReadingTime(entry.body || '');
 const resolvedAuthor = String(entry.data?.tac_gia || entry.data?.author || SITE_CONFIG.authorName);
 const pageSlug = getPostSlug(entry);
@@ -2369,13 +2981,17 @@ const canonicalTarget =
   entry.data?.canonical_url ||
   \`\${SITE_CONFIG.pagesUrl.replace(/\\/+$/, '')}\${withBase(\`/bai-viet/\${pageSlug}/\`)}\`;
 
+const currentIdx = allEntries.findIndex((p) => getPostSlug(p) === pageSlug);
+const prevPost = currentIdx >= 0 && currentIdx + 1 < allEntries.length ? allEntries[currentIdx + 1] : null;
+const nextPost = currentIdx > 0 ? allEntries[currentIdx - 1] : null;
+
 const relatedPosts = allEntries
   .filter((other) => getPostSlug(other) !== pageSlug)
   .sort((a, b) => {
-    const catA = String(a.data?.danh_muc || a.data?.category || '') === category ? 2 : 0;
-    const catB = String(b.data?.danh_muc || b.data?.category || '') === category ? 2 : 0;
-    const tagsA: string[] = Array.isArray(a.data?.tags) ? a.data.tags : [];
-    const tagsB: string[] = Array.isArray(b.data?.tags) ? b.data.tags : [];
+    const catA = getPostCategory(a) === category ? 2 : 0;
+    const catB = getPostCategory(b) === category ? 2 : 0;
+    const tagsA = getPostTags(a);
+    const tagsB = getPostTags(b);
     const overlapA = tagsA.filter((t) => tags.includes(t)).length;
     const overlapB = tagsB.filter((t) => tags.includes(t)).length;
     return catB + overlapB - (catA + overlapA) || getPostDate(b).localeCompare(getPostDate(a));
@@ -2410,11 +3026,17 @@ const blogPostingJsonLd = {
   jsonLd={blogPostingJsonLd}
 >
   <article class="article-wrap">
-    <a class="back-link" href={withBase('/bai-viet/')}>← Quay lại kho bài viết</a>
+    <nav class="breadcrumb" aria-label="Điều hướng bài viết">
+      <a href={withBase('/')}>Trang nhất</a>
+      <span>/</span>
+      <a href={withBase(\`/chuyen-muc/\${categorySlug}/\`)}>{category}</a>
+      <span>/</span>
+      <span class="crumb-cur">{title}</span>
+    </nav>
 
     <header class="article-header">
       <div class="article-meta">
-        <span class="meta-cat">{category}</span>
+        <a class="meta-cat" href={withBase(\`/chuyen-muc/\${categorySlug}/\`)}>{category}</a>
         <span>·</span>
         <span>{formatVietnameseDate(date)}</span>
         <span>·</span>
@@ -2437,8 +3059,35 @@ const blogPostingJsonLd = {
 
     {tags.length > 0 && (
       <div class="tag-row">
-        Chủ đề: {tags.map((t) => \`#\${t}\`).join(' · ')}
+        <span class="tag-label">Chủ đề:</span>
+        {tags.map((t, idx) => (
+          <>
+            {idx > 0 && <span> · </span>}
+            <a href={withBase(\`/chu-de/\${slugifyVi(t)}/\`)}>#{t}</a>
+          </>
+        ))}
       </div>
+    )}
+
+    {(prevPost || nextPost) && (
+      <nav class="prev-next-nav" aria-label="Bài viết trước và kế tiếp">
+        {prevPost ? (
+          <a class="pn-link pn-prev" href={withBase(\`/bai-viet/\${getPostSlug(prevPost)}/\`)}>
+            <span class="pn-kicker">← Bài cũ hơn</span>
+            <strong class="pn-title">{getPostTitle(prevPost)}</strong>
+          </a>
+        ) : (
+          <span />
+        )}
+        {nextPost ? (
+          <a class="pn-link pn-next" href={withBase(\`/bai-viet/\${getPostSlug(nextPost)}/\`)}>
+            <span class="pn-kicker">Bài mới hơn →</span>
+            <strong class="pn-title">{getPostTitle(nextPost)}</strong>
+          </a>
+        ) : (
+          <span />
+        )}
+      </nav>
     )}
 
     <aside class="author-box">
@@ -2465,11 +3114,28 @@ const blogPostingJsonLd = {
     margin: 0 auto;
   }
 
-  .back-link {
-    display: inline-block;
-    font-size: 0.86rem;
-    font-weight: 500;
+  .breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--muted);
     margin-bottom: 20px;
+  }
+
+  .breadcrumb a {
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+
+  .crumb-cur {
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 280px;
   }
 
   .article-header {
@@ -2518,8 +3184,62 @@ const blogPostingJsonLd = {
     padding-top: 16px;
     border-top: 1px solid var(--border);
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .tag-row a {
+    color: var(--link);
+    font-weight: 500;
+  }
+
+  .prev-next-nav {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  @media (min-width: 640px) {
+    .prev-next-nav {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .pn-link {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: inherit;
+    text-decoration: none !important;
+  }
+
+  .pn-link:hover {
+    border-color: var(--link);
+  }
+
+  .pn-next {
+    text-align: right;
+  }
+
+  .pn-kicker {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--link);
+  }
+
+  .pn-title {
+    font-family: var(--font-display);
+    font-size: 0.96rem;
+    color: var(--text);
+    line-height: 1.35;
   }
 
   .article-cover {
@@ -2535,7 +3255,7 @@ const blogPostingJsonLd = {
   }
 
   .author-box {
-    margin-top: 36px;
+    margin-top: 32px;
     padding: 20px;
     border-radius: 12px;
     border: 1px solid var(--border);
@@ -2584,6 +3304,1118 @@ const blogPostingJsonLd = {
     .related-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
+  }
+</style>
+`;
+
+  const chuyenMucIndexAstro = `---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import {
+  formatVietnameseDate,
+  getPostCategory,
+  getPostCategorySlug,
+  getPostDate,
+  getPostSlug,
+  getPostTitle,
+  withBase,
+} from '../../utils/url';
+
+const entries = (await getCollection('bai_viet'))
+  .filter((e) => !e.data.nhap && !e.data.draft)
+  .sort((a, b) => getPostDate(b).localeCompare(getPostDate(a)));
+
+const map = new Map<string, { name: string; slug: string; posts: any[] }>();
+for (const entry of entries) {
+  const name = getPostCategory(entry);
+  const slug = getPostCategorySlug(entry);
+  const group = map.get(slug);
+  if (group) {
+    group.posts.push(entry);
+  } else {
+    map.set(slug, { name, slug, posts: [entry] });
+  }
+}
+const categories = Array.from(map.values()).sort((a, b) => b.posts.length - a.posts.length);
+---
+
+<BaseLayout title="Chuyên mục" description="Danh mục tất cả chuyên mục bài viết và bài tiêu biểu.">
+  <div class="page-head">
+    <p class="page-kicker">Điều hướng nhiều trang · Danh bạ chuyên mục</p>
+    <h1>Chuyên mục bài viết</h1>
+    <p class="page-sub">Toàn bộ {categories.length} chuyên mục và {entries.length} bài viết đã xuất bản.</p>
+  </div>
+
+  {categories.length === 0 ? (
+    <p style="color: var(--muted);">Chưa có chuyên mục nào.</p>
+  ) : (
+    <div class="cat-directory">
+      {categories.map((cat, idx) => (
+        <section class="cat-dir-card">
+          <div class="cat-dir-head">
+            <div>
+              <span class="cat-num">0{idx + 1}</span>
+              <h2>
+                <a href={withBase(\`/chuyen-muc/\${cat.slug}/\`)}>{cat.name}</a>
+              </h2>
+            </div>
+            <span class="cat-count">{cat.posts.length} bài viết</span>
+          </div>
+          <ul class="cat-post-list">
+            {cat.posts.slice(0, 4).map((p) => (
+              <li>
+                <a href={withBase(\`/bai-viet/\${getPostSlug(p)}/\`)}>{getPostTitle(p)}</a>
+                <span>{formatVietnameseDate(getPostDate(p))}</span>
+              </li>
+            ))}
+          </ul>
+          <div class="cat-dir-foot">
+            <a href={withBase(\`/chuyen-muc/\${cat.slug}/\`) }>Xem toàn bộ chuyên mục {cat.name} →</a>
+          </div>
+        </section>
+      ))}
+    </div>
+  )}
+</BaseLayout>
+
+<style>
+  .page-head {
+    padding-bottom: 20px;
+    margin-bottom: 26px;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-kicker {
+    margin: 0 0 8px;
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--link);
+  }
+  .page-head h1 {
+    margin: 0 0 8px;
+    font-family: var(--font-display);
+    font-size: 2.1rem;
+  }
+  .page-sub {
+    margin: 0;
+    color: var(--text-2);
+  }
+  .cat-directory {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  @media (min-width: 760px) {
+    .cat-directory {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .cat-dir-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--card);
+  }
+  .cat-dir-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cat-num {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--link);
+    margin-bottom: 4px;
+  }
+  .cat-dir-head h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+  }
+  .cat-dir-head h2 a {
+    color: var(--text);
+  }
+  .cat-count {
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .cat-post-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+  }
+  .cat-post-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 0.92rem;
+  }
+  .cat-post-list li a {
+    color: var(--text-2);
+    font-weight: 500;
+  }
+  .cat-post-list li a:hover {
+    color: var(--link);
+  }
+  .cat-post-list li span {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .cat-dir-foot {
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+</style>
+`;
+
+  const chuyenMucDetailAstro = `---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { SITE_CONFIG } from '../../cau_hinh/trang_web';
+import { getPostCategory, getPostCategorySlug, getPostDate, withBase } from '../../utils/url';
+
+export async function getStaticPaths() {
+  const entries = (await getCollection('bai_viet'))
+    .filter((e) => !e.data.nhap && !e.data.draft)
+    .sort((a, b) => getPostDate(b).localeCompare(getPostDate(a)));
+
+  const grouped = new Map<string, { name: string; slug: string; posts: any[] }>();
+  for (const entry of entries) {
+    const name = getPostCategory(entry);
+    const slug = getPostCategorySlug(entry);
+    const cur = grouped.get(slug);
+    if (cur) {
+      cur.posts.push(entry);
+    } else {
+      grouped.set(slug, { name, slug, posts: [entry] });
+    }
+  }
+  const allCats = Array.from(grouped.values()).map((c) => ({
+    name: c.name,
+    slug: c.slug,
+    count: c.posts.length,
+  }));
+
+  return Array.from(grouped.values()).map((group) => ({
+    params: { slug: group.slug },
+    props: {
+      categoryName: group.name,
+      categorySlug: group.slug,
+      posts: group.posts,
+      allCats,
+    },
+  }));
+}
+
+const { categoryName, categorySlug, posts = [], allCats = [] } = Astro.props;
+---
+
+<BaseLayout
+  title={\`Chuyên mục: \${categoryName}\`}
+  description={\`Danh sách bài viết thuộc chuyên mục \${categoryName}.\`}
+>
+  <nav class="breadcrumb">
+    <a href={withBase('/')}>Trang nhất</a>
+    <span>/</span>
+    <a href={withBase('/chuyen-muc/')}>Chuyên mục</a>
+    <span>/</span>
+    <span>{categoryName}</span>
+  </nav>
+
+  <header class="page-head">
+    <h1>{categoryName}</h1>
+    <p>{posts.length} bài viết trong chuyên mục này.</p>
+    {allCats.length > 1 && (
+      <div class="cat-switch">
+        {allCats.map((c: any) => (
+          <a
+            href={withBase(\`/chuyen-muc/\${c.slug}/\`) }
+            class={c.slug === categorySlug ? 'switch-link active' : 'switch-link'}
+          >
+            {c.name} ({c.count})
+          </a>
+        ))}
+      </div>
+    )}
+  </header>
+
+  <div class={\`col-grid template-\${SITE_CONFIG.templateStyle}\`}>
+    {posts.map((entry: any) => (
+      <PostCard entry={entry} />
+    ))}
+  </div>
+</BaseLayout>
+
+<style>
+  .breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+  .breadcrumb a {
+    color: var(--text-2);
+  }
+  .page-head {
+    padding-bottom: 20px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-head h1 {
+    margin: 0 0 8px;
+    font-family: var(--font-display);
+    font-size: 2rem;
+  }
+  .page-head p {
+    margin: 0;
+    color: var(--text-2);
+  }
+  .cat-switch {
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .switch-link {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: 0.82rem;
+    font-weight: 500;
+    text-decoration: none !important;
+    white-space: nowrap;
+  }
+  .switch-link.active {
+    background: var(--accent);
+    color: var(--accent-text);
+    border-color: var(--accent);
+  }
+  .col-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  @media (min-width: 720px) {
+    .col-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1024px) {
+    .col-grid.template-nytimes-light,
+    .col-grid.template-obsidian-broadsheet,
+    .col-grid.template-bbc-dark,
+    .col-grid.template-monocle-magazine,
+    .col-grid.template-guardian-portal,
+    .col-grid.template-economist-digest,
+    .col-grid.template-nordic-atlas {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+</style>
+`;
+
+  const chuDeIndexAstro = `---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getPostTags, slugifyVi, withBase } from '../../utils/url';
+
+const entries = (await getCollection('bai_viet')).filter((e) => !e.data.nhap && !e.data.draft);
+
+const tagMap = new Map<string, { label: string; slug: string; count: number }>();
+for (const entry of entries) {
+  for (const tag of getPostTags(entry)) {
+    const slug = slugifyVi(tag);
+    const existing = tagMap.get(slug);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      tagMap.set(slug, { label: tag, slug, count: 1 });
+    }
+  }
+}
+const tags = Array.from(tagMap.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+---
+
+<BaseLayout title="Chủ đề & Từ khóa" description="Danh sách tất cả từ khóa và chủ đề bài viết.">
+  <header class="page-head">
+    <p class="page-kicker">Điều hướng nhiều trang · Chỉ mục từ khóa</p>
+    <h1>Chủ đề nổi bật</h1>
+    <p class="page-sub">Chọn một chủ đề để xem nhanh các bài viết cùng mạch nội dung.</p>
+  </header>
+
+  {tags.length === 0 ? (
+    <p style="color: var(--muted);">Chưa có thẻ chủ đề nào được gắn cho bài viết.</p>
+  ) : (
+    <div class="tags-grid">
+      {tags.map((tag) => (
+        <a class="tag-card" href={withBase(\`/chu-de/\${tag.slug}/\`) }>
+          <span class="tag-name">#{tag.label}</span>
+          <span class="tag-count">{tag.count} bài</span>
+        </a>
+      ))}
+    </div>
+  )}
+</BaseLayout>
+
+<style>
+  .page-head {
+    padding-bottom: 20px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-kicker {
+    margin: 0 0 8px;
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--link);
+  }
+  .page-head h1 {
+    margin: 0 0 8px;
+    font-family: var(--font-display);
+    font-size: 2rem;
+  }
+  .page-sub {
+    margin: 0;
+    color: var(--text-2);
+  }
+  .tags-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+  }
+  .tag-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    text-decoration: none !important;
+    transition: border-color 0.16s ease, transform 0.16s ease;
+  }
+  .tag-card:hover {
+    border-color: var(--link);
+    transform: translateY(-1px);
+  }
+  .tag-name {
+    font-family: var(--font-mono);
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--link);
+  }
+  .tag-count {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+</style>
+`;
+
+  const chuDeDetailAstro = `---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { SITE_CONFIG } from '../../cau_hinh/trang_web';
+import { getPostDate, getPostTags, slugifyVi, withBase } from '../../utils/url';
+
+export async function getStaticPaths() {
+  const entries = (await getCollection('bai_viet'))
+    .filter((e) => !e.data.nhap && !e.data.draft)
+    .sort((a, b) => getPostDate(b).localeCompare(getPostDate(a)));
+
+  const grouped = new Map<string, { label: string; slug: string; posts: any[] }>();
+  for (const entry of entries) {
+    for (const tag of getPostTags(entry)) {
+      const slug = slugifyVi(tag);
+      const existing = grouped.get(slug);
+      if (existing) {
+        if (!existing.posts.includes(entry)) existing.posts.push(entry);
+      } else {
+        grouped.set(slug, { label: tag, slug, posts: [entry] });
+      }
+    }
+  }
+
+  return Array.from(grouped.values()).map((g) => ({
+    params: { tag: g.slug },
+    props: { tagLabel: g.label, posts: g.posts },
+  }));
+}
+
+const { tagLabel, posts = [] } = Astro.props;
+---
+
+<BaseLayout title={\`Chủ đề: #\${tagLabel}\`} description={\`Các bài viết gắn thẻ #\${tagLabel}.\`} >
+  <nav class="breadcrumb">
+    <a href={withBase('/')}>Trang nhất</a>
+    <span>/</span>
+    <a href={withBase('/chu-de/')}>Chủ đề</a>
+    <span>/</span>
+    <span>#{tagLabel}</span>
+  </nav>
+
+  <header class="page-head">
+    <h1>#{tagLabel}</h1>
+    <p>{posts.length} bài viết mang từ khóa này.</p>
+  </header>
+
+  <div class={\`col-grid template-\${SITE_CONFIG.templateStyle}\`}>
+    {posts.map((entry: any) => (
+      <PostCard entry={entry} />
+    ))}
+  </div>
+</BaseLayout>
+
+<style>
+  .breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+  .breadcrumb a {
+    color: var(--text-2);
+  }
+  .page-head {
+    padding-bottom: 20px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-head h1 {
+    margin: 0 0 8px;
+    font-family: var(--font-display);
+    font-size: 2rem;
+  }
+  .page-head p {
+    margin: 0;
+    color: var(--text-2);
+  }
+  .col-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  @media (min-width: 720px) {
+    .col-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1024px) {
+    .col-grid.template-nytimes-light,
+    .col-grid.template-obsidian-broadsheet,
+    .col-grid.template-bbc-dark,
+    .col-grid.template-monocle-magazine,
+    .col-grid.template-guardian-portal,
+    .col-grid.template-economist-digest,
+    .col-grid.template-nordic-atlas {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+</style>
+`;
+
+  const luuTruIndexAstro = `---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import {
+  estimateReadingTime,
+  formatVietnameseDate,
+  getPostCategory,
+  getPostCategorySlug,
+  getPostDate,
+  getPostSlug,
+  getPostTags,
+  getPostTitle,
+  withBase,
+} from '../../utils/url';
+
+const entries = (await getCollection('bai_viet'))
+  .filter((e) => !e.data.nhap && !e.data.draft)
+  .sort((a, b) => getPostDate(b).localeCompare(getPostDate(a)));
+
+const byYear = new Map<string, Map<string, any[]>>();
+const catSet = new Set<string>();
+const tagSet = new Set<string>();
+
+for (const entry of entries) {
+  const d = getPostDate(entry);
+  const year = d.slice(0, 4) || 'Khác';
+  const monthNum = d.slice(5, 7) || '01';
+  const monthLabel = \`Tháng \${Number(monthNum)}/\${year}\`;
+  catSet.add(getPostCategory(entry));
+  for (const t of getPostTags(entry)) tagSet.add(t);
+  if (!byYear.has(year)) byYear.set(year, new Map());
+  const yMap = byYear.get(year)!;
+  if (!yMap.has(monthLabel)) yMap.set(monthLabel, []);
+  yMap.get(monthLabel)!.push(entry);
+}
+
+const years = Array.from(byYear.entries()).map(([year, monthsMap]) => ({
+  year,
+  months: Array.from(monthsMap.entries()).map(([label, items]) => ({ label, items })),
+}));
+---
+
+<BaseLayout title="Lưu trữ theo dòng thời gian" description="Mục lục lưu trữ toàn bộ bài viết sắp xếp theo năm và tháng.">
+  <header class="page-head">
+    <p class="page-kicker">Điều hướng nhiều trang · Biên niên sử bài viết</p>
+    <h1>Lưu trữ theo thời gian</h1>
+    <div class="archive-stats">
+      <span><strong>{entries.length}</strong> bài viết</span>
+      <span>·</span>
+      <span><strong>{catSet.size}</strong> chuyên mục</span>
+      <span>·</span>
+      <span><strong>{tagSet.size}</strong> chủ đề</span>
+    </div>
+  </header>
+
+  {years.length === 0 ? (
+    <p style="color: var(--muted);">Chưa có bài viết nào trong kho lưu trữ.</p>
+  ) : (
+    <div class="timeline">
+      {years.map((y) => (
+        <section class="year-block" id={\`nam-\${y.year}\`}>
+          <h2 class="year-heading">{y.year}</h2>
+          <div class="months-wrap">
+            {y.months.map((m) => (
+              <div class="month-block">
+                <h3 class="month-heading">{m.label}</h3>
+                <ul class="timeline-list">
+                  {m.items.map((post) => (
+                    <li class="timeline-item">
+                      <time class="tl-date">{formatVietnameseDate(getPostDate(post))}</time>
+                      <div class="tl-main">
+                        <a class="tl-title" href={withBase(\`/bai-viet/\${getPostSlug(post)}/\`)}>
+                          {getPostTitle(post)}
+                        </a>
+                        <div class="tl-meta">
+                          <a href={withBase(\`/chuyen-muc/\${getPostCategorySlug(post)}/\`)}>
+                            {getPostCategory(post)}
+                          </a>
+                          <span>·</span>
+                          <span>{estimateReadingTime(post.body || '')} phút đọc</span>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  )}
+</BaseLayout>
+
+<style>
+  .page-head {
+    padding-bottom: 20px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-kicker {
+    margin: 0 0 8px;
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--link);
+  }
+  .page-head h1 {
+    margin: 0 0 10px;
+    font-family: var(--font-display);
+    font-size: 2rem;
+  }
+  .archive-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    color: var(--text-2);
+  }
+  .timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+  .year-heading {
+    margin: 0 0 16px;
+    font-family: var(--font-display);
+    font-size: 1.7rem;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent);
+    display: inline-block;
+  }
+  .months-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .month-heading {
+    margin: 0 0 10px;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--link);
+  }
+  .timeline-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+    overflow: hidden;
+  }
+  .timeline-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .timeline-item:last-child {
+    border-bottom: 0;
+  }
+  @media (min-width: 640px) {
+    .timeline-item {
+      flex-direction: row;
+      align-items: baseline;
+      gap: 20px;
+    }
+  }
+  .tl-date {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--muted);
+    white-space: nowrap;
+    min-width: 92px;
+  }
+  .tl-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .tl-title {
+    font-family: var(--font-display);
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .tl-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--muted);
+  }
+</style>
+`;
+
+  const gioiThieuIndexAstro = `---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { SITE_CONFIG } from '../../cau_hinh/trang_web';
+import { getPostCategory, withBase } from '../../utils/url';
+
+const entries = (await getCollection('bai_viet')).filter((e) => !e.data.nhap && !e.data.draft);
+const categoryCount = new Set(entries.map((e) => getPostCategory(e))).size;
+const iconHref = withBase(SITE_CONFIG.siteIcon || '/favicon.svg');
+---
+
+<BaseLayout title="Giới thiệu" description={\`Giới thiệu về \${SITE_CONFIG.siteTitle} và tác giả \${SITE_CONFIG.authorName}.\`}>
+  <article class="about-wrap">
+    <header class="about-hero">
+      <img class="about-logo" src={iconHref} alt={SITE_CONFIG.siteTitle} width="64" height="64" />
+      <div>
+        <p class="page-kicker">Giới thiệu ấn phẩm & Tác giả</p>
+        <h1>{SITE_CONFIG.siteTitle}</h1>
+        <p class="about-tagline">{SITE_CONFIG.tagline}</p>
+      </div>
+    </header>
+
+    <section class="about-stats">
+      <div class="stat-box">
+        <span class="stat-val">{entries.length}</span>
+        <span class="stat-lbl">Bài viết xuất bản</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-val">{categoryCount}</span>
+        <span class="stat-lbl">Chuyên mục độc lập</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-val">{SITE_CONFIG.authorName}</span>
+        <span class="stat-lbl">Chủ bút</span>
+      </div>
+    </section>
+
+    <section class="about-body prose">
+      <h2>Về người viết</h2>
+      <p>{SITE_CONFIG.authorBio}</p>
+      <h2>Tôn chỉ xuất bản</h2>
+      <p>
+        <strong>{SITE_CONFIG.siteTitle}</strong> được xây dựng trên nền tảng tệp văn bản thuần Markdown
+        và bộ khung tĩnh Astro 5 lưu trữ công khai trên GitHub repository <code>{SITE_CONFIG.githubOwner}/{SITE_CONFIG.githubRepo}</code>.
+        Mọi bài viết đều thuộc toàn quyền sở hữu của tác giả, tối ưu trải nghiệm đọc lâu dài ở cả hai chế độ Sáng và Tối.
+      </p>
+    </section>
+
+    <div class="about-actions">
+      <a class="btn-primary" href={withBase('/bai-viet/')}>Khám phá kho bài viết</a>
+      <a class="btn-secondary" href={withBase('/lien-he/')}>Kết nối & Liên hệ</a>
+    </div>
+  </article>
+</BaseLayout>
+
+<style>
+  .about-wrap {
+    max-width: 780px;
+    margin: 0 auto;
+  }
+  .about-hero {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  @media (min-width: 640px) {
+    .about-hero {
+      flex-direction: row;
+      align-items: center;
+      gap: 22px;
+    }
+  }
+  .about-logo {
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    object-fit: cover;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .page-kicker {
+    margin: 0 0 6px;
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--link);
+  }
+  .about-hero h1 {
+    margin: 0 0 8px;
+    font-family: var(--font-display);
+    font-size: 2.1rem;
+  }
+  .about-tagline {
+    margin: 0;
+    color: var(--text-2);
+    font-size: 1.02rem;
+  }
+  .about-stats {
+    margin: 24px 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  @media (min-width: 600px) {
+    .about-stats {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .stat-box {
+    padding: 16px 18px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat-val {
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .stat-lbl {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--muted);
+  }
+  .about-actions {
+    margin-top: 28px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .btn-primary,
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 20px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none !important;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--accent-text);
+  }
+  .btn-secondary {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+  }
+</style>
+`;
+
+  const lienHeIndexAstro = `---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { SITE_CONFIG } from '../../cau_hinh/trang_web';
+import { withBase } from '../../utils/url';
+
+const channels = (SITE_CONFIG.liveChat?.channels || []).filter(
+  (ch) => ch.enabled && ch.value && ch.value.trim().length > 0 && ch.id !== 'tawkto' && ch.id !== 'crisp'
+);
+
+function resolveChatHref(id: string, rawValue: string): string {
+  const val = rawValue.trim();
+  if (/^(https?:|mailto:|tel:)/i.test(val)) return val;
+  if (id === 'zalo') return \`https://zalo.me/\${encodeURIComponent(val.replace(/^@/, ''))}\`;
+  if (id === 'messenger') return \`https://m.me/\${encodeURIComponent(val.replace(/^@/, ''))}\`;
+  if (id === 'telegram') return \`https://t.me/\${encodeURIComponent(val.replace(/^@/, ''))}\`;
+  if (id === 'whatsapp') {
+    const digits = val.replace(/[^0-9]/g, '');
+    const normalized = /^0\\d{8,10}$/.test(digits) ? \`84\${digits.slice(1)}\` : digits;
+    return \`https://wa.me/\${normalized}\`;
+  }
+  if (id === 'email') return \`mailto:\${val}\`;
+  return val;
+}
+
+const rssUrl = \`\${SITE_CONFIG.pagesUrl.replace(/\\/+$/, '')}\${withBase('/rss.xml')}\`;
+---
+
+<BaseLayout title="Liên hệ & Theo dõi" description={\`Kênh liên hệ trực tiếp và nguồn cấp RSS của \${SITE_CONFIG.siteTitle}.\`}>
+  <div class="contact-wrap">
+    <header class="page-head">
+      <p class="page-kicker">Kết nối trực tiếp · Theo dõi bản tin</p>
+      <h1>Liên hệ & Theo dõi</h1>
+      <p class="page-sub">
+        Trao đổi trực tiếp với <strong>{SITE_CONFIG.authorName}</strong> hoặc đăng ký đọc bài mới qua RSS.
+      </p>
+    </header>
+
+    <div class="contact-grid">
+      <section class="contact-card">
+        <h2>Kênh trò chuyện trực tiếp</h2>
+        {channels.length > 0 ? (
+          <div class="channel-list">
+            {channels.map((ch) => (
+              <a
+                class="channel-item"
+                href={resolveChatHref(ch.id, ch.value)}
+                target={ch.id === 'email' ? undefined : '_blank'}
+                rel={ch.id === 'email' ? undefined : 'noreferrer'}
+              >
+                <span>{ch.label || ch.id.toUpperCase()}</span>
+                <span class="channel-go">Mở kênh →</span>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p class="card-note">
+            Tác giả có thể bật Zalo, Messenger, Telegram, WhatsApp hoặc Email trong mục Cấu hình Live Chat để hiển thị tại đây.
+          </p>
+        )}
+      </section>
+
+      <section class="contact-card">
+        <h2>Theo dõi qua RSS & GitHub</h2>
+        <p class="card-note">
+          Thêm địa chỉ RSS vào trình đọc tin ưa thích (Feedly, NetNewsWire, Reeder) để nhận bài mới không qua thuật toán.
+        </p>
+        <div class="rss-box">
+          <code>{rssUrl}</code>
+        </div>
+        <div class="rss-actions">
+          <a class="btn-rss" href={withBase('/rss.xml')}>Mở RSS Feed</a>
+          <a
+            class="btn-gh"
+            href={\`https://github.com/\${SITE_CONFIG.githubOwner}/\${SITE_CONFIG.githubRepo}\`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Kho nguồn GitHub ↗
+          </a>
+        </div>
+      </section>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .contact-wrap {
+    max-width: 920px;
+    margin: 0 auto;
+  }
+  .page-head {
+    padding-bottom: 20px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-kicker {
+    margin: 0 0 8px;
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--link);
+  }
+  .page-head h1 {
+    margin: 0 0 8px;
+    font-family: var(--font-display);
+    font-size: 2rem;
+  }
+  .page-sub {
+    margin: 0;
+    color: var(--text-2);
+  }
+  .contact-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  @media (min-width: 720px) {
+    .contact-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .contact-card {
+    padding: 22px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .contact-card h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+  }
+  .card-note {
+    margin: 0;
+    font-size: 0.92rem;
+    color: var(--text-2);
+    line-height: 1.6;
+  }
+  .channel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .channel-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none !important;
+  }
+  .channel-item:hover {
+    border-color: var(--link);
+  }
+  .channel-go {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--link);
+  }
+  .rss-box {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--text);
+  }
+  .rss-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .btn-rss,
+  .btn-gh {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none !important;
+    white-space: nowrap;
+  }
+  .btn-rss {
+    background: var(--accent);
+    color: var(--accent-text);
+  }
+  .btn-gh {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
   }
 </style>
 `;
@@ -2702,7 +4534,14 @@ export const GET: APIRoute = async ({ site }) => {
   const sitemapXmlTs = `import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
 import { SITE_CONFIG } from '../cau_hinh/trang_web';
-import { getPostDate, getPostSlug, withBase } from '../utils/url';
+import {
+  getPostCategorySlug,
+  getPostDate,
+  getPostSlug,
+  getPostTags,
+  slugifyVi,
+  withBase,
+} from '../utils/url';
 
 function escXml(str: string): string {
   return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -2714,11 +4553,33 @@ export const GET: APIRoute = async ({ site }) => {
     (e) => !e.data.nhap && !e.data.draft && !e.data.noindex
   );
 
-  const staticRoutes = ['/', '/bai-viet/'];
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const staticRoutes = [
+    '/',
+    '/bai-viet/',
+    '/chuyen-muc/',
+    '/chu-de/',
+    '/luu-tru/',
+    '/gioi-thieu/',
+    '/lien-he/',
+  ];
+  const categorySlugs = Array.from(new Set(posts.map((p) => getPostCategorySlug(p))));
+  const tagSlugs = Array.from(
+    new Set(posts.flatMap((p) => getPostTags(p).map((t) => slugifyVi(t))))
+  );
+
   const urls = [
     ...staticRoutes.map((r) => ({
       loc: \`\${origin}\${withBase(r)}\`,
-      lastmod: new Date().toISOString().slice(0, 10),
+      lastmod: todayStr,
+    })),
+    ...categorySlugs.map((slug) => ({
+      loc: \`\${origin}\${withBase(\`/chuyen-muc/\${slug}/\`)}\`,
+      lastmod: todayStr,
+    })),
+    ...tagSlugs.map((slug) => ({
+      loc: \`\${origin}\${withBase(\`/chu-de/\${slug}/\`)}\`,
+      lastmod: todayStr,
     })),
     ...posts.map((p) => ({
       loc: \`\${origin}\${withBase(\`/bai-viet/\${getPostSlug(p)}/\`)}\`,
@@ -2747,7 +4608,7 @@ export const GET: APIRoute = async ({ site }) => {
 
   interface StarterSeed {
     fileName: string;
-    coverIndex: 1 | 2 | 3 | 4;
+    coverIndex: 1 | 2 | 3 | 4 | 5 | 6;
     title: string;
     category: string;
     categorySlug: string;
@@ -3090,8 +4951,500 @@ Phần lớn người viết hay dành hai đoạn đầu chỉ để rào đón
           'Mỗi tiêu đề phụ là một trạm nghỉ giúp độc giả đi trọn vẹn hành trình câu chữ từ đầu đến cuối.',
         date: dayOffsetStr(2),
         body: `## Cân bằng giữa chiều sâu và sự thanh thoát
-
+ 
 Dù viết về triết lý sống, ghi chép đọc sách hay câu chuyện nghề nghiệp, việc giữ cho mỗi đề mục giải quyết trọn vẹn một ý sẽ giúp trang blog **${siteTitle}** luôn sáng sủa và lôi cuốn.`,
+      },
+    ],
+    'monocle-magazine': [
+      {
+        fileName: 'kien-truc-tap-chi-da-trang.md',
+        coverIndex: 1,
+        title: 'Kiến trúc tạp chí nhiều trang cho ấn phẩm cá nhân hiện đại',
+        category: 'Tiêu điểm · Biên tập',
+        categorySlug: 'tieu-diem-bien-tap',
+        slug: 'kien-truc-tap-chi-da-trang',
+        tags: ['nhieu-trang', 'tap-chi', 'monocle'],
+        excerpt:
+          'Từ trang nhất dẫn dắt câu chuyện đến các trang Chuyên mục, Chủ đề, Lưu trữ và Giới thiệu tách biệt mạch lạc trên ' +
+          siteTitle +
+          '.',
+        date: today,
+        body: `Một blog trưởng thành không chỉ là danh sách bài viết trôi dài trên một trang đơn. Với giao diện **Monocle Đa trang**, **${siteTitle}** được ${authorName} tổ chức như một tòa soạn tạp chí thu nhỏ có đầy đủ phân khu: Trang nhất, Chuyên mục, Kho bài phân trang, Lưu trữ theo năm, Giới thiệu và Liên hệ.
+
+## Năm trang trụ cột giúp độc giả dễ khám phá
+
+- **Trang nhất**: Hội tụ bài tiêu điểm (Lead Story), thanh truy cập nhanh đa trang và khối chuyên mục nổi bật.
+- **Trang Chuyên mục**: Gom nhóm toàn bộ bài viết theo từng mảng nội dung riêng biệt.
+- **Kho bài viết có phân trang**: Tích hợp tìm kiếm, lọc chuyên mục và nút chuyển trang mượt mà.
+- **Lưu trữ theo dòng thời gian**: Hệ thống hóa toàn bộ sáng tác theo từng năm và tháng.
+- **Giới thiệu & Liên hệ**: Xây dựng hồ sơ chủ bút và kênh Live Chat trực tiếp với bạn đọc.`,
+      },
+      {
+        fileName: 'phong-do-thi-thanh-pho-song-xanh.md',
+        coverIndex: 2,
+        title: 'Ghi chép đô thị: Nhịp sống xanh và không gian công cộng tĩnh lặng',
+        category: 'Đô thị & Thiết kế',
+        categorySlug: 'do-thi-thiet-ke',
+        slug: 'phong-do-thi-thanh-pho-song-xanh',
+        tags: ['do-thi', 'thiet-ke', 'kien-truc'],
+        excerpt:
+          'Quan sát cách những con phố rợp bóng cây, hàng quán nhỏ và thư viện cộng đồng tạo nên chất lượng sống bền vững.',
+        date: dayOffsetStr(3),
+        body: `## Những khoảng thở giữa lòng thành phố
+
+Khi thiết kế một không gian công cộng hay một trang tạp chí đọc chữ, yếu tố quyết định cảm giác dễ chịu nằm ở khoảng thở. Những băng ghế gỗ dưới tán cây xanh, lối đi bộ thoáng đãng hay tỷ lệ cột chữ vừa phải đều tuân theo cùng một nguyên tắc phục vụ con người.`,
+      },
+      {
+        fileName: 'nghe-thuat-lam-an-pham-doc-lap.md',
+        coverIndex: 3,
+        title: 'Nghệ thuật xuất bản ấn phẩm độc lập với chi phí vận hành bằng không',
+        category: 'Kinh doanh · Xuất bản',
+        categorySlug: 'kinh-doanh-xuat-ban',
+        slug: 'nghe-thuat-lam-an-pham-doc-lap',
+        tags: ['xuat-ban', 'doc-lap', 'markdown'],
+        excerpt:
+          'Kết hợp viết thuần Markdown và hạ tầng tĩnh GitHub Pages để duy trì tạp chí cá nhân suốt hàng chục năm.',
+        date: dayOffsetStr(12),
+        body: `## Tự chủ hoàn toàn dữ liệu sáng tác
+
+Trên **${siteTitle}**, mỗi bài viết đều được lưu giữ dưới dạng tệp \`.md\` trong kho Git riêng. Bạn không bị ràng buộc bởi nền tảng đóng và luôn sẵn sàng chuyển đổi giao diện bất kỳ lúc nào.`,
+      },
+      {
+        fileName: 'ghi-chep-tu-quan-ca-phe-sach.md',
+        coverIndex: 4,
+        title: 'Thư từ phương xa: Một buổi sáng tại hiệu sách độc lập góc phố',
+        category: 'Văn hoá & Du ký',
+        categorySlug: 'van-hoa-du-ky',
+        slug: 'ghi-chep-tu-quan-ca-phe-sach',
+        tags: ['du-ky', 'van-hoa', 'doc-sach'],
+        excerpt:
+          'Nơi mùi giấy in mới hòa quyện cùng hương cà phê rang mộc và những cuộc trò chuyện nhỏ về văn chương.',
+        date: dayOffsetStr(35),
+        body: `## Sức hút bền bỉ của những không gian tuyển chọn kỹ lưỡng
+
+Không cần hàng vạn đầu sách hỗn độn, một hiệu sách độc lập chinh phục người ghé thăm bằng gu tuyển chọn tinh tế của người chủ — giống cách chuyên mục và từ khóa trên **${siteTitle}** dẫn dắt độc giả đi đúng mạch suy tư của tác giả.`,
+      },
+      {
+        fileName: 'he-thong-chuyen-muc-nhieu-trang.md',
+        coverIndex: 5,
+        title: 'Quy chuẩn phân loại chuyên mục & từ khóa để người đọc quay lại lâu dài',
+        category: 'Tiêu điểm · Biên tập',
+        categorySlug: 'tieu-diem-bien-tap',
+        slug: 'he-thong-chuyen-muc-nhieu-trang',
+        tags: ['bien-tap', 'nhieu-trang', 'seo'],
+        excerpt:
+          'Phân biệt rạch ròi giữa Chuyên mục chính (lớn, ổn định) và Chủ đề/Tag (linh hoạt, xuyên suốt) giúp blog sạch đẹp.',
+        date: dayOffsetStr(48),
+        body: `## Chuyên mục là khung xương, Chủ đề là mạch nối
+
+Giữ tối đa 4–6 chuyên mục lớn trên **${siteTitle}** và dùng thẻ \`#tag\` cho các lát cắt chủ đề nhỏ giúp trang \`/chuyen-muc/\` và \`/chu-de/\` luôn cân đối, không bao giờ loãng.`,
+      },
+      {
+        fileName: 'luu-giu-ky-uc-qua-anh-va-chu.md',
+        coverIndex: 6,
+        title: 'Lưu giữ ký ức qua những khung hình vuông vắn và trang nhật ký ngắn',
+        category: 'Văn hoá & Du ký',
+        categorySlug: 'van-hoa-du-ky',
+        slug: 'luu-giu-ky-uc-qua-anh-va-chu',
+        tags: ['nhiep-anh', 'du-ky', 'dao-ky'],
+        excerpt:
+          'Mỗi bức ảnh kèm một đoạn ghi chú ngắn trong kho lưu trữ sẽ trở thành cuốn biên niên sử quý giá theo năm tháng.',
+        date: dayOffsetStr(72),
+        body: `## Viết để ghi nhớ điều tưởng chừng bình dị
+
+Trang **Lưu trữ theo năm** trên **${siteTitle}** tự động gom toàn bộ bài viết qua từng tháng và từng năm, giúp bạn ngoái nhìn lại hành trình viết lách của chính mình thật rõ ràng.`,
+      },
+    ],
+    'guardian-portal': [
+      {
+        fileName: 'cong-thong-tin-da-chuyen-trang.md',
+        coverIndex: 1,
+        title: 'Tổ chức cổng thông tin đa chuyên trang rõ ràng cho blog cá nhân',
+        category: 'Thời sự · Phân tích',
+        categorySlug: 'thoi-su-phan-tich',
+        slug: 'cong-thong-tin-da-chuyen-trang',
+        tags: ['nhieu-trang', 'bao-chi', 'guardian'],
+        excerpt:
+          'Lấy cảm hứng từ tuần báo đa chuyên mục: phân tách rạch ròi Thời sự, Công nghệ, Góc nhìn và Xã hội trên ' +
+          siteTitle +
+          '.',
+        date: today,
+        body: `Một cổng bài viết đáng tin cậy luôn giúp độc giả định vị chính xác mình đang ở đâu: từ trang nhất tổng hợp, danh bạ chuyên mục, kho lưu trữ phân trang cho tới từng trang bài đọc chi tiết có thanh điều hướng breadcrumb đầy đủ.
+
+## Điểm mạnh của cấu trúc Guardian Cổng tin
+
+- **Màu xanh navy & điểm nhấn đỏ báo chí**: Tạo uy tín thị giác cao ngay cả ở chế độ Sáng lẫn Tối.
+- **Điều hướng nhiều trang đầy đủ**: Truy cập tức thì \`Chuyên mục\`, \`Kho bài\`, \`Lưu trữ\`, \`Giới thiệu\` và \`Liên hệ\`.
+- **Liên kết trước/sau liền mạch**: Đọc xong bài này chuyển ngay sang bài kế tiếp cùng kho dữ liệu.`,
+      },
+      {
+        fileName: 'phan-tich-du-lieu-va-bao-chi-so.md',
+        coverIndex: 2,
+        title: 'Phân tích dữ liệu minh bạch trong kỷ nguyên xuất bản cá nhân',
+        category: 'Công nghệ & Dữ liệu',
+        categorySlug: 'cong-nghe-du-lieu',
+        slug: 'phan-tich-du-lieu-va-bao-chi-so',
+        tags: ['du-lieu', 'phan-tich', 'seo'],
+        excerpt:
+          'Vì sao dữ liệu có cấu trúc, RSS Feed và Sitemap đầy đủ mọi chuyên trang giúp bài viết dễ được tìm thấy hơn.',
+        date: dayOffsetStr(4),
+        body: `## Kỹ thuật nền vững chắc phía sau từng trang viết
+
+Mỗi chuyên mục và thẻ chủ đề mới được bạn thêm vào **${siteTitle}** đều tự động được đưa vào \`sitemap.xml\` khi GitHub Actions biên dịch.`,
+      },
+      {
+        fileName: 'doc-sau-giua-ky-nguyen-tom-tat.md',
+        coverIndex: 3,
+        title: 'Bảo vệ thói quen đọc sâu giữa kỷ nguyên tóm tắt siêu tốc',
+        category: 'Góc nhìn',
+        categorySlug: 'goc-nhin',
+        slug: 'doc-sau-giua-ky-nguyen-tom-tat',
+        tags: ['goc-nhin', 'doc-sau', 'tu-duy'],
+        excerpt:
+          'Khi máy móc tóm lược mọi thứ thành ba gạch đầu dòng, giá trị của góc nhìn cá nhân có dẫn chứng càng trở nên khác biệt.',
+        date: dayOffsetStr(15),
+        body: `## Tiếng nói cá nhân là lợi thế không thể thay thế
+
+Trải nghiệm thực tế, bối cảnh địa phương và sự trung thực của ${authorName} chính là lý do khiến bạn đọc quay lại **${siteTitle}** hàng tuần.`,
+      },
+      {
+        fileName: 'chinh-sach-moi-truong-va-nong-nghiep.md',
+        coverIndex: 4,
+        title: 'Ghi nhận thực địa: Chuyển đổi xanh trong canh tác nông nghiệp bền vững',
+        category: 'Xã hội & Môi trường',
+        categorySlug: 'xa-hoi-moi-truong',
+        slug: 'chinh-sach-moi-truong-va-nong-nghiep',
+        tags: ['nong-nghiep', 'ben-vung', 'thuc-dia'],
+        excerpt:
+          'Những mô hình canh tác tái tạo đất và tiết kiệm nước đang mở ra hướng đi mới cho cộng đồng nông thôn.',
+        date: dayOffsetStr(34),
+        body: `## Câu chuyện từ những cánh đồng thực nghiệm
+
+Những ghi chép từ thực tế đồng ruộng giúp chuyên mục **Xã hội & Môi trường** mang hơi thở đời sống rõ rệt, kết nối người viết với những độc giả cùng quan tâm.`,
+      },
+      {
+        fileName: 'to-chuc-kho-bai-viet-phan-trang.md',
+        coverIndex: 5,
+        title: 'Cách sắp xếp kho bài viết phân trang kết hợp tìm kiếm tức thì',
+        category: 'Công nghệ & Dữ liệu',
+        categorySlug: 'cong-nghe-du-lieu',
+        slug: 'to-chuc-kho-bai-viet-phan-trang',
+        tags: ['phan-trang', 'tim-kiem', 'astro'],
+        excerpt:
+          'Kho bài viết hiển thị gọn 4 bài mỗi trang giúp trang tải nhanh trên di động mà vẫn lọc được ngay lập tức.',
+        date: dayOffsetStr(52),
+        body: `## Gọn gàng dù kho lưu trữ lên tới hàng trăm bài
+
+Khi kết hợp ô tìm kiếm, bộ lọc chuyên mục và nút chuyển trang ngay trên \`/bai-viet/\`, độc giả trên điện thoại không phải cuộn mỏi tay để tìm bài viết cũ.`,
+      },
+      {
+        fileName: 'doi-thoai-cung-ban-doc-qua-live-chat.md',
+        coverIndex: 6,
+        title: 'Mở kênh đối thoại trực tiếp với độc giả qua trang Liên hệ & Live Chat',
+        category: 'Góc nhìn',
+        categorySlug: 'goc-nhin',
+        slug: 'doi-thoai-cung-ban-doc-qua-live-chat',
+        tags: ['live-chat', 'lien-he', 'cong-dong'],
+        excerpt:
+          'Trang Liên hệ tập hợp đầy đủ Zalo, Messenger, Telegram và RSS để bạn đọc phản hồi thuận tiện nhất.',
+        date: dayOffsetStr(68),
+        body: `## Biến blog một chiều thành cuộc trò chuyện hai chiều
+
+Không cần hệ thống bình luận nặng nề dễ dính spam, kênh Live Chat và trang **Liên hệ** giúp **${siteTitle}** giữ kết nối chân thành và nhanh chóng với độc giả.`,
+      },
+    ],
+    'kyoto-folio': [
+      {
+        fileName: 'trien-lam-chu-nghia-tren-nen-giay-washi.md',
+        coverIndex: 1,
+        title: 'Triển lãm chữ nghĩa: Tỷ lệ khoảng trắng và sự tĩnh tại trên giấy Washi',
+        category: 'Triển lãm · Thủ công',
+        categorySlug: 'trien-lam-thu-cong',
+        slug: 'trien-lam-chu-nghia-tren-nen-giay-washi',
+        tags: ['washi', 'kyoto', 'thiet-ke'],
+        excerpt:
+          'Cảm hứng mỹ học Nhật Bản trong giao diện hồ sơ nhiều trang trên ' +
+          siteTitle +
+          ' — ít chi tiết thừa, trọn vẹn chiều sâu.',
+        date: today,
+        body: `Trong truyền thống thủ công Kyoto, khoảng trống không phải là phần bị bỏ quên mà là nơi ánh sáng và hơi thở được giữ lại. **Kyoto Triển lãm** mang tinh thần đó vào không gian blog nhiều trang của **${siteTitle}**: từng trang Chuyên mục, Chủ đề, Lưu trữ và Giới thiệu đều được chăm chút như một phòng trưng bày tĩnh lặng.
+
+## Vẻ đẹp của bố cục hồ sơ nhiều trang
+
+- **Đánh số mục lục tinh tế**: Giúp người đọc theo dõi từng phòng chuyên đề rõ ràng.
+- **Chữ hoa thả Drop Cap cổ điển**: Mở đầu bài tiểu luận với phong vị sách in thủ công.
+- **Giấy Washi Sáng & Đêm Gỗ Trầm**: Bảo vệ thị lực cả ban ngày lẫn lúc khuya.`,
+      },
+      {
+        fileName: 'khong-gian-am-thanh-va-su-tinh-lang.md',
+        coverIndex: 2,
+        title: 'Không gian âm thanh và nghệ thuật lắng nghe sự tĩnh lặng',
+        category: 'Mỹ học',
+        categorySlug: 'my-hoc',
+        slug: 'khong-gian-am-thanh-va-su-tinh-lang',
+        tags: ['my-hoc', 'tinh-lang', 'suy-tu'],
+        excerpt:
+          'Khi ta bớt đi tiếng ồn thị giác trên màn hình, từng câu văn tự nhiên vang lên rõ ràng hơn.',
+        date: dayOffsetStr(5),
+        body: `## Lọc bỏ tạp âm để giữ lại tinh chất
+
+Một trang đọc bài không có quảng cáo nhấp nháy hay khung tiện ích chen chúc là món quà quý giá nhất tác giả **${authorName}** dành cho độc giả ghé thăm **${siteTitle}**.`,
+      },
+      {
+        fileName: 'ho-so-luu-tru-theo-dong-thoi-gian.md',
+        coverIndex: 3,
+        title: 'Cách sắp đặt hồ sơ lưu trữ theo dòng thời gian năm và tháng',
+        category: 'Hồ sơ & Lưu trữ',
+        categorySlug: 'ho-so-luu-tru',
+        slug: 'ho-so-luu-tru-theo-dong-thoi-gian',
+        tags: ['luu-tru', 'bien-nien-su', 'nhieu-trang'],
+        excerpt:
+          'Mỗi bài viết được ghi nhận ngày tháng bằng phông chữ đơn cách đều đặn như một cuốn mục lục bảo tàng.',
+        date: dayOffsetStr(18),
+        body: `## Mỗi tháng viết là một lớp trầm tích
+
+Trang \`/luu-tru/\` sắp xếp lại toàn bộ bài viết từ mới nhất đến lâu năm nhất, cho thấy sự tiến triển trong góc nhìn của bạn theo thời gian.`,
+      },
+      {
+        fileName: 'nghe-thuat-in-sach-va-chu-serif.md',
+        coverIndex: 4,
+        title: 'Sức quyến rũ trường tồn của phông chữ Serif cổ điển trên màn hình số',
+        category: 'Văn hoá Đọc',
+        categorySlug: 'van-hoa-doc',
+        slug: 'nghe-thuat-in-sach-va-chu-serif',
+        tags: ['serif', 'typography', 'doc-sach'],
+        excerpt:
+          'Sự kết hợp giữa Cormorant Garamond cho tiêu đề lớn và Lora cho văn bản dài mang lại trải nghiệm tựa như lật trang sách.',
+        date: dayOffsetStr(38),
+        body: `## Đọc dài mà không mỏi mắt
+
+Độ rộng cột văn bản giới hạn ở mức 68 ký tự trên **${siteTitle}** giúp mắt chuyển dòng tự nhiên mà không bị trượt mất vị trí.`,
+      },
+      {
+        fileName: 'nhung-buoi-chieu-mua-o-co-do.md',
+        coverIndex: 5,
+        title: 'Ghi chép bên hiên gỗ: Những buổi chiều mưa nhẹ ở cố đô',
+        category: 'Mỹ học',
+        categorySlug: 'my-hoc',
+        slug: 'nhung-buoi-chieu-mua-o-co-do',
+        tags: ['du-ky', 'my-hoc', 'kyoto'],
+        excerpt:
+          'Một lát cắt du ký ngắn về mái ngói sẫm màu, tiếng nước rơi hiên chùa và trang sổ tay mang theo.',
+        date: dayOffsetStr(55),
+        body: `## Viết ngay khi cảm xúc còn ấm
+
+Những bài tản văn ngắn đặt trong chuyên mục **Mỹ học** tạo nên sự cân bằng mềm mại bên cạnh các bài phân tích hồ sơ.`,
+      },
+      {
+        fileName: 'giu-net-tinh-khoi-cho-trang-gioi-thieu.md',
+        coverIndex: 6,
+        title: 'Giữ nét tinh khôi và chân thật cho trang Giới thiệu tác giả',
+        category: 'Hồ sơ & Lưu trữ',
+        categorySlug: 'ho-so-luu-tru',
+        slug: 'giu-net-tinh-khoi-cho-trang-gioi-thieu',
+        tags: ['gioi-thieu', 'tac-gia', 'dao-ky'],
+        excerpt:
+          'Một trang Giới thiệu chỉn chu trả lời ba câu hỏi giản dị: bạn là ai, bạn viết điều gì và vì sao bạn chọn viết chậm.',
+        date: dayOffsetStr(75),
+        body: `## Điểm hẹn đầu tiên với độc giả mới
+
+Trang \`/gioi-thieu/\` trên **${siteTitle}** trình bày logo, lời mở đầu của **${authorName}** cùng số liệu xuất bản minh bạch để mọi người hiểu ngay tinh thần của khu vườn chữ nghĩa này.`,
+      },
+    ],
+    'economist-digest': [
+      {
+        fileName: 'chuyen-san-phan-tich-da-trang.md',
+        coverIndex: 1,
+        title: 'Chuyên san phân tích đa trang: Tổ chức tri thức theo lát cắt chuyên đề',
+        category: 'Kinh tế & Chiến lược',
+        categorySlug: 'kinh-te-chien-luoc',
+        slug: 'chuyen-san-phan-tich-da-trang',
+        tags: ['phan-tich', 'chien-luoc', 'nhieu-trang'],
+        excerpt:
+          'Cấu trúc chuyên san tối màu với dải nhấn đỏ thẫm đặc trưng trên ' +
+          siteTitle +
+          ', tách bạch Kinh tế, Hạ tầng Số và Quản trị.',
+        date: today,
+        body: `Khi blog vượt quá vài chục bài nghiên cứu, một trang chủ đơn giản không còn đủ sức chứa toàn bộ hệ thống lập luận của bạn. Giao diện **Economist Chuyên san** biến **${siteTitle}** thành một ấn phẩm phân tích nhiều trang: trang chủ chọn lọc, trang Chuyên mục phân tầng, Kho bài có phân trang và Biên niên lưu trữ.
+
+## Chuẩn mực của một chuyên san phân tích
+
+- **Độ tương phản sắc sảo**: Nền than đêm kết hợp đỏ thẫm làm nổi bật ngay lập tức chỉ mục chuyên mục và tiêu đề bài viết.
+- **Điều hướng phân tầng sâu**: Từ trang chủ -> Chuyên mục -> Bài viết -> Chủ đề liên quan, mọi bước chỉ cách một chạm.
+- **Linh hoạt chuyển đổi Sáng / Tối**: Hỗ trợ đọc ban ngày ngoài trời bằng một cú bấm biểu tượng Mặt trời / Mặt trăng.`,
+      },
+      {
+        fileName: 'kinh-te-tu-nhan-va-cong-cu-doc-lap.md',
+        coverIndex: 2,
+        title: 'Làn sóng công cụ làm việc độc lập và quyền sở hữu tri thức số',
+        category: 'Kinh tế & Chiến lược',
+        categorySlug: 'kinh-te-chien-luoc',
+        slug: 'kinh-te-tu-nhan-va-cong-cu-doc-lap',
+        tags: ['kinh-te', 'tu-chu', 'tri-thuc'],
+        excerpt:
+          'Tại sao ngày càng nhiều chuyên gia chuyển ghi chú nghiên cứu từ mạng xã hội về website tĩnh do mình làm chủ.',
+        date: dayOffsetStr(6),
+        body: `## Xây tài sản dài hạn thay vì thuê đất thuật toán
+
+Mỗi bài phân tích đăng trên **${siteTitle}** đều được Google lập chỉ mục ổn định qua năm tháng thông qua hệ thống \`sitemap.xml\` và \`BlogPosting\` JSON-LD.`,
+      },
+      {
+        fileName: 'ha-tang-github-pages-khong-chi-phi.md',
+        coverIndex: 3,
+        title: 'Hạ tầng xuất bản tĩnh trên GitHub Pages: Hiệu năng, bảo mật và chi phí',
+        category: 'Hạ tầng Số',
+        categorySlug: 'ha-tang-so',
+        slug: 'ha-tang-github-pages-khong-chi-phi',
+        tags: ['github-pages', 'astro', 'ha-tang'],
+        excerpt:
+          'So sánh mô hình xuất bản tĩnh hiện đại với CMS truyền thống từ góc độ tốc độ tải trang và chi phí bảo trì.',
+        date: dayOffsetStr(19),
+        body: `## Tối đa hóa hiệu năng trên từng kilobyte
+
+Không truy vấn cơ sở dữ liệu động, không phụ thuộc máy chủ trả phí hàng tháng — mọi trang của **${siteTitle}** sẵn sàng phục vụ đồng thời hàng nghìn lượt truy cập tức thì.`,
+      },
+      {
+        fileName: 'tu-duy-he-thong-trong-quan-tri-tri-thuc.md',
+        coverIndex: 4,
+        title: 'Ứng dụng tư duy hệ thống khi xây dựng kho bài viết nhiều chuyên đề',
+        category: 'Quản trị & Dữ liệu',
+        categorySlug: 'quan-tri-du-lieu',
+        slug: 'tu-duy-he-thong-trong-quan-tri-tri-thuc',
+        tags: ['he-thong', 'quan-tri', 'du-lieu'],
+        excerpt:
+          'Từ quy ước đặt tên slug không dấu đến phân tách thẻ chủ đề xuyên suốt giúp việc tra cứu tài liệu cũ nhanh gấp bội.',
+        date: dayOffsetStr(39),
+        body: `## Hệ thống tốt tự chứng minh giá trị sau 6 tháng viết đều
+
+Khi kho bài trên **${siteTitle}** lớn lên, trang \`/luu-tru/\` và \`/chu-de/\` phát huy tác dụng như một thư viện tham khảo cá nhân đáng tin cậy.`,
+      },
+      {
+        fileName: 'bao-cao-chuyen-de-theo-chu-de.md',
+        coverIndex: 5,
+        title: 'Đọc chéo theo Chủ đề: Nối kết những phân tích tưởng như rời rạc',
+        category: 'Bình luận Quốc tế',
+        categorySlug: 'binh-luan-quoc-te',
+        slug: 'bao-cao-chuyen-de-theo-chu-de',
+        tags: ['chu-de', 'binh-luan', 'nhieu-trang'],
+        excerpt:
+          'Tính năng gom bài theo từ khóa #tag giúp độc giả theo dõi trọn vẹn một câu chuyện dài kỳ qua nhiều tháng.',
+        date: dayOffsetStr(56),
+        body: `## Liên kết đa chiều ngoài khung chuyên mục
+
+Chỉ cần bấm vào bất kỳ thẻ \`#tag\` nào ở cuối bài viết trên **${siteTitle}**, bạn đọc lập tức mở ra trang tổng hợp riêng cho chủ đề đó.`,
+      },
+      {
+        fileName: 'thoi-quen-doc-bao-cao-buoi-toi.md',
+        coverIndex: 6,
+        title: 'Tối ưu chế độ ban đêm cho độc giả đọc báo cáo phân tích cuối ngày',
+        category: 'Quản trị & Dữ liệu',
+        categorySlug: 'quan-tri-du-lieu',
+        slug: 'thoi-quen-doc-bao-cao-buoi-toi',
+        tags: ['dark-mode', 'doc-sau', 'typography'],
+        excerpt:
+          'Cân bằng độ sáng văn bản #F3F4F6 trên nền #101218 giúp đọc suốt 20 phút buổi tối vẫn hoàn toàn dễ chịu.',
+        date: dayOffsetStr(74),
+        body: `## Thiết kế phục vụ thời gian đọc thực sự
+
+Mọi thông số tương phản trên **${siteTitle}** đều được chọn để chữ sắc nét mà không gây lóa mắt khi tắt đèn phòng.`,
+      },
+    ],
+    'nordic-atlas': [
+      {
+        fileName: 'hanh-trinh-qua-nhung-vung-dat-phia-bac.md',
+        coverIndex: 1,
+        title: 'Nordic Atlas: Nhật ký hành trình và bản đồ tri thức nhiều trang',
+        category: 'Du ký · Bắc Âu',
+        categorySlug: 'du-ky-bac-au',
+        slug: 'hanh-trinh-qua-nhung-vung-dat-phia-bac',
+        tags: ['du-ky', 'nordic', 'nhieu-trang'],
+        excerpt:
+          'Gam xanh băng đêm dịu mắt cùng kiến trúc nhiều trang trên ' +
+          siteTitle +
+          ', lưu giữ từng chặng đường và trang ghi chép.',
+        date: today,
+        body: `Một cuốn nhật ký hành trình hay là cuốn sách mà khi mở lại ở trang bất kỳ, bạn vẫn biết mình đang đi trên tuyến đường nào. Giao diện **Nordic Atlas** thiết kế cho **${siteTitle}** tổ chức bài viết theo hệ thống đa trang rõ nét: Trang nhất, Chuyên mục, Kho bài phân trang, Lưu trữ theo thời gian, Giới thiệu và Liên hệ.
+
+## Trải nghiệm như một cuốn tập bản đồ mở rộng
+
+- **Sắc xanh băng & ngọc lục bảo dịu mắt**: Tạo cảm giác thoáng rộng, trong trẻo cả ở giao diện Tối lẫn Sáng.
+- **Phân tầng Chuyên mục & Chủ đề**: Gom nhóm chuyến đi theo vùng đất, kiến trúc hoặc kỹ thuật ghi chép.
+- **Lưu trữ biên niên sử**: Theo dõi lộ trình sáng tác của ${authorName} qua từng tháng và năm.`,
+      },
+      {
+        fileName: 'thiet-ke-toi-gian-va-anh-sang-mua-dong.md',
+        coverIndex: 2,
+        title: 'Thiết kế tối giản Bắc Âu và cách tận dụng ánh sáng tự nhiên',
+        category: 'Kiến trúc & Sống',
+        categorySlug: 'kien-truc-song',
+        slug: 'thiet-ke-toi-gian-va-anh-sang-mua-dong',
+        tags: ['kien-truc', 'toi-gian', 'anh-sang'],
+        excerpt:
+          'Bài học từ những ngôi nhà gỗ sáng thoáng vùng Bắc Âu áp dụng vào thiết kế giao diện đọc chữ trên web.',
+        date: dayOffsetStr(4),
+        body: `## Ít đồ vật, nhiều ánh sáng và công năng chính xác
+
+Không gian số cũng vậy: khi loại bỏ các thành phần thừa thãi, từng bức ảnh bìa và dòng chữ trên **${siteTitle}** tự nhiên tỏa sáng.`,
+      },
+      {
+        fileName: 'ban-do-chuyen-muc-cho-nguoi-me-du-ky.md',
+        coverIndex: 3,
+        title: 'Dựng bản đồ chuyên mục cho blog du ký, nhiếp ảnh và trải nghiệm sống',
+        category: 'Bản đồ & Lộ trình',
+        categorySlug: 'ban-do-lo-trinh',
+        slug: 'ban-do-chuyen-muc-cho-nguoi-me-du-ky',
+        tags: ['ban-do', 'chuyen-muc', 'du-ky'],
+        excerpt:
+          'Cách chia chuyên mục theo chủ đề chuyến đi để độc giả dễ tra cứu lại kinh nghiệm sau nhiều năm.',
+        date: dayOffsetStr(16),
+        body: `## Mỗi chuyên mục là một tọa độ quen thuộc
+
+Dù là \`Du ký\`, \`Kiến trúc & Sống\` hay \`Bản đồ & Lộ trình\`, trang \`/chuyen-muc/\` trên **${siteTitle}** hiển thị ngay số bài viết và bài mới nhất để độc giả định hướng tức thì.`,
+      },
+      {
+        fileName: 'nhat-ky-di-bo-duong-dai-va-ghi-chep.md',
+        coverIndex: 4,
+        title: 'Những ngày đi bộ đường dài và thói quen viết vội bên trạm dừng chân',
+        category: 'Du ký · Bắc Âu',
+        categorySlug: 'du-ky-bac-au',
+        slug: 'nhat-ky-di-bo-duong-dai-va-ghi-chep',
+        tags: ['di-bo', 'ghi-chep', 'mobile'],
+        excerpt:
+          'Ghi nháp ngay trên điện thoại lúc dừng chân và xuất bản hoàn chỉnh chỉ bằng một lần đồng bộ.',
+        date: dayOffsetStr(36),
+        body: `## Không để cảm hứng trôi qua sau chuyến đi
+
+Trình biên tập tối ưu cho màn hình nhỏ giúp bạn lưu giữ chi tiết chân thực nhất ngay khi vừa đặt ba lô xuống.`,
+      },
+      {
+        fileName: 'suoi-am-khong-gian-doc-bang-hai-che-do.md',
+        coverIndex: 5,
+        title: 'Nhiếp ảnh vùng lạnh & cách chọn bảng màu hiển thị ảnh đẹp nhất',
+        category: 'Nhiếp ảnh & Ánh sáng',
+        categorySlug: 'nhiep-anh-anh-sang',
+        slug: 'suoi-am-khong-gian-doc-bang-hai-che-do',
+        tags: ['nhiep-anh', 'anh-sang', 'dark-mode'],
+        excerpt:
+          'Nền xanh băng đêm làm nổi bật sắc độ ảnh phong cảnh, đồng thời vẫn chuyển sang nền sáng thanh thoát bằng một chạm.',
+        date: dayOffsetStr(53),
+        body: `## Tôn vinh khung hình ở cả hai chế độ hiển thị
+
+Thử bấm nút Mặt trời / Mặt trăng ở góc phải thanh tiêu đề **${siteTitle}** để xem sự chuyển đổi mượt mà giữa nền băng đêm và nền sáng ban ngày.`,
+      },
+      {
+        fileName: 'chia-se-toa-do-va-kinh-nghiem-chuyen-di.md',
+        coverIndex: 6,
+        title: 'Kết nối cộng đồng xê dịch qua trang Liên hệ và bản tin RSS riêng',
+        category: 'Bản đồ & Lộ trình',
+        categorySlug: 'ban-do-lo-trinh',
+        slug: 'chia-se-toa-do-va-kinh-nghiem-chuyen-di',
+        tags: ['rss', 'lien-he', 'cong-dong'],
+        excerpt:
+          'Để độc giả nhắn tin hỏi kinh nghiệm lộ trình qua Zalo, Telegram hoặc theo dõi hành trình mới qua RSS.',
+        date: dayOffsetStr(71),
+        body: `## Chia sẻ hành trình không phụ thuộc mạng xã hội
+
+Trang \`/lien-he/\` trên **${siteTitle}** lưu giữ trọn vẹn đường dẫn RSS và các kênh nhắn tin trực tiếp do chính bạn quản lý.`,
       },
     ],
   };
@@ -3153,6 +5506,13 @@ Dù viết về triết lý sống, ghi chép đọc sách hay câu chuyện ngh
     { path: 'src/pages/index.astro', content: indexAstro },
     { path: 'src/pages/bai-viet/index.astro', content: archiveIndexAstro },
     { path: 'src/pages/bai-viet/[slug].astro', content: articleDetailAstro },
+    { path: 'src/pages/chuyen-muc/index.astro', content: chuyenMucIndexAstro },
+    { path: 'src/pages/chuyen-muc/[slug].astro', content: chuyenMucDetailAstro },
+    { path: 'src/pages/chu-de/index.astro', content: chuDeIndexAstro },
+    { path: 'src/pages/chu-de/[tag].astro', content: chuDeDetailAstro },
+    { path: 'src/pages/luu-tru/index.astro', content: luuTruIndexAstro },
+    { path: 'src/pages/gioi-thieu/index.astro', content: gioiThieuIndexAstro },
+    { path: 'src/pages/lien-he/index.astro', content: lienHeIndexAstro },
     { path: 'src/pages/404.astro', content: page404Astro },
     { path: 'src/pages/rss.xml.ts', content: rssXmlTs },
     { path: 'src/pages/sitemap.xml.ts', content: sitemapXmlTs },

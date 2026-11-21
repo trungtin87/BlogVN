@@ -251,7 +251,7 @@ export function UserGuideContent({
               <li className="flex items-start gap-2">
                 <Rocket className="w-4 h-4 shrink-0 mt-0.5" style={{ color: palette.link }} />
                 <span>
-                  Chọn 1 trong 5 giao diện blog chuyên viết (<strong>2 mẫu Sáng</strong>: New Yorker Classic, NYTimes Editorial; <strong>3 mẫu Tối</strong>: BBC Studio, Broadsheet Đêm, Espresso Salon — tất cả đều hỗ trợ nút chuyển <strong>Sáng/Tối Mặt trời &amp; Mặt trăng</strong>) với bản xem trước trực quan ngay trên màn hình, rồi bấm <strong>Triển khai Template Astro Việt</strong> (có tuỳ chọn <strong>giữ nguyên bài viết &amp; ảnh cũ</strong> hoặc reset sạch hoàn toàn).
+                  Chọn 1 trong 10 giao diện blog (<strong>5 mẫu cơ bản</strong> + <strong>5 mẫu nhiều trang</strong> gồm Monocle, Guardian Cổng tin, Kyoto Triển lãm, Economist Chuyên san, Nordic Atlas — có sẵn Chuyên mục, Chủ đề, Lưu trữ theo năm, Giới thiệu &amp; Liên hệ và đều hỗ trợ nút chuyển <strong>Sáng/Tối Mặt trời &amp; Mặt trăng</strong>), rồi bấm <strong>Triển khai Template Astro Blog</strong>.
                 </span>
               </li>
               <li className="flex items-start gap-2">

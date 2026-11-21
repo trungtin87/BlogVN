@@ -28,6 +28,7 @@ export interface EditorialThemePreset {
   inspiration: string;
   toneLabel: 'Sáng' | 'Tối';
   layoutTag: string;
+  isMultiPage?: boolean;
   description: string;
   isDark: boolean;
   fonts: {
@@ -48,6 +49,11 @@ export const EDITORIAL_THEME_ORDER: AstroTemplateId[] = [
   'bbc-dark',
   'obsidian-broadsheet',
   'espresso-salon',
+  'monocle-magazine',
+  'guardian-portal',
+  'kyoto-folio',
+  'economist-digest',
+  'nordic-atlas',
 ];
 
 const NEWYORKER_LIGHT_PALETTE: BlogTheme['palette'] = {
@@ -180,6 +186,136 @@ const ESPRESSO_DARK_PALETTE: BlogTheme['palette'] = {
   link: '#FBBF24',
 };
 
+const MONOCLE_LIGHT_PALETTE: BlogTheme['palette'] = {
+  canvas: '#F8F6F0',
+  surface: '#EFECE3',
+  surfaceElevated: '#FFFFFF',
+  border: '#D7D0C3',
+  textPrimary: '#1A1D1A',
+  textSecondary: '#3D423D',
+  textMuted: '#676E66',
+  accent: '#14532D',
+  accentText: '#F8F6F0',
+  link: '#166534',
+};
+
+const MONOCLE_DARK_PALETTE: BlogTheme['palette'] = {
+  canvas: '#111613',
+  surface: '#19211C',
+  surfaceElevated: '#212B25',
+  border: '#2E3B33',
+  textPrimary: '#F2F4F1',
+  textSecondary: '#CED6CF',
+  textMuted: '#92A096',
+  accent: '#86EFAC',
+  accentText: '#0F1A14',
+  link: '#4ADE80',
+};
+
+const GUARDIAN_LIGHT_PALETTE: BlogTheme['palette'] = {
+  canvas: '#FFFFFF',
+  surface: '#F3F5F8',
+  surfaceElevated: '#FFFFFF',
+  border: '#D5DCE6',
+  textPrimary: '#121826',
+  textSecondary: '#334155',
+  textMuted: '#64748B',
+  accent: '#0B2A5B',
+  accentText: '#FFFFFF',
+  link: '#B91C1C',
+};
+
+const GUARDIAN_DARK_PALETTE: BlogTheme['palette'] = {
+  canvas: '#0B111E',
+  surface: '#131C2E',
+  surfaceElevated: '#1A253B',
+  border: '#293754',
+  textPrimary: '#F8FAFC',
+  textSecondary: '#CBD5E1',
+  textMuted: '#94A3B8',
+  accent: '#38BDF8',
+  accentText: '#081221',
+  link: '#F87171',
+};
+
+const KYOTO_LIGHT_PALETTE: BlogTheme['palette'] = {
+  canvas: '#FBF9F5',
+  surface: '#F0ECE4',
+  surfaceElevated: '#FFFFFF',
+  border: '#DCD4C8',
+  textPrimary: '#1C1917',
+  textSecondary: '#44403C',
+  textMuted: '#78716C',
+  accent: '#9A3412',
+  accentText: '#FBF9F5',
+  link: '#9A3412',
+};
+
+const KYOTO_DARK_PALETTE: BlogTheme['palette'] = {
+  canvas: '#161412',
+  surface: '#211D1A',
+  surfaceElevated: '#2A2521',
+  border: '#3C352F',
+  textPrimary: '#F5F2ED',
+  textSecondary: '#D6D0C8',
+  textMuted: '#A8A29E',
+  accent: '#FDBA74',
+  accentText: '#1C140F',
+  link: '#FB923C',
+};
+
+const ECONOMIST_LIGHT_PALETTE: BlogTheme['palette'] = {
+  canvas: '#F7F8FA',
+  surface: '#ECEEF3',
+  surfaceElevated: '#FFFFFF',
+  border: '#D1D5DB',
+  textPrimary: '#111827',
+  textSecondary: '#374151',
+  textMuted: '#6B7280',
+  accent: '#B91C1C',
+  accentText: '#FFFFFF',
+  link: '#B91C1C',
+};
+
+const ECONOMIST_DARK_PALETTE: BlogTheme['palette'] = {
+  canvas: '#101218',
+  surface: '#181B24',
+  surfaceElevated: '#202430',
+  border: '#2E3445',
+  textPrimary: '#F3F4F6',
+  textSecondary: '#D1D5DB',
+  textMuted: '#9CA3AF',
+  accent: '#E11D48',
+  accentText: '#FFFFFF',
+  link: '#FB7185',
+};
+
+const NORDIC_LIGHT_PALETTE: BlogTheme['palette'] = {
+  canvas: '#F2F6F7',
+  surface: '#E4ECEE',
+  surfaceElevated: '#FFFFFF',
+  border: '#C6D4D8',
+  textPrimary: '#0F1C21',
+  textSecondary: '#2D4249',
+  textMuted: '#5C737B',
+  accent: '#0F766E',
+  accentText: '#FFFFFF',
+  link: '#0F766E',
+};
+
+const NORDIC_DARK_PALETTE: BlogTheme['palette'] = {
+  canvas: '#0D1317',
+  surface: '#141E24',
+  surfaceElevated: '#1B2830',
+  border: '#293B46',
+  textPrimary: '#EDF2F4',
+  textSecondary: '#C5D3D9',
+  textMuted: '#889DA6',
+  accent: '#2DD4BF',
+  accentText: '#0A1416',
+  link: '#2DD4BF',
+};
+
 export const EDITORIAL_THEMES: Record<AstroTemplateId, EditorialThemePreset> = {
   'newyorker-light': {
     id: 'newyorker-light',
@@ -187,6 +323,7 @@ export const EDITORIAL_THEMES: Record<AstroTemplateId, EditorialThemePreset> = {
     inspiration: 'Cảm hứng The New Yorker',
     toneLabel: 'Sáng',
     layoutTag: 'Tạp chí tiểu luận',
+    isMultiPage: false,
     description:
       'Nền giấy ngà ấm, măng-sét kẻ chỉ đôi cổ điển và chữ Serif thanh lịch dành cho bài luận chuyên sâu (hỗ trợ Sáng/Tối).',
     isDark: false,
@@ -207,6 +344,7 @@ export const EDITORIAL_THEMES: Record<AstroTemplateId, EditorialThemePreset> = {
     inspiration: 'Cảm hứng The New York Times',
     toneLabel: 'Sáng',
     layoutTag: 'Báo in đa cột',
+    isMultiPage: false,
     description:
       'Bố cục báo in tiêu điểm kết hợp cột tin nhanh sắc sảo với đường kẻ 1px tinh tế (hỗ trợ Sáng/Tối).',
     isDark: false,
@@ -227,6 +365,7 @@ export const EDITORIAL_THEMES: Record<AstroTemplateId, EditorialThemePreset> = {
     inspiration: 'Cảm hứng BBC News',
     toneLabel: 'Tối',
     layoutTag: 'Lưới tin hiện đại',
+    isMultiPage: false,
     description:
       'Phong cách phòng tin tương phản cao, điểm nhấn đỏ thẫm tôn vinh ảnh bìa & video (hỗ trợ Sáng/Tối).',
     isDark: true,
@@ -247,6 +386,7 @@ export const EDITORIAL_THEMES: Record<AstroTemplateId, EditorialThemePreset> = {
     inspiration: 'Cảm hứng NYT Đêm',
     toneLabel: 'Tối',
     layoutTag: 'Nhật báo chuyên sâu',
+    isMultiPage: false,
     description:
       'Tiêu đề Serif uy nghiêm kết hợp ánh xanh coban dễ đọc suốt nhiều giờ (hỗ trợ Sáng/Tối).',
     isDark: true,
@@ -267,6 +407,7 @@ export const EDITORIAL_THEMES: Record<AstroTemplateId, EditorialThemePreset> = {
     inspiration: 'Cảm hứng Thư phòng',
     toneLabel: 'Tối',
     layoutTag: 'Đọc sâu ấm áp',
+    isMultiPage: false,
     description:
       'Gam màu hổ phách & espresso ấm áp cùng chữ Serif êm dịu cho bài viết dài (hỗ trợ Sáng/Tối).',
     isDark: true,
@@ -281,6 +422,111 @@ export const EDITORIAL_THEMES: Record<AstroTemplateId, EditorialThemePreset> = {
       dark: ESPRESSO_DARK_PALETTE,
     },
   },
+  'monocle-magazine': {
+    id: 'monocle-magazine',
+    name: 'Monocle Đa trang',
+    inspiration: 'Cảm hứng Tạp chí Monocle',
+    toneLabel: 'Sáng',
+    layoutTag: 'Nhiều trang · Tạp chí',
+    isMultiPage: true,
+    description:
+      'Tạp chí nhiều trang với thanh điều hướng Chuyên mục, Lưu trữ, Giới thiệu, Liên hệ và phân khu chuyên đề rõ nét.',
+    isDark: false,
+    fonts: {
+      display: "'Playfair Display', Georgia, serif",
+      body: "'Plus Jakarta Sans', system-ui, sans-serif",
+      mono: "'JetBrains Mono', monospace",
+    },
+    palette: MONOCLE_LIGHT_PALETTE,
+    palettes: {
+      light: MONOCLE_LIGHT_PALETTE,
+      dark: MONOCLE_DARK_PALETTE,
+    },
+  },
+  'guardian-portal': {
+    id: 'guardian-portal',
+    name: 'Guardian Cổng tin',
+    inspiration: 'Cảm hứng Tuần báo Đa chuyên trang',
+    toneLabel: 'Sáng',
+    layoutTag: 'Nhiều trang · Báo chí',
+    isMultiPage: true,
+    description:
+      'Cổng tin nhiều trang chia khối chuyên mục độc lập, phân trang kho bài viết, danh bạ chủ đề và trang tác giả.',
+    isDark: false,
+    fonts: {
+      display: "'Fraunces', Georgia, serif",
+      body: "'Plus Jakarta Sans', system-ui, sans-serif",
+      mono: "'JetBrains Mono', monospace",
+    },
+    palette: GUARDIAN_LIGHT_PALETTE,
+    palettes: {
+      light: GUARDIAN_LIGHT_PALETTE,
+      dark: GUARDIAN_DARK_PALETTE,
+    },
+  },
+  'kyoto-folio': {
+    id: 'kyoto-folio',
+    name: 'Kyoto Triển lãm',
+    inspiration: 'Cảm hứng Bảo tàng & Hồ sơ',
+    toneLabel: 'Sáng',
+    layoutTag: 'Nhiều trang · Lưu trữ',
+    isMultiPage: true,
+    description:
+      'Giao diện hồ sơ triển lãm nhiều trang với chỉ mục đánh số, dòng thời gian lưu trữ theo năm và trang giới thiệu tinh tế.',
+    isDark: false,
+    fonts: {
+      display: "'Cormorant Garamond', 'Playfair Display', Georgia, serif",
+      body: "'Lora', Georgia, serif",
+      mono: "'JetBrains Mono', monospace",
+    },
+    palette: KYOTO_LIGHT_PALETTE,
+    palettes: {
+      light: KYOTO_LIGHT_PALETTE,
+      dark: KYOTO_DARK_PALETTE,
+    },
+  },
+  'economist-digest': {
+    id: 'economist-digest',
+    name: 'Economist Chuyên san',
+    inspiration: 'Cảm hứng Chuyên san Phân tích',
+    toneLabel: 'Tối',
+    layoutTag: 'Nhiều trang · Phân tích',
+    isMultiPage: true,
+    description:
+      'Chuyên san tối màu nhiều trang kèm mục lục chuyên đề, phân trang kho dữ liệu bài viết và trang liên hệ biên tập.',
+    isDark: true,
+    fonts: {
+      display: "'Fraunces', Georgia, serif",
+      body: "'Plus Jakarta Sans', system-ui, sans-serif",
+      mono: "'JetBrains Mono', monospace",
+    },
+    palette: ECONOMIST_DARK_PALETTE,
+    palettes: {
+      light: ECONOMIST_LIGHT_PALETTE,
+      dark: ECONOMIST_DARK_PALETTE,
+    },
+  },
+  'nordic-atlas': {
+    id: 'nordic-atlas',
+    name: 'Nordic Atlas',
+    inspiration: 'Cảm hứng Tạp chí Du ký Bắc Âu',
+    toneLabel: 'Tối',
+    layoutTag: 'Nhiều trang · Du ký',
+    isMultiPage: true,
+    description:
+      'Tạp chí du ký & hồ sơ nhiều trang gam xanh băng dịu mắt, tách riêng trang Chuyên mục, Chủ đề, Lưu trữ và Tác giả.',
+    isDark: true,
+    fonts: {
+      display: "'Plus Jakarta Sans', system-ui, sans-serif",
+      body: "'Lora', Georgia, serif",
+      mono: "'JetBrains Mono', monospace",
+    },
+    palette: NORDIC_DARK_PALETTE,
+    palettes: {
+      light: NORDIC_LIGHT_PALETTE,
+      dark: NORDIC_DARK_PALETTE,
+    },
+  },
 };
 
 export function normalizeAstroTemplateId(
@@ -292,7 +538,12 @@ export function normalizeAstroTemplateId(
     raw === 'nytimes-light' ||
     raw === 'bbc-dark' ||
     raw === 'obsidian-broadsheet' ||
-    raw === 'espresso-salon'
+    raw === 'espresso-salon' ||
+    raw === 'monocle-magazine' ||
+    raw === 'guardian-portal' ||
+    raw === 'kyoto-folio' ||
+    raw === 'economist-digest' ||
+    raw === 'nordic-atlas'
   ) {
     return raw;
   }
