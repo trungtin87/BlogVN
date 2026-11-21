@@ -37,6 +37,7 @@ import {
   buildVietnameseAstroTemplateFiles,
   normalizeAstroTemplateId,
 } from './src/utils/astroTemplate.ts';
+import { sanitizeThemeCustomColors } from './src/data/themes.ts';
 
 dotenv.config();
 
@@ -3617,6 +3618,7 @@ async function startServer() {
             incomingCfg.themeMode === 'dark' ? 'dark' : 'light'
           )
         : undefined,
+      themeColors: sanitizeThemeCustomColors(incomingCfg.themeColors),
       liveChat:
         incomingCfg.liveChat && typeof incomingCfg.liveChat === 'object'
           ? {

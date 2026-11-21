@@ -28,11 +28,13 @@ import type {
   LiveChatPlatformId,
   RepoStructureInfo,
   SiteNavLink,
+  ThemeCustomColors,
 } from '../types/blog';
 import {
   DEFAULT_LIVE_CHAT_CONFIG,
   EDITORIAL_THEMES,
   normalizeAstroTemplateId,
+  sanitizeThemeCustomColors,
 } from '../data/themes';
 import { ghDeployAstroTemplate, ghSaveSiteConfig } from '../utils/githubClient';
 import { ThemeVisualSelector } from './ThemeVisualSelector';
@@ -171,6 +173,9 @@ export function SiteIdentityCard({
   const [astroTemplate, setAstroTemplate] = useState<AstroTemplateId>(() =>
     normalizeAstroTemplateId(config.astroTemplate, config.themeMode)
   );
+  const [themeColors, setThemeColors] = useState<ThemeCustomColors | undefined>(() =>
+    sanitizeThemeCustomColors(config.themeColors)
+  );
   const [liveChat, setLiveChat] = useState<LiveChatConfig>(() =>
     mergeLiveChatConfig(config.liveChat)
   );
@@ -211,6 +216,7 @@ export function SiteIdentityCard({
     setAuthorName(config.authorName || '');
     setAuthorBio(config.authorBio || '');
     setAstroTemplate(normalizeAstroTemplateId(config.astroTemplate, config.themeMode));
+    setThemeColors(sanitizeThemeCustomColors(config.themeColors));
     setCustomDomain(config.customDomain || '');
     setAnalyticsProvider(config.analyticsProvider || 'none');
     setAnalyticsId(config.analyticsId || '');
@@ -235,6 +241,7 @@ export function SiteIdentityCard({
     config.authorBio,
     config.astroTemplate,
     config.themeMode,
+    config.themeColors,
     config.customDomain,
     config.analyticsProvider,
     config.analyticsId,
@@ -282,6 +289,7 @@ export function SiteIdentityCard({
             : 'light'
           : config.themeMode || (chosenPreset?.isDark ? 'dark' : 'light'),
       astroTemplate: chosenTpl,
+      themeColors: sanitizeThemeCustomColors(themeColors),
       customDomain: cleanedDomain || undefined,
       analyticsProvider,
       analyticsId: analyticsId.trim() || undefined,
@@ -1219,6 +1227,11 @@ export function SiteIdentityCard({
               onToggleThemeMode={(mode) =>
                 onUpdateConfig({ ...buildDraftConfig(), themeMode: mode })
               }
+              themeColors={themeColors}
+              onChangeColors={(nextColors) => {
+                setThemeColors(nextColors);
+                onUpdateConfig({ ...buildDraftConfig(), themeColors: nextColors });
+              }}
               previewSiteTitle={siteTitle}
               previewHeaderTitle={headerTitle}
               previewTagline={tagline}

@@ -1,11 +1,21 @@
 import { useState } from 'react';
-import { Check, Eye, Moon, Sun } from 'lucide-react';
-import type { AstroTemplateId, BlogTheme, ThemeMode } from '../types/blog';
+import { Check, Eye, Moon, Palette, RotateCcw, Sun } from 'lucide-react';
+import type {
+  AstroTemplateId,
+  BlogTheme,
+  ThemeCustomColors,
+  ThemeMode,
+  ThemeModeColorOverrides,
+} from '../types/blog';
 import { EDITORIAL_ASSETS } from '../data/assets';
 import {
+  applyColorOverridesToPalette,
+  CURATED_COLOR_PRESETS,
   EDITORIAL_THEME_ORDER,
   EDITORIAL_THEMES,
   normalizeAstroTemplateId,
+  normalizeHexColor,
+  sanitizeThemeCustomColors,
 } from '../data/themes';
 
 interface ThemeVisualSelectorProps {
@@ -14,6 +24,8 @@ interface ThemeVisualSelectorProps {
   onSelectTemplate: (templateId: AstroTemplateId) => void;
   previewMode?: ThemeMode;
   onToggleThemeMode?: (mode: ThemeMode) => void;
+  themeColors?: ThemeCustomColors;
+  onChangeColors?: (nextColors: ThemeCustomColors | undefined) => void;
   previewSiteTitle?: string;
   previewHeaderTitle?: string;
   previewTagline?: string;
@@ -142,6 +154,8 @@ export function ThemeVisualSelector({
   onSelectTemplate,
   previewMode,
   onToggleThemeMode,
+  themeColors,
+  onChangeColors,
   previewSiteTitle,
   previewHeaderTitle,
   previewTagline,
@@ -155,6 +169,7 @@ export function ThemeVisualSelector({
   const [toneFilter, setToneFilter] = useState<'all' | 'multipage' | 'basic' | 'light' | 'dark'>('all');
   const [livePreviewView, setLivePreviewView] = useState<'home' | 'categories' | 'article'>('home');
   const [applyGlobalModeOnCards, setApplyGlobalModeOnCards] = useState(false);
+  const [editingColorMode, setEditingColorMode] = useState<ThemeMode>(currentMode);
 
   const visibleThemes = EDITORIAL_THEME_ORDER.map((id) => EDITORIAL_THEMES[id]).filter((preset) => {
     if (toneFilter === 'multipage') return Boolean(preset.isMultiPage);
@@ -165,7 +180,12 @@ export function ThemeVisualSelector({
   });
 
   const activePreset = EDITORIAL_THEMES[normalizedSelected];
-  const activePalette = activePreset.palettes[currentMode] || activePreset.palette;
+  const activeBasePalette = activePreset.palettes[currentMode] || activePreset.palette;
+  const activePalette = applyColorOverridesToPalette(
+    activeBasePalette,
+    themeColors?.[currentMode],
+    currentMode === 'dark'
+  );
   const activeArt = THEME_PREVIEW_ART[normalizedSelected];
   const displaySiteTitle = (previewSiteTitle || 'Đạo Ký').trim();
   const displayBrand = (previewHeaderTitle || displaySiteTitle).trim();
@@ -177,7 +197,61 @@ export function ThemeVisualSelector({
 
   const handleToggleMode = (nextMode: ThemeMode) => {
     setApplyGlobalModeOnCards(true);
+    setEditingColorMode(nextMode);
     onToggleThemeMode?.(nextMode);
+  };
+
+  const hasAnyCustomColor = Boolean(
+    sanitizeThemeCustomColors(themeColors)
+  );
+
+  const colorEditBase = activePreset.palettes[editingColorMode] || activePreset.palette;
+  const colorEditOverrides = themeColors?.[editingColorMode];
+  const resolvedEditPalette = applyColorOverridesToPalette(
+    colorEditBase,
+    colorEditOverrides,
+    editingColorMode === 'dark'
+  );
+
+  const updateSingleColor = (
+    mode: ThemeMode,
+    key: keyof ThemeModeColorOverrides,
+    hexValue?: string
+  ) => {
+    if (!onChangeColors) return;
+    const prevModeMap = { ...(themeColors?.[mode] || {}) };
+    if (hexValue) {
+      const normalized = normalizeHexColor(hexValue);
+      if (!normalized) return;
+      prevModeMap[key] = normalized;
+    } else {
+      delete prevModeMap[key];
+    }
+    const nextRaw: ThemeCustomColors = {
+      ...(themeColors || {}),
+      [mode]: prevModeMap,
+    };
+    onChangeColors(sanitizeThemeCustomColors(nextRaw));
+  };
+
+  const resetModeColors = (mode: ThemeMode) => {
+    if (!onChangeColors) return;
+    const nextRaw: ThemeCustomColors = { ...(themeColors || {}) };
+    delete nextRaw[mode];
+    onChangeColors(sanitizeThemeCustomColors(nextRaw));
+  };
+
+  const applyDualPreset = (presetColors: {
+    light: ThemeModeColorOverrides;
+    dark: ThemeModeColorOverrides;
+  }) => {
+    if (!onChangeColors) return;
+    onChangeColors(
+      sanitizeThemeCustomColors({
+        light: { ...presetColors.light },
+        dark: { ...presetColors.dark },
+      })
+    );
   };
 
   return (
@@ -265,7 +339,10 @@ export function ThemeVisualSelector({
               : preset.isDark
               ? 'dark'
               : 'light';
-          const p = preset.palettes[cardMode] || preset.palette;
+          const baseP = preset.palettes[cardMode] || preset.palette;
+          const p = isSelected
+            ? applyColorOverridesToPalette(baseP, themeColors?.[cardMode], cardMode === 'dark')
+            : baseP;
           const isNewYorker = preset.id === 'newyorker-light';
           const isBroadsheet =
             preset.id === 'nytimes-light' ||
@@ -461,6 +538,212 @@ export function ThemeVisualSelector({
           );
         })}
       </div>
+
+      {/* Dual-Mode Theme Color Customizer (Light & Dark) */}
+      {onChangeColors && (
+        <div
+          style={{
+            borderColor: palette.border,
+            backgroundColor: palette.surfaceElevated,
+          }}
+          className="rounded-2xl border p-4 sm:p-5 space-y-4"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Palette className="w-4 h-4 shrink-0" style={{ color: palette.link }} />
+                <span>Tuỳ chỉnh màu sắc mặc định (Sáng &amp; Tối)</span>
+              </div>
+              <p style={{ color: palette.textMuted }} className="text-xs">
+                Thay đổi màu cho giao diện <strong>{activePreset.name}</strong> đang chọn — áp dụng tức thì trên Đạo Ký và đồng bộ lên website ở cả 2 chế độ Sáng/Tối.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <div
+                style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
+                className="inline-flex p-0.5 rounded-xl border"
+                role="group"
+                aria-label="Chọn chế độ màu đang chỉnh"
+              >
+                {(
+                  [
+                    { id: 'light', label: 'Màu Sáng', icon: Sun },
+                    { id: 'dark', label: 'Màu Tối', icon: Moon },
+                  ] as const
+                ).map((tab) => {
+                  const active = editingColorMode === tab.id;
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        setEditingColorMode(tab.id);
+                        handleToggleMode(tab.id);
+                      }}
+                      style={{
+                        backgroundColor: active ? palette.accent : 'transparent',
+                        color: active ? palette.accentText : palette.textSecondary,
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 min-h-[34px] text-xs font-semibold rounded-lg cursor-pointer whitespace-nowrap"
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {hasAnyCustomColor && (
+                <button
+                  type="button"
+                  onClick={() => onChangeColors(undefined)}
+                  style={{
+                    borderColor: palette.border,
+                    backgroundColor: palette.canvas,
+                    color: palette.textSecondary,
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[36px] text-xs font-medium rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap"
+                  title="Xoá toàn bộ tuỳ chỉnh và dùng màu gốc của mẫu giao diện"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Khôi phục màu gốc
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Dual-Mode Curated Palettes */}
+          <div className="space-y-2">
+            <div style={{ color: palette.textMuted }} className="text-[11px] font-semibold uppercase tracking-wider">
+              Bảng màu gợi ý nhanh (áp dụng đồng bộ cả Sáng &amp; Tối)
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {CURATED_COLOR_PRESETS.map((preset) => {
+                const isMatched =
+                  themeColors?.light?.accent === preset.light.accent &&
+                  themeColors?.light?.canvas === preset.light.canvas &&
+                  themeColors?.dark?.accent === preset.dark.accent &&
+                  themeColors?.dark?.canvas === preset.dark.canvas;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyDualPreset(preset)}
+                    style={{
+                      borderColor: isMatched ? palette.link : palette.border,
+                      backgroundColor: palette.canvas,
+                      color: palette.textPrimary,
+                    }}
+                    className={`flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl border text-left text-xs font-medium cursor-pointer transition-all ${
+                      isMatched ? 'ring-1' : 'hover:opacity-90'
+                    }`}
+                  >
+                    <span className="truncate">{preset.name}</span>
+                    <span className="flex items-center gap-1 shrink-0" aria-hidden="true">
+                      <span
+                        className="w-3.5 h-3.5 rounded-full border"
+                        style={{ backgroundColor: preset.light.canvas, borderColor: palette.border }}
+                        title={`Sáng: ${preset.light.canvas}`}
+                      />
+                      <span
+                        className="w-3.5 h-3.5 rounded-full border"
+                        style={{ backgroundColor: preset.light.accent, borderColor: palette.border }}
+                        title={`Nhấn sáng: ${preset.light.accent}`}
+                      />
+                      <span
+                        className="w-3.5 h-3.5 rounded-full border"
+                        style={{ backgroundColor: preset.dark.canvas, borderColor: palette.border }}
+                        title={`Tối: ${preset.dark.canvas}`}
+                      />
+                      <span
+                        className="w-3.5 h-3.5 rounded-full border"
+                        style={{ backgroundColor: preset.dark.accent, borderColor: palette.border }}
+                        title={`Nhấn tối: ${preset.dark.accent}`}
+                      />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 5 Fine-Grained Color Pickers for Active Editing Mode */}
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div style={{ color: palette.textMuted }} className="text-[11px] font-semibold uppercase tracking-wider">
+                Tinh chỉnh từng màu cho chế độ {editingColorMode === 'dark' ? 'Tối (☾)' : 'Sáng (☀)'}
+              </div>
+              {colorEditOverrides && Object.keys(colorEditOverrides).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => resetModeColors(editingColorMode)}
+                  style={{ color: palette.link }}
+                  className="text-[11px] font-medium hover:underline cursor-pointer"
+                >
+                  Đặt lại riêng chế độ {editingColorMode === 'dark' ? 'Tối' : 'Sáng'}
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+              {(
+                [
+                  { key: 'canvas', label: 'Nền trang', val: resolvedEditPalette.canvas },
+                  { key: 'surface', label: 'Nền thẻ / Phụ', val: resolvedEditPalette.surface },
+                  { key: 'textPrimary', label: 'Màu chữ chính', val: resolvedEditPalette.textPrimary },
+                  { key: 'accent', label: 'Màu nhấn / Nút', val: resolvedEditPalette.accent },
+                  { key: 'link', label: 'Liên kết / Điểm nhấn', val: resolvedEditPalette.link },
+                ] as const
+              ).map((item) => {
+                const isCustomField = Boolean(colorEditOverrides?.[item.key]);
+                return (
+                  <div
+                    key={`${editingColorMode}-${item.key}`}
+                    style={{
+                      borderColor: isCustomField ? palette.link : palette.border,
+                      backgroundColor: palette.canvas,
+                    }}
+                    className="p-2.5 rounded-xl border flex items-center gap-2.5 min-w-0"
+                  >
+                    <label className="relative w-8 h-8 rounded-lg overflow-hidden border shrink-0 cursor-pointer" style={{ borderColor: palette.border, backgroundColor: item.val }}>
+                      <input
+                        type="color"
+                        value={item.val}
+                        onChange={(e) => updateSingleColor(editingColorMode, item.key, e.target.value)}
+                        aria-label={`${item.label} (${editingColorMode === 'dark' ? 'Tối' : 'Sáng'})`}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                    </label>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] font-semibold truncate">{item.label}</div>
+                      <div
+                        style={{ color: palette.textMuted, fontFamily: fonts.mono }}
+                        className="text-[10.5px] uppercase truncate"
+                      >
+                        {item.val}
+                      </div>
+                    </div>
+                    {isCustomField && (
+                      <button
+                        type="button"
+                        onClick={() => updateSingleColor(editingColorMode, item.key, undefined)}
+                        style={{ color: palette.textMuted }}
+                        className="p-1 rounded-md hover:opacity-80 cursor-pointer shrink-0"
+                        title="Về màu mặc định"
+                        aria-label={`Khôi phục ${item.label}`}
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Live Interactive Full Blog Preview Stage */}
       {!compact && (

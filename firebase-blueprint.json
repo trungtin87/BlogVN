@@ -22,6 +22,7 @@
         "themeMode": { "type": "string", "enum": ["light", "dark"] },
         "postsDirectory": { "type": "string", "description": "Target Markdown directory." },
         "astroTemplate": { "type": "string", "description": "Selected Astro 5 editorial template preset." },
+        "themeColors": { "type": "object", "description": "Optional custom hex color overrides for light and dark theme modes." },
         "liveChat": { "type": "object", "description": "Floating live chat configuration." },
         "customDomain": { "type": "string", "description": "Optional custom domain for GitHub Pages CNAME." },
         "analyticsProvider": { "type": "string", "enum": ["none", "ga4", "cloudflare", "plausible", "umami"] },

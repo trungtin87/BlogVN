@@ -39,6 +39,19 @@ export interface BlogTheme {
   };
 }
 
+export interface ThemeModeColorOverrides {
+  canvas?: string;
+  surface?: string;
+  textPrimary?: string;
+  accent?: string;
+  link?: string;
+}
+
+export interface ThemeCustomColors {
+  light?: ThemeModeColorOverrides;
+  dark?: ThemeModeColorOverrides;
+}
+
 export interface SiteNavLink {
   label: string;
   url: string;
@@ -212,6 +225,7 @@ export interface BlogConfig {
   themeMode: ThemeMode;
   postsDirectory: string;
   astroTemplate?: AstroTemplateId;
+  themeColors?: ThemeCustomColors;
   liveChat?: LiveChatConfig;
   customDomain?: string;
   analyticsProvider?: AnalyticsProviderId;

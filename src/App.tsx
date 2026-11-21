@@ -20,6 +20,7 @@ import {
   DEFAULT_LIVE_CHAT_CONFIG,
   normalizeAstroTemplateId,
   resolveBlogTheme,
+  sanitizeThemeCustomColors,
 } from './data/themes';
 import { auth, signOutGoogle } from './firebase';
 import {
@@ -872,6 +873,10 @@ export default function App() {
           importedCfg.astroTemplate || prev.astroTemplate,
           nextMode
         ),
+        themeColors:
+          importedCfg.themeColors !== undefined
+            ? sanitizeThemeCustomColors(importedCfg.themeColors)
+            : prev.themeColors,
         liveChat: importedCfg.liveChat || prev.liveChat,
         customDomain: importedCfg.customDomain ?? prev.customDomain,
         analyticsProvider: importedCfg.analyticsProvider ?? prev.analyticsProvider,

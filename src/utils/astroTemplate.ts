@@ -1,5 +1,11 @@
 import { dump as dumpYaml } from 'js-yaml';
-import type { AstroTemplateId, BlogConfig, ThemeMode } from '../types/blog';
+import type {
+  AstroTemplateId,
+  BlogConfig,
+  ThemeCustomColors,
+  ThemeMode,
+  ThemeModeColorOverrides,
+} from '../types/blog';
 
 export interface AstroTemplatePresetMeta {
   id: AstroTemplateId;
@@ -480,6 +486,127 @@ const TEMPLATE_DUAL_TOKENS: Record<
   },
 };
 
+function normalizeAstroHex(val?: unknown): string | undefined {
+  if (typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed.toUpperCase();
+  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+    const r = trimmed[1];
+    const g = trimmed[2];
+    const b = trimmed[3];
+    return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+  }
+  return undefined;
+}
+
+function hexToRgbTuple(hex: string): [number, number, number] {
+  const clean = normalizeAstroHex(hex) || '#000000';
+  return [
+    parseInt(clean.slice(1, 3), 16),
+    parseInt(clean.slice(3, 5), 16),
+    parseInt(clean.slice(5, 7), 16),
+  ];
+}
+
+function rgbTupleToHex(r: number, g: number, b: number): string {
+  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
+  return (
+    '#' +
+    [clamp(r), clamp(g), clamp(b)]
+      .map((n) => n.toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase()
+  );
+}
+
+function mixAstroHex(hexA: string, hexB: string, ratioB: number): string {
+  const [r1, g1, b1] = hexToRgbTuple(hexA);
+  const [r2, g2, b2] = hexToRgbTuple(hexB);
+  const t = Math.max(0, Math.min(1, ratioB));
+  return rgbTupleToHex(r1 + (r2 - r1) * t, g1 + (g2 - g1) * t, b1 + (b2 - b1) * t);
+}
+
+function getAstroContrastText(bgHex: string): string {
+  const [r, g, b] = hexToRgbTuple(bgHex).map((v) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 0.42 ? '#111216' : '#FFFFFF';
+}
+
+function sanitizeModeOverrides(raw?: Record<string, any> | null): ThemeModeColorOverrides | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: ThemeModeColorOverrides = {};
+  const keys = ['canvas', 'surface', 'textPrimary', 'accent', 'link'] as const;
+  for (const k of keys) {
+    const hex = normalizeAstroHex(raw[k]);
+    if (hex) out[k] = hex;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function sanitizeAstroThemeColors(
+  raw?: ThemeCustomColors | Record<string, any> | null
+): ThemeCustomColors | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const light = sanitizeModeOverrides((raw as any).light);
+  const dark = sanitizeModeOverrides((raw as any).dark);
+  if (!light && !dark) return undefined;
+  return {
+    ...(light ? { light } : {}),
+    ...(dark ? { dark } : {}),
+  };
+}
+
+function applyThemeColorsToTokens(
+  base: ThemeTokenPair,
+  overrides: ThemeModeColorOverrides | undefined,
+  isDark: boolean
+): ThemeTokenPair {
+  if (!overrides) return base;
+  const customCanvas = normalizeAstroHex(overrides.canvas);
+  const customSurface = normalizeAstroHex(overrides.surface);
+  const customText = normalizeAstroHex(overrides.textPrimary);
+  const customAccent = normalizeAstroHex(overrides.accent);
+  const customLink = normalizeAstroHex(overrides.link);
+
+  const bg = customCanvas || base.bg;
+  const text = customText || base.text;
+  const surface =
+    customSurface ||
+    (customCanvas
+      ? mixAstroHex(bg, isDark ? '#FFFFFF' : '#000000', isDark ? 0.06 : 0.045)
+      : base.surface);
+  const card =
+    customCanvas || customSurface
+      ? isDark
+        ? mixAstroHex(surface, '#FFFFFF', 0.06)
+        : mixAstroHex(bg, '#FFFFFF', 0.72)
+      : base.card;
+  const border =
+    customCanvas || customText ? mixAstroHex(bg, text, isDark ? 0.2 : 0.14) : base.border;
+  const text2 = customCanvas || customText ? mixAstroHex(text, bg, 0.22) : base.text2;
+  const muted = customCanvas || customText ? mixAstroHex(text, bg, 0.45) : base.muted;
+  const accent = customAccent || base.accent;
+  const accentText = customAccent ? getAstroContrastText(accent) : base.accentText;
+  const link = customLink || base.link;
+
+  return {
+    ...base,
+    bg,
+    surface,
+    card,
+    border,
+    text,
+    text2,
+    muted,
+    accent,
+    accentText,
+    link,
+  };
+}
+
 function escapeSingleQuote(val: string): string {
   return String(val || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
@@ -532,6 +659,8 @@ export function buildAstroSiteConfigModule(params: {
     ? '/favicon.svg'
     : rawIcon;
 
+  const sanitizedThemeColors = sanitizeAstroThemeColors(config.themeColors);
+
   const siteCfg = {
     siteTitle: (config.siteTitle || repo || 'Đạo Ký').trim(),
     tagline: (
@@ -557,6 +686,7 @@ export function buildAstroSiteConfigModule(params: {
     ).trim(),
     themeMode: resolvedMode,
     templateStyle,
+    ...(sanitizedThemeColors ? { themeColors: sanitizedThemeColors } : {}),
     isMultiPage: isMultiPageTemplate(templateStyle),
     pagesUrl: cleanCustomDomain
       ? `https://${cleanCustomDomain}`
@@ -631,6 +761,19 @@ export type AstroTemplateStyle =
   | 'economist-digest'
   | 'nordic-atlas';
 
+export interface ThemeModeColorOverrides {
+  canvas?: string;
+  surface?: string;
+  textPrimary?: string;
+  accent?: string;
+  link?: string;
+}
+
+export interface ThemeCustomColors {
+  light?: ThemeModeColorOverrides;
+  dark?: ThemeModeColorOverrides;
+}
+
 export interface SiteIdentityConfig {
   siteTitle: string;
   tagline: string;
@@ -643,6 +786,7 @@ export interface SiteIdentityConfig {
   authorBio: string;
   themeMode: 'light' | 'dark';
   templateStyle: AstroTemplateStyle;
+  themeColors?: ThemeCustomColors;
   isMultiPage: boolean;
   pagesUrl: string;
   customDomain?: string;
@@ -680,7 +824,45 @@ export function buildVietnameseAstroTemplateFiles(params: {
   const presetMeta =
     ASTRO_TEMPLATE_PRESETS.find((p) => p.id === templateStyle) || ASTRO_TEMPLATE_PRESETS[0];
   const resolvedMode: ThemeMode = requestedMode || (presetMeta.isDark ? 'dark' : 'light');
-  const tokens = TEMPLATE_DUAL_TOKENS[templateStyle][resolvedMode];
+  const sanitizedThemeColors = sanitizeAstroThemeColors(config.themeColors);
+  const tokens = applyThemeColorsToTokens(
+    TEMPLATE_DUAL_TOKENS[templateStyle][resolvedMode],
+    sanitizedThemeColors?.[resolvedMode],
+    resolvedMode === 'dark'
+  );
+  const baseTemplateColorJson = JSON.stringify(
+    Object.fromEntries(
+      (Object.keys(TEMPLATE_DUAL_TOKENS) as AstroTemplateId[]).map((tplId) => [
+        tplId,
+        {
+          light: {
+            bg: TEMPLATE_DUAL_TOKENS[tplId].light.bg,
+            surface: TEMPLATE_DUAL_TOKENS[tplId].light.surface,
+            card: TEMPLATE_DUAL_TOKENS[tplId].light.card,
+            border: TEMPLATE_DUAL_TOKENS[tplId].light.border,
+            text: TEMPLATE_DUAL_TOKENS[tplId].light.text,
+            text2: TEMPLATE_DUAL_TOKENS[tplId].light.text2,
+            muted: TEMPLATE_DUAL_TOKENS[tplId].light.muted,
+            accent: TEMPLATE_DUAL_TOKENS[tplId].light.accent,
+            accentText: TEMPLATE_DUAL_TOKENS[tplId].light.accentText,
+            link: TEMPLATE_DUAL_TOKENS[tplId].light.link,
+          },
+          dark: {
+            bg: TEMPLATE_DUAL_TOKENS[tplId].dark.bg,
+            surface: TEMPLATE_DUAL_TOKENS[tplId].dark.surface,
+            card: TEMPLATE_DUAL_TOKENS[tplId].dark.card,
+            border: TEMPLATE_DUAL_TOKENS[tplId].dark.border,
+            text: TEMPLATE_DUAL_TOKENS[tplId].dark.text,
+            text2: TEMPLATE_DUAL_TOKENS[tplId].dark.text2,
+            muted: TEMPLATE_DUAL_TOKENS[tplId].dark.muted,
+            accent: TEMPLATE_DUAL_TOKENS[tplId].dark.accent,
+            accentText: TEMPLATE_DUAL_TOKENS[tplId].dark.accentText,
+            link: TEMPLATE_DUAL_TOKENS[tplId].dark.link,
+          },
+        },
+      ])
+    )
+  );
 
   const siteTitle = (config.siteTitle || repo || 'Đạo Ký').trim();
   const tagline = (
@@ -730,6 +912,7 @@ export function buildVietnameseAstroTemplateFiles(params: {
     postsDirectory: 'src/content/bai_viet',
     themeMode: resolvedMode,
     astroTemplate: templateStyle,
+    ...(sanitizedThemeColors ? { themeColors: sanitizedThemeColors } : {}),
   };
 
   const gitignore = `node_modules/
@@ -1374,6 +1557,71 @@ const ogImgHref = withBase(ogImage);
 const initialMode = SITE_CONFIG.themeMode === 'dark' ? 'dark' : 'light';
 const initialDark = initialMode === 'dark';
 const currentPath = Astro.url.pathname;
+
+const BASE_TEMPLATE_COLORS: Record<string, { light: Record<string, string>; dark: Record<string, string> }> = ${baseTemplateColorJson};
+const HEX_COLOR_RE = new RegExp('^#[0-9a-fA-F]{6}$');
+function cleanHex(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const s = v.trim();
+  return HEX_COLOR_RE.test(s) ? s.toUpperCase() : undefined;
+}
+function hexToRgbArr(hex: string): [number, number, number] {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+}
+function mixColorHex(a: string, b: string, ratioB: number): string {
+  const [r1, g1, b1] = hexToRgbArr(a);
+  const [r2, g2, b2] = hexToRgbArr(b);
+  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
+  return '#' + [r1 + (r2 - r1) * ratioB, g1 + (g2 - g1) * ratioB, b1 + (b2 - b1) * ratioB]
+    .map((n) => clamp(n).toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase();
+}
+function contrastForHex(bgHex: string): string {
+  const [r, g, b] = hexToRgbArr(bgHex).map((v) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.42 ? '#111216' : '#FFFFFF';
+}
+function buildCustomColorCss(): string {
+  const overrides = SITE_CONFIG.themeColors;
+  if (!overrides) return '';
+  const tplColors = BASE_TEMPLATE_COLORS[SITE_CONFIG.templateStyle] || BASE_TEMPLATE_COLORS['newyorker-light'];
+  const blocks: string[] = [];
+  (['light', 'dark'] as const).forEach((m) => {
+    const ov = overrides[m];
+    if (!ov) return;
+    const base = tplColors[m];
+    const isDark = m === 'dark';
+    const cBg = cleanHex(ov.canvas);
+    const cSurface = cleanHex(ov.surface);
+    const cText = cleanHex(ov.textPrimary);
+    const cAccent = cleanHex(ov.accent);
+    const cLink = cleanHex(ov.link);
+    if (!cBg && !cSurface && !cText && !cAccent && !cLink) return;
+    const bg = cBg || base.bg;
+    const text = cText || base.text;
+    const surface = cSurface || (cBg ? mixColorHex(bg, isDark ? '#FFFFFF' : '#000000', isDark ? 0.06 : 0.045) : base.surface);
+    const card = (cBg || cSurface) ? (isDark ? mixColorHex(surface, '#FFFFFF', 0.06) : mixColorHex(bg, '#FFFFFF', 0.72)) : base.card;
+    const border = (cBg || cText) ? mixColorHex(bg, text, isDark ? 0.2 : 0.14) : base.border;
+    const text2 = (cBg || cText) ? mixColorHex(text, bg, 0.22) : base.text2;
+    const muted = (cBg || cText) ? mixColorHex(text, bg, 0.45) : base.muted;
+    const accent = cAccent || base.accent;
+    const accentText = cAccent ? contrastForHex(accent) : base.accentText;
+    const link = cLink || base.link;
+    blocks.push(
+      \`html:root[data-mode='\${m}'], html:root[data-mode='\${m}'] body[data-template] { --bg: \${bg}; --surface: \${surface}; --card: \${card}; --border: \${border}; --text: \${text}; --text-2: \${text2}; --muted: \${muted}; --accent: \${accent}; --accent-text: \${accentText}; --link: \${link}; }\`
+    );
+  });
+  return blocks.join('\\n');
+}
+const customColorCss = buildCustomColorCss();
+
 const analyticsProvider = SITE_CONFIG.analyticsProvider || 'none';
 const analyticsId = (SITE_CONFIG.analyticsId || '').trim();
 const liveChat = SITE_CONFIG.liveChat;
@@ -1521,6 +1769,7 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
       href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    {customColorCss && <style is:inline set:html={customColorCss} />}
   </head>
   <body data-template={SITE_CONFIG.templateStyle}>
     <header class="site-header">

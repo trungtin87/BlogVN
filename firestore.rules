@@ -45,6 +45,24 @@ service cloud.firestore {
       return !(key in data) || (data[key] is int || data[key] is float);
     }
 
+    function isValidHexColor(val) {
+      return val is string && val.size() == 7 && val.matches('^#[0-9a-fA-F]{6}$');
+    }
+
+    function isOptionalHexColor(data, key) {
+      return !(key in data) || isValidHexColor(data[key]);
+    }
+
+    function isValidThemeModePalette(p) {
+      return p is map
+        && p.keys().hasOnly(['canvas', 'surface', 'textPrimary', 'accent', 'link'])
+        && isOptionalHexColor(p, 'canvas')
+        && isOptionalHexColor(p, 'surface')
+        && isOptionalHexColor(p, 'textPrimary')
+        && isOptionalHexColor(p, 'accent')
+        && isOptionalHexColor(p, 'link');
+    }
+
     function isValidUserConfig(data, userId) {
       return data.keys().hasAll(['uid', 'siteTitle', 'themeMode', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly([
@@ -65,6 +83,7 @@ service cloud.firestore {
           'themeMode',
           'postsDirectory',
           'astroTemplate',
+          'themeColors',
           'liveChat',
           'customDomain',
           'analyticsProvider',
@@ -92,6 +111,12 @@ service cloud.firestore {
         && isOptionalString(data, 'pagesUrl', 300)
         && isOptionalString(data, 'postsDirectory', 120)
         && isOptionalString(data, 'astroTemplate', 60)
+        && (!('themeColors' in data) || (
+          data.themeColors is map
+          && data.themeColors.keys().hasOnly(['light', 'dark'])
+          && (!('light' in data.themeColors) || isValidThemeModePalette(data.themeColors.light))
+          && (!('dark' in data.themeColors) || isValidThemeModePalette(data.themeColors.dark))
+        ))
         && (!('liveChat' in data) || (
           data.liveChat is map
           && data.liveChat.keys().hasOnly(['enabled', 'title', 'welcomeText', 'channels'])

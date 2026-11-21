@@ -13,6 +13,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { sanitizeThemeCustomColors } from '../data/themes';
 import type { BlogConfig, BlogPost } from '../types/blog';
 
 const SITE_CONFIG_DOC_ID = 'site';
@@ -60,6 +61,11 @@ function buildUserConfigPayload(config: BlogConfig, userId: string, existingCrea
     createdAt: existingCreatedAt || serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
+
+  const cleanThemeColors = sanitizeThemeCustomColors(config.themeColors);
+  if (cleanThemeColors) {
+    payload.themeColors = cleanThemeColors;
+  }
 
   if (config.siteIcon && config.siteIcon.length <= 250000) {
     payload.siteIcon = config.siteIcon;
@@ -229,6 +235,7 @@ export function subscribeUserConfig(
         themeMode: data.themeMode === 'dark' ? 'dark' : 'light',
         postsDirectory: data.postsDirectory,
         astroTemplate: data.astroTemplate,
+        themeColors: sanitizeThemeCustomColors(data.themeColors),
         liveChat: data.liveChat,
         customDomain: data.customDomain,
         analyticsProvider: data.analyticsProvider,

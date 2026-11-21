@@ -21,6 +21,7 @@ function sanitizeConfigForBackup(config: BlogConfig): Partial<BlogConfig> {
     themeMode: config.themeMode,
     postsDirectory: config.postsDirectory,
     astroTemplate: config.astroTemplate,
+    themeColors: config.themeColors,
     liveChat: config.liveChat,
     customDomain: config.customDomain,
     analyticsProvider: config.analyticsProvider,

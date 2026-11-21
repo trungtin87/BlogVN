@@ -973,6 +973,10 @@ export function GitHubSyncPanel({
                 onSelectTemplate={(tplId) => setSelectedAstroPreset(tplId)}
                 previewMode={config.themeMode}
                 onToggleThemeMode={(mode) => onUpdateConfig({ ...config, themeMode: mode })}
+                themeColors={config.themeColors}
+                onChangeColors={(nextColors) =>
+                  onUpdateConfig({ ...config, themeColors: nextColors })
+                }
                 previewSiteTitle={newSiteTitle || config.siteTitle}
                 previewHeaderTitle={config.headerTitle}
                 previewTagline={newTagline || config.tagline}
