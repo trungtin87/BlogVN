@@ -103,7 +103,7 @@ interface SiteIdentityCardProps {
   authStatus: AuthStatus | null;
   repoInfo: GitHubRepoInfo | null;
   repoStructure?: RepoStructureInfo | null;
-  onUpdateConfig: (next: BlogConfig) => void;
+  onUpdateConfig: (next: BlogConfig | ((prev: BlogConfig) => BlogConfig)) => void;
   onDeployedToGitHub?: (message: string, commitUrl?: string) => void;
   onRefreshRepo?: () => void;
 }
@@ -254,10 +254,10 @@ export function SiteIdentityCard({
 
   const updateLiveChatImmediate = (nextChat: LiveChatConfig) => {
     setLiveChat(nextChat);
-    onUpdateConfig({
-      ...config,
+    onUpdateConfig((prev) => ({
+      ...prev,
       liveChat: nextChat,
-    });
+    }));
   };
 
   const buildDraftConfig = (
@@ -1221,16 +1221,27 @@ export function SiteIdentityCard({
               selectedTemplate={astroTemplate}
               onSelectTemplate={(tplId) => {
                 setAstroTemplate(tplId);
-                onUpdateConfig(buildDraftConfig(tplId));
+                const chosenPreset = EDITORIAL_THEMES[tplId];
+                const nextMode = chosenPreset
+                  ? chosenPreset.isDark
+                    ? 'dark'
+                    : 'light'
+                  : config.themeMode;
+                onUpdateConfig((prev) => ({
+                  ...prev,
+                  astroTemplate: tplId,
+                  themeMode: nextMode,
+                }));
               }}
               previewMode={config.themeMode}
               onToggleThemeMode={(mode) =>
-                onUpdateConfig({ ...buildDraftConfig(), themeMode: mode })
+                onUpdateConfig((prev) => ({ ...prev, themeMode: mode }))
               }
-              themeColors={themeColors}
+              themeColors={sanitizeThemeCustomColors(config.themeColors) ?? themeColors}
               onChangeColors={(nextColors) => {
-                setThemeColors(nextColors);
-                onUpdateConfig({ ...buildDraftConfig(), themeColors: nextColors });
+                const cleaned = sanitizeThemeCustomColors(nextColors);
+                setThemeColors(cleaned);
+                onUpdateConfig((prev) => ({ ...prev, themeColors: cleaned }));
               }}
               previewSiteTitle={siteTitle}
               previewHeaderTitle={headerTitle}

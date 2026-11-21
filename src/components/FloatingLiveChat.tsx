@@ -21,7 +21,7 @@ import type {
 interface FloatingLiveChatProps {
   theme: BlogTheme;
   config: BlogConfig;
-  onUpdateConfig: (next: BlogConfig) => void;
+  onUpdateConfig: (next: BlogConfig | ((prev: BlogConfig) => BlogConfig)) => void;
   onOpenSettings?: () => void;
   hideOnMobile?: boolean;
 }
@@ -165,13 +165,13 @@ export function FloatingLiveChat({
 
   const handleTurnOffLiveChat = () => {
     setOpen(false);
-    onUpdateConfig({
-      ...config,
+    onUpdateConfig((prev) => ({
+      ...prev,
       liveChat: {
-        ...liveChat,
+        ...(prev.liveChat || liveChat),
         enabled: false,
       },
-    });
+    }));
   };
 
   const handleChannelClick = (e: React.MouseEvent<HTMLAnchorElement>, ch: LiveChatChannelConfig) => {

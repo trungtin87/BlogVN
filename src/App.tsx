@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { CheckCircle2, ExternalLink, Loader2, X } from 'lucide-react';
 import type {
@@ -177,9 +177,14 @@ export default function App() {
   const [mobileEditorFocused, setMobileEditorFocused] = useState(false);
   const isRunningDueRef = useRef(false);
   const buildPollTimerRef = useRef<number | null>(null);
-  const skipNextConfigCloudSaveRef = useRef(false);
   const seededInitialDraftsRef = useRef(false);
   const firestoreHydratedUidRef = useRef<string>('');
+  const localConfigSeqRef = useRef(0);
+  const firestoreSavedSeqRef = useRef(0);
+  const configSaveTimerRef = useRef<number | null>(null);
+  const isConfigWriteInFlightRef = useRef(false);
+  const latestConfigRef = useRef<BlogConfig>(config);
+  const activeUidRef = useRef<string>('');
 
   useEffect(() => {
     if (activeTab !== 'editor') {
@@ -188,6 +193,75 @@ export default function App() {
   }, [activeTab]);
 
   const activeUid = firebaseUser?.uid || '';
+  activeUidRef.current = activeUid;
+  latestConfigRef.current = config;
+
+  const flushPendingConfigSave = useCallback((uid: string) => {
+    if (!uid || firestoreHydratedUidRef.current !== uid) return;
+    if (isConfigWriteInFlightRef.current) return;
+    if (localConfigSeqRef.current <= firestoreSavedSeqRef.current) return;
+
+    const seqAtStart = localConfigSeqRef.current;
+    const snapshotToSave = latestConfigRef.current;
+    isConfigWriteInFlightRef.current = true;
+
+    saveUserConfigToFirestore(uid, snapshotToSave)
+      .then(() => {
+        firestoreSavedSeqRef.current = Math.max(firestoreSavedSeqRef.current, seqAtStart);
+        isConfigWriteInFlightRef.current = false;
+        if (
+          activeUidRef.current === uid &&
+          localConfigSeqRef.current > firestoreSavedSeqRef.current &&
+          configSaveTimerRef.current === null
+        ) {
+          flushPendingConfigSave(uid);
+        }
+      })
+      .catch((err) => {
+        isConfigWriteInFlightRef.current = false;
+        throw err;
+      });
+  }, []);
+
+  const updateLocalConfig = useCallback(
+    (updater: SetStateAction<BlogConfig>) => {
+      localConfigSeqRef.current += 1;
+      setConfig((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater;
+        latestConfigRef.current = next;
+        if (next.themeMode !== prev.themeMode) {
+          setGateThemeMode(next.themeMode);
+          try {
+            localStorage.setItem(GATE_THEME_KEY, next.themeMode);
+          } catch {
+            // ignore
+          }
+        }
+        const uid = activeUidRef.current;
+        if (uid) {
+          try {
+            localStorage.setItem(getUserStorageKey(uid, 'config_v1'), JSON.stringify(next));
+          } catch {
+            // ignore
+          }
+        }
+        return next;
+      });
+
+      const uid = activeUidRef.current;
+      if (uid) {
+        if (configSaveTimerRef.current !== null) {
+          window.clearTimeout(configSaveTimerRef.current);
+        }
+        configSaveTimerRef.current = window.setTimeout(() => {
+          configSaveTimerRef.current = null;
+          flushPendingConfigSave(uid);
+        }, 350);
+      }
+    },
+    [flushPendingConfigSave]
+  );
+
   const activeTheme = useMemo(
     () =>
       firebaseUser
@@ -199,6 +273,14 @@ export default function App() {
   // Listen to Firebase Google Sign-In state and isolate all device data per UID
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (configSaveTimerRef.current !== null) {
+        window.clearTimeout(configSaveTimerRef.current);
+        configSaveTimerRef.current = null;
+      }
+      localConfigSeqRef.current = 0;
+      firestoreSavedSeqRef.current = 0;
+      isConfigWriteInFlightRef.current = false;
+
       setFirebaseUser(user);
       setActiveSessionUid(user?.uid || '');
 
@@ -219,36 +301,67 @@ export default function App() {
       firestoreHydratedUidRef.current = '';
 
       if (user) {
-        skipNextConfigCloudSaveRef.current = true;
         const userCfg = loadConfigForUid(user);
+        latestConfigRef.current = userCfg;
         setConfig(userCfg);
         setLocalDrafts(loadDraftsForUid(user.uid));
         setHasPersonalPat(Boolean(getStoredGitHubPat(user.uid)));
         setActiveTab('blog');
       } else {
-        setConfig({ ...DEFAULT_BLOG_CONFIG, themeMode: getPreferredThemeMode() });
+        const guestCfg = { ...DEFAULT_BLOG_CONFIG, themeMode: getPreferredThemeMode() };
+        latestConfigRef.current = guestCfg;
+        setConfig(guestCfg);
         setLocalDrafts([]);
         setHasPersonalPat(false);
       }
       setAuthInitializing(false);
     });
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (configSaveTimerRef.current !== null) {
+        window.clearTimeout(configSaveTimerRef.current);
+        configSaveTimerRef.current = null;
+      }
+    };
   }, []);
 
   // Cloud Firestore Realtime Sync for per-UID site config & drafts
   useEffect(() => {
     if (!activeUid || !firebaseUser) return;
 
-    const unsubConfig = subscribeUserConfig(activeUid, (remoteCfg) => {
+    const unsubConfig = subscribeUserConfig(activeUid, (remoteCfg, meta) => {
       setCloudSyncActive(true);
-      if (!remoteCfg) {
-        const localCfg = loadConfigForUid(firebaseUser);
-        void saveUserConfigToFirestore(activeUid, localCfg);
-        firestoreHydratedUidRef.current = activeUid;
+      if (meta.hasPendingWrites) {
         return;
       }
 
+      const wasHydrated = firestoreHydratedUidRef.current === activeUid;
       firestoreHydratedUidRef.current = activeUid;
+
+      if (!remoteCfg) {
+        if (localConfigSeqRef.current > firestoreSavedSeqRef.current) {
+          if (configSaveTimerRef.current === null) {
+            flushPendingConfigSave(activeUid);
+          }
+        } else {
+          const initialCfg = latestConfigRef.current || loadConfigForUid(firebaseUser);
+          void saveUserConfigToFirestore(activeUid, initialCfg);
+        }
+        return;
+      }
+
+      const hasPendingLocalEdits =
+        localConfigSeqRef.current > firestoreSavedSeqRef.current ||
+        configSaveTimerRef.current !== null ||
+        isConfigWriteInFlightRef.current;
+
+      if (hasPendingLocalEdits) {
+        if (!wasHydrated && configSaveTimerRef.current === null) {
+          flushPendingConfigSave(activeUid);
+        }
+        return;
+      }
+
       setConfig((prev) => {
         const nextMode: ThemeMode = remoteCfg.themeMode === 'dark' ? 'dark' : 'light';
         const merged: BlogConfig = {
@@ -265,7 +378,15 @@ export default function App() {
         if (JSON.stringify(prev) === JSON.stringify(merged)) {
           return prev;
         }
-        skipNextConfigCloudSaveRef.current = true;
+        latestConfigRef.current = merged;
+        if (merged.themeMode !== prev.themeMode) {
+          setGateThemeMode(merged.themeMode);
+        }
+        try {
+          localStorage.setItem(getUserStorageKey(activeUid, 'config_v1'), JSON.stringify(merged));
+        } catch {
+          // ignore
+        }
         return merged;
       });
     });
@@ -338,7 +459,7 @@ export default function App() {
     if (touchLink && icon) touchLink.setAttribute('href', icon);
   }, [firebaseUser, config.siteTitle, config.tagline, config.siteIcon, config.headerTitle]);
 
-  // Persist config isolated to the active Google account UID (localStorage + debounced Firestore)
+  // Local persistence fallback handled synchronously inside updateLocalConfig & hydration
   useEffect(() => {
     if (!activeUid) return;
     try {
@@ -346,20 +467,6 @@ export default function App() {
     } catch {
       // ignore
     }
-
-    if (skipNextConfigCloudSaveRef.current) {
-      skipNextConfigCloudSaveRef.current = false;
-      return;
-    }
-
-    if (firestoreHydratedUidRef.current !== activeUid) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void saveUserConfigToFirestore(activeUid, config);
-    }, 1200);
-    return () => window.clearTimeout(timer);
   }, [activeUid, config]);
 
   // Persist drafts isolated to the active Google account UID
@@ -551,21 +658,54 @@ export default function App() {
           setPostsHasMore(Boolean(postsJson.hasMore));
           setRepoStructure(postsJson.structure || null);
 
-          setConfig((prev) => ({
-            ...prev,
-            ...(postsJson.config && typeof postsJson.config === 'object' ? postsJson.config : {}),
-            githubOwner: targetOwner,
-            githubRepo: targetRepo,
-            siteTitle:
-              postsJson.config?.siteTitle ||
-              (!prev.siteTitle || prev.siteTitle === 'Đạo Ký' ? targetRepo : prev.siteTitle),
-            postsDirectory:
-              postsJson.structure?.postsDir ||
-              postsJson.structure?.detectedPostsDir ||
-              prev.postsDirectory ||
-              'src/content/bai_viet',
-            authorAvatar: repoJson.ownerProfile?.avatarUrl || prev.authorAvatar,
-          }));
+          setConfig((prev) => {
+            const hasPendingLocal =
+              localConfigSeqRef.current > firestoreSavedSeqRef.current ||
+              configSaveTimerRef.current !== null ||
+              isConfigWriteInFlightRef.current;
+            const remoteRepoCfg =
+              postsJson.config && typeof postsJson.config === 'object' ? postsJson.config : {};
+            const remoteColors = sanitizeThemeCustomColors(remoteRepoCfg.themeColors);
+            const resolvedNext: BlogConfig = hasPendingLocal
+              ? {
+                  ...prev,
+                  githubOwner: targetOwner,
+                  githubRepo: targetRepo,
+                  postsDirectory:
+                    postsJson.structure?.postsDir ||
+                    postsJson.structure?.detectedPostsDir ||
+                    prev.postsDirectory ||
+                    'src/content/bai_viet',
+                  authorAvatar: repoJson.ownerProfile?.avatarUrl || prev.authorAvatar,
+                }
+              : {
+                  ...prev,
+                  ...remoteRepoCfg,
+                  githubOwner: targetOwner,
+                  githubRepo: targetRepo,
+                  siteTitle:
+                    remoteRepoCfg.siteTitle ||
+                    (!prev.siteTitle || prev.siteTitle === 'Đạo Ký'
+                      ? targetRepo
+                      : prev.siteTitle),
+                  postsDirectory:
+                    postsJson.structure?.postsDir ||
+                    postsJson.structure?.detectedPostsDir ||
+                    prev.postsDirectory ||
+                    'src/content/bai_viet',
+                  authorAvatar: repoJson.ownerProfile?.avatarUrl || prev.authorAvatar,
+                  themeMode: prev.themeMode,
+                  astroTemplate:
+                    prev.astroTemplate ||
+                    normalizeAstroTemplateId(remoteRepoCfg.astroTemplate, prev.themeMode),
+                  themeColors:
+                    firestoreHydratedUidRef.current === activeUid || prev.themeColors !== undefined
+                      ? prev.themeColors
+                      : remoteColors,
+                };
+            latestConfigRef.current = resolvedNext;
+            return resolvedNext;
+          });
         }
       } catch {
         setRepoError('Không thể kết nối tới dịch vụ đồng bộ GitHub.');
@@ -686,7 +826,7 @@ export default function App() {
         );
 
         if (userSiteRepo) {
-          setConfig((prev) => ({
+          updateLocalConfig((prev) => ({
             ...prev,
             githubOwner: userSiteRepo.owner,
             githubRepo: userSiteRepo.name,
@@ -705,7 +845,7 @@ export default function App() {
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [activeUid, fetchAuthStatus, fetchUserRepos, syncFromGitHub]);
+  }, [activeUid, fetchAuthStatus, fetchUserRepos, syncFromGitHub, updateLocalConfig]);
 
   const handleConnectOAuth = async () => {
     try {
@@ -764,7 +904,7 @@ export default function App() {
     );
 
     if (userSiteRepo) {
-      setConfig((prev) => ({
+      updateLocalConfig((prev) => ({
         ...prev,
         githubOwner: userSiteRepo.owner,
         githubRepo: userSiteRepo.name,
@@ -814,7 +954,7 @@ export default function App() {
     } catch {
       // ignore
     }
-    setConfig((prev) => ({
+    updateLocalConfig((prev) => ({
       ...prev,
       themeMode,
       astroTemplate: normalizeAstroTemplateId(prev.astroTemplate, themeMode),
@@ -851,7 +991,7 @@ export default function App() {
 
   const handleImportConfig = (importedCfg: Partial<BlogConfig>) => {
     if (!importedCfg || typeof importedCfg !== 'object') return;
-    setConfig((prev) => {
+    updateLocalConfig((prev) => {
       const nextMode: ThemeMode = importedCfg.themeMode === 'dark' ? 'dark' : prev.themeMode;
       return {
         ...prev,
@@ -1005,7 +1145,7 @@ export default function App() {
     const pagesUrl = repo.endsWith('.github.io')
       ? `https://${repo}`
       : `https://${owner}.github.io/${repo}`;
-    setConfig((prev) => ({
+    updateLocalConfig((prev) => ({
       ...prev,
       githubOwner: owner,
       githubRepo: repo,
@@ -1020,7 +1160,7 @@ export default function App() {
     pagesUrl: string,
     postsDirectory = '_posts'
   ) => {
-    setConfig((prev) => ({
+    updateLocalConfig((prev) => ({
       ...prev,
       githubOwner: owner,
       githubRepo: repo,
@@ -1199,7 +1339,7 @@ export default function App() {
             onRefresh={() => syncFromGitHub()}
             onLoadMorePosts={handleLoadMorePosts}
             onRefreshSchedules={() => fetchSchedules()}
-            onUpdateConfig={(next) => setConfig(next)}
+            onUpdateConfig={updateLocalConfig}
             onImportPosts={handleImportPosts}
             onImportConfig={handleImportConfig}
             onDeployedToGitHub={(message, commitUrl) => {
@@ -1267,7 +1407,7 @@ export default function App() {
       <FloatingLiveChat
         theme={activeTheme}
         config={config}
-        onUpdateConfig={setConfig}
+        onUpdateConfig={updateLocalConfig}
         hideOnMobile={mobileEditorFocused && activeTab === 'editor'}
         onOpenSettings={() => {
           setActiveTab('github');

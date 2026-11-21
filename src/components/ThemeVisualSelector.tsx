@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, Eye, Moon, Palette, RotateCcw, Sun } from 'lucide-react';
 import type {
   AstroTemplateId,
@@ -170,6 +170,10 @@ export function ThemeVisualSelector({
   const [livePreviewView, setLivePreviewView] = useState<'home' | 'categories' | 'article'>('home');
   const [applyGlobalModeOnCards, setApplyGlobalModeOnCards] = useState(false);
   const [editingColorMode, setEditingColorMode] = useState<ThemeMode>(currentMode);
+
+  useEffect(() => {
+    setEditingColorMode(currentMode);
+  }, [currentMode]);
 
   const visibleThemes = EDITORIAL_THEME_ORDER.map((id) => EDITORIAL_THEMES[id]).filter((preset) => {
     if (toneFilter === 'multipage') return Boolean(preset.isMultiPage);

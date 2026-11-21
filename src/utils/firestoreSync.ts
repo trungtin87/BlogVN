@@ -3,6 +3,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocFromServer,
   onSnapshot,
   query,
   serverTimestamp,
@@ -17,6 +18,9 @@ import { sanitizeThemeCustomColors } from '../data/themes';
 import type { BlogConfig, BlogPost } from '../types/blog';
 
 const SITE_CONFIG_DOC_ID = 'site';
+
+const cachedConfigCreatedAt = new Map<string, Timestamp>();
+const configWriteQueues = new Map<string, Promise<void>>();
 
 function clampString(val: unknown, maxLen: number): string {
   if (typeof val !== 'string') return '';
@@ -204,20 +208,32 @@ function docToBlogPost(data: Record<string, any>): BlogPost {
   };
 }
 
+export interface FirestoreSnapshotMeta {
+  hasPendingWrites: boolean;
+  fromCache: boolean;
+}
+
 export function subscribeUserConfig(
   userId: string,
-  onData: (config: Partial<BlogConfig> | null) => void,
+  onData: (config: Partial<BlogConfig> | null, meta: FirestoreSnapshotMeta) => void,
 ): Unsubscribe {
   const path = `users/${userId}/config/${SITE_CONFIG_DOC_ID}`;
   const ref = doc(db, 'users', userId, 'config', SITE_CONFIG_DOC_ID);
   return onSnapshot(
     ref,
     (snapshot) => {
+      const meta: FirestoreSnapshotMeta = {
+        hasPendingWrites: snapshot.metadata.hasPendingWrites,
+        fromCache: snapshot.metadata.fromCache,
+      };
       if (!snapshot.exists()) {
-        onData(null);
+        onData(null, meta);
         return;
       }
       const data = snapshot.data();
+      if (data.createdAt instanceof Timestamp) {
+        cachedConfigCreatedAt.set(userId, data.createdAt);
+      }
       const partial: Partial<BlogConfig> = {
         siteTitle: data.siteTitle,
         tagline: data.tagline,
@@ -242,7 +258,7 @@ export function subscribeUserConfig(
         analyticsId: data.analyticsId,
         giscus: data.giscus,
       };
-      onData(partial);
+      onData(partial, meta);
     },
     (error) => {
       handleFirestoreError(error, OperationType.GET, path);
@@ -251,16 +267,42 @@ export function subscribeUserConfig(
 }
 
 export async function saveUserConfigToFirestore(userId: string, config: BlogConfig): Promise<void> {
-  const path = `users/${userId}/config/${SITE_CONFIG_DOC_ID}`;
-  const ref = doc(db, 'users', userId, 'config', SITE_CONFIG_DOC_ID);
-  try {
-    const existing = await getDoc(ref);
-    const existingCreatedAt = existing.exists() ? existing.data()?.createdAt : undefined;
-    const payload = buildUserConfigPayload(config, userId, existingCreatedAt);
-    await setDoc(ref, payload);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  const previous = configWriteQueues.get(userId) || Promise.resolve();
+  const runWrite = previous
+    .catch(() => {})
+    .then(async () => {
+      const path = `users/${userId}/config/${SITE_CONFIG_DOC_ID}`;
+      const ref = doc(db, 'users', userId, 'config', SITE_CONFIG_DOC_ID);
+      try {
+        let existingCreatedAt: unknown = cachedConfigCreatedAt.get(userId);
+        if (!(existingCreatedAt instanceof Timestamp)) {
+          const existing = await getDoc(ref);
+          const candidate = existing.exists() ? existing.data()?.createdAt : undefined;
+          if (candidate instanceof Timestamp) {
+            existingCreatedAt = candidate;
+            cachedConfigCreatedAt.set(userId, candidate);
+          } else if (existing.exists()) {
+            try {
+              const serverSnap = await getDocFromServer(ref);
+              const serverCreatedAt = serverSnap.exists() ? serverSnap.data()?.createdAt : undefined;
+              if (serverCreatedAt instanceof Timestamp) {
+                existingCreatedAt = serverCreatedAt;
+                cachedConfigCreatedAt.set(userId, serverCreatedAt);
+              }
+            } catch {
+              // Offline or cache-only fallback
+            }
+          }
+        }
+        const payload = buildUserConfigPayload(config, userId, existingCreatedAt);
+        await setDoc(ref, payload);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, path);
+      }
+    });
+
+  configWriteQueues.set(userId, runWrite);
+  return runWrite;
 }
 
 export function subscribeUserDrafts(

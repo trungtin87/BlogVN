@@ -76,7 +76,7 @@ interface GitHubSyncPanelProps {
   onRefresh: () => void;
   onLoadMorePosts?: () => void;
   onRefreshSchedules: () => Promise<void>;
-  onUpdateConfig: (next: BlogConfig) => void;
+  onUpdateConfig: (next: BlogConfig | ((prev: BlogConfig) => BlogConfig)) => void;
   onImportPosts?: (posts: BlogPost[]) => void;
   onImportConfig?: (config: Partial<BlogConfig>) => void;
   onDeployedToGitHub?: (message: string, commitUrl?: string) => void;
@@ -972,10 +972,12 @@ export function GitHubSyncPanel({
                 selectedTemplate={selectedAstroPreset}
                 onSelectTemplate={(tplId) => setSelectedAstroPreset(tplId)}
                 previewMode={config.themeMode}
-                onToggleThemeMode={(mode) => onUpdateConfig({ ...config, themeMode: mode })}
+                onToggleThemeMode={(mode) =>
+                  onUpdateConfig((prev) => ({ ...prev, themeMode: mode }))
+                }
                 themeColors={config.themeColors}
                 onChangeColors={(nextColors) =>
-                  onUpdateConfig({ ...config, themeColors: nextColors })
+                  onUpdateConfig((prev) => ({ ...prev, themeColors: nextColors }))
                 }
                 previewSiteTitle={newSiteTitle || config.siteTitle}
                 previewHeaderTitle={config.headerTitle}
