@@ -12,6 +12,7 @@ import type {
   GitHubRepoInfo,
   GitHubRepoSummary,
   GitHubUser,
+  MediaAssetItem,
   RepoInsightsData,
   RepoStructureInfo,
   ScheduledPostPayload,
@@ -448,6 +449,10 @@ function serializePostMarkdownClient(
         nhap: Boolean(input.draft),
       };
     }
+    if (input.seoTitle?.trim()) fm.seo_title = input.seoTitle.trim();
+    if (input.seoDescription?.trim()) fm.seo_description = input.seoDescription.trim();
+    if (input.canonicalUrl?.trim()) fm.canonical_url = input.canonicalUrl.trim();
+    if (input.noindex) fm.noindex = true;
     return `---\n${dumpYaml(fm, { lineWidth: -1 }).trim()}\n---\n\n${input.markdownBody.trim()}\n`;
   }
 
@@ -742,9 +747,9 @@ export async function ghGetAuthStatus(uid = activeUid): Promise<AuthStatus> {
     backendAvailable: false,
     user: null,
     targetRepo: {
-      owner: 'trungtin87',
-      repo: 'trungtin87.github.io',
-      pagesUrl: 'https://trungtin87.github.io',
+      owner: '',
+      repo: '',
+      pagesUrl: '',
     },
   };
 }
@@ -798,6 +803,9 @@ export async function ghGetRepoInfo(
   repo: string,
   uid = activeUid
 ): Promise<{ ok: boolean; data?: GitHubRepoInfo; error?: string }> {
+  if (!owner?.trim() || !repo?.trim()) {
+    return { ok: false, error: 'Chưa cấu hình kho lưu trữ GitHub.' };
+  }
   const pat = getStoredGitHubPat(uid);
   const hasBackend = await isBackendAvailable();
   if (hasBackend && !pat) {
@@ -863,26 +871,53 @@ export async function ghGetRepoPosts(
   owner: string,
   repo: string,
   branch: string,
-  uid = activeUid
+  uidOrOpts: string | { uid?: string; offset?: number; limit?: number } = activeUid,
+  maybeOpts?: { offset?: number; limit?: number }
 ): Promise<{
   ok: boolean;
   posts: BlogPost[];
   config: Partial<BlogConfig> | null;
   structure: RepoStructureInfo | null;
+  totalCount: number;
+  loadedCount: number;
+  hasMore: boolean;
 }> {
+  const uid = typeof uidOrOpts === 'string' ? uidOrOpts : uidOrOpts.uid || activeUid;
+  const opts = typeof uidOrOpts === 'string' ? maybeOpts || {} : uidOrOpts;
+  const offset = Math.max(0, opts.offset ?? 0);
+  const limit = Math.min(200, Math.max(1, opts.limit ?? 30));
+
+  if (!owner?.trim() || !repo?.trim()) {
+    return {
+      ok: true,
+      posts: [],
+      config: null,
+      structure: null,
+      totalCount: 0,
+      loadedCount: 0,
+      hasMore: false,
+    };
+  }
+
   const pat = getStoredGitHubPat(uid);
   const hasBackend = await isBackendAvailable();
   if (hasBackend && !pat) {
     const res = await fetch(
-      `/api/github/posts?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}`
+      `/api/github/posts?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}&offset=${offset}&limit=${limit}`
     );
     if (res.ok) {
       const json = await res.json();
+      const loaded = Array.isArray(json.posts) ? json.posts : [];
+      const totalCount = typeof json.totalCount === 'number' ? json.totalCount : loaded.length;
+      const loadedCount = typeof json.loadedCount === 'number' ? json.loadedCount : offset + loaded.length;
       return {
         ok: true,
-        posts: json.posts || [],
+        posts: loaded,
         config: json.config || null,
         structure: json.structure || null,
+        totalCount,
+        loadedCount,
+        hasMore: Boolean(json.hasMore ?? loadedCount < totalCount),
       };
     }
   }
@@ -893,7 +928,7 @@ export async function ghGetRepoPosts(
     pat || undefined
   );
   if (!treeResp.ok || !treeResp.data?.tree) {
-    return { ok: true, posts: [], config: null, structure: null };
+    return { ok: true, posts: [], config: null, structure: null, totalCount: 0, loadedCount: 0, hasMore: false };
   }
 
   const blobs = (treeResp.data.tree as any[]).filter((item) => item.type === 'blob');
@@ -953,23 +988,26 @@ export async function ghGetRepoPosts(
     postsDir = '_posts';
   }
 
-  const mdFiles = blobs.filter((item) => {
-    const lower = String(item.path).toLowerCase();
-    if (!lower.endsWith('.md') && !lower.endsWith('.markdown') && !lower.endsWith('.mdx')) return false;
-    if (lower.startsWith('readme') || lower === 'license.md' || lower === 'index.md') return false;
-    if (lower.endsWith('/_index.md')) return false;
-    return (
-      lower.startsWith('src/content/') ||
-      lower.startsWith('_posts/') ||
-      lower.startsWith('source/_posts/') ||
-      lower.startsWith('posts/') ||
-      lower.startsWith('content/') ||
-      !lower.includes('/')
-    );
-  });
+  const mdFiles = blobs
+    .filter((item) => {
+      const lower = String(item.path).toLowerCase();
+      if (!lower.endsWith('.md') && !lower.endsWith('.markdown') && !lower.endsWith('.mdx')) return false;
+      if (lower.startsWith('readme') || lower === 'license.md' || lower === 'index.md') return false;
+      if (lower.endsWith('/_index.md')) return false;
+      return (
+        lower.startsWith('src/content/') ||
+        lower.startsWith('_posts/') ||
+        lower.startsWith('source/_posts/') ||
+        lower.startsWith('posts/') ||
+        lower.startsWith('content/') ||
+        !lower.includes('/')
+      );
+    })
+    .sort((a, b) => String(b.path).localeCompare(String(a.path)));
 
+  const targetFiles = mdFiles.slice(offset, offset + limit);
   const fetched = await Promise.all(
-    mdFiles.slice(0, 40).map(async (f) => {
+    targetFiles.map(async (f) => {
       const encoded = encodeURIComponent(f.path).replace(/%2F/g, '/');
       const resp = await ghApiRequest<any>(
         `/repos/${owner}/${repo}/contents/${encoded}?ref=${encodeURIComponent(branch)}`,
@@ -991,7 +1029,7 @@ export async function ghGetRepoPosts(
   const posts = fetched.filter((p): p is BlogPost => p !== null).sort((a, b) => b.date.localeCompare(a.date));
 
   let remoteConfig: Partial<BlogConfig> | null = null;
-  if (blobs.some((b) => b.path === '.blogvn/site-config.json')) {
+  if (offset === 0 && blobs.some((b) => b.path === '.blogvn/site-config.json')) {
     const cfgResp = await ghApiRequest<any>(
       `/repos/${owner}/${repo}/contents/.blogvn/site-config.json?ref=${encodeURIComponent(branch)}`,
       {},
@@ -1006,10 +1044,16 @@ export async function ghGetRepoPosts(
     }
   }
 
+  const totalCount = mdFiles.length;
+  const loadedCount = Math.min(totalCount, offset + targetFiles.length);
+
   return {
     ok: true,
     posts,
     config: remoteConfig,
+    totalCount,
+    loadedCount,
+    hasMore: loadedCount < totalCount,
     structure: {
       framework,
       frameworkLabel,
@@ -1029,6 +1073,111 @@ export async function ghGetRepoPosts(
       frontmatterSchema: defaultFrontmatterSchema(framework),
     },
   };
+}
+
+export async function ghListMediaAssets(
+  owner: string,
+  repo: string,
+  branch: string,
+  uid = activeUid
+): Promise<{ ok: boolean; items: MediaAssetItem[]; error?: string }> {
+  if (!owner?.trim() || !repo?.trim()) {
+    return { ok: true, items: [] };
+  }
+  const pat = getStoredGitHubPat(uid);
+  const hasBackend = await isBackendAvailable();
+  if (hasBackend && !pat) {
+    try {
+      const res = await fetch(
+        `/api/github/media?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}`
+      );
+      const data = await res.json();
+      if (res.ok) return { ok: true, items: data.items || [] };
+      return { ok: false, items: [], error: data.error };
+    } catch {
+      // fall through to direct API
+    }
+  }
+
+  const treeResp = await ghApiRequest<any>(
+    `/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+    {},
+    pat || undefined
+  );
+  if (!treeResp.ok || !Array.isArray(treeResp.data?.tree)) {
+    return { ok: false, items: [], error: treeResp.error || 'Không thể tải danh sách tệp ảnh.' };
+  }
+
+  const imageExtRe = /\.(png|jpe?g|webp|gif|svg|avif)$/i;
+  const items: MediaAssetItem[] = (treeResp.data.tree as any[])
+    .filter((item) => {
+      if (item.type !== 'blob' || !item.path) return false;
+      const p = String(item.path);
+      if (!imageExtRe.test(p)) return false;
+      return (
+        p.startsWith('public/tainguyen/hinhanh/') ||
+        p.startsWith('public/images/') ||
+        p.startsWith('assets/') ||
+        p.startsWith('static/images/') ||
+        p.startsWith('source/images/')
+      );
+    })
+    .map((item) => {
+      const p = String(item.path);
+      const publicPath = p.startsWith('public/')
+        ? '/' + p.slice('public/'.length)
+        : p.startsWith('static/')
+        ? '/' + p.slice('static/'.length)
+        : p.startsWith('source/')
+        ? '/' + p.slice('source/'.length)
+        : '/' + p;
+      const name = p.split('/').pop() || p;
+      return {
+        path: p,
+        publicPath,
+        previewUrl: `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/${p}`,
+        sha: String(item.sha || ''),
+        size: Number(item.size || 0),
+        name,
+      };
+    })
+    .sort((a, b) => b.name.localeCompare(a.name));
+
+  return { ok: true, items };
+}
+
+export async function ghDeleteMediaAsset(
+  params: { owner: string; repo: string; branch: string; filePath: string; sha: string },
+  uid = activeUid
+): Promise<{ ok: boolean; error?: string }> {
+  const pat = getStoredGitHubPat(uid);
+  const hasBackend = await isBackendAvailable();
+  if (hasBackend && !pat) {
+    const res = await fetch('/api/github/media', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    return res.ok ? { ok: true } : { ok: false, error: data.error };
+  }
+
+  if (!pat) return { ok: false, error: 'Chưa kết nối GitHub Token cá nhân.' };
+  const encoded = encodeURIComponent(params.filePath).replace(/%2F/g, '/');
+  const res = await ghApiRequest<any>(
+    `/repos/${params.owner}/${params.repo}/contents/${encoded}`,
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: `Delete media: ${params.filePath.split('/').pop() || params.filePath}`,
+        sha: params.sha,
+        branch: params.branch,
+      }),
+    },
+    pat
+  );
+  return res.ok ? { ok: true } : { ok: false, error: res.error };
 }
 
 export async function ghGetBuildStatus(
@@ -1370,7 +1519,7 @@ export async function ghCreateStarterPagesSite(
     owner,
     repo: cleanRepo,
     branch: defaultBranch,
-    filePath: `_posts/${today}-chao-mung-den-voi-blogvn.md`,
+    filePath: `_posts/${today}-chao-mung-den-voi-dao-ky.md`,
     content: `---\nlayout: post\ntitle: "Chào mừng đến với ${finalTitle.replace(/"/g, '\\"')}"\ndate: ${today}\n---\n\nXin chào! Đây là bài viết đầu tiên trên trang GitHub Pages của bạn.\n`,
     message: 'Thêm bài chào mừng',
     token: pat,
@@ -2043,6 +2192,12 @@ export async function ghSaveSiteConfig(
         hasBundledPngFavicon: Boolean(params.config.siteIcon?.startsWith('data:image/') || defaultPngB64),
       }),
     });
+    if (params.config.customDomain?.trim()) {
+      files.push({
+        path: 'public/CNAME',
+        content: `${params.config.customDomain.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '')}\n`,
+      });
+    }
     if (params.config.siteIcon?.startsWith('data:image/')) {
       files.push({
         path: 'public/favicon.png',
@@ -2056,6 +2211,11 @@ export async function ghSaveSiteConfig(
         isBase64: true,
       });
     }
+  } else if (params.config.customDomain?.trim()) {
+    files.push({
+      path: 'CNAME',
+      content: `${params.config.customDomain.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '')}\n`,
+    });
   }
 
   if (params.publishWebApp) {
@@ -2190,7 +2350,10 @@ export async function ghDeployAstroTemplate(
       for (const blob of blobs) {
         const p = String(blob.path);
         const isPost =
-          p.startsWith('src/content/bai_viet/') &&
+          (p.startsWith('src/content/bai_viet/') ||
+            p.startsWith('src/content/du_an/') ||
+            p.startsWith('src/content/sach/') ||
+            p.startsWith('src/content/cua_hang/')) &&
           (p.endsWith('.md') || p.endsWith('.mdx') || p.endsWith('.markdown'));
         const isAsset =
           p.startsWith('public/tainguyen/hinhanh/uploads/') || p.startsWith('public/images/');

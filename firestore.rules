@@ -1,9 +1,244 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Default Deny-All
     match /{document=**} {
       allow read, write: if false;
+    }
+
+    // Core Authentication & Ownership Helpers
+    function isAuthenticated() {
+      return request.auth != null
+        && request.auth.token != null
+        && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidConfigId(id) {
+      return id is string && id.matches('^[a-zA-Z0-9_-]{1,64}$');
+    }
+
+    function isValidDraftId(id) {
+      return id is string && id.matches('^[a-zA-Z0-9._-]{1,160}$');
+    }
+
+    function isStringMax(val, maxLen) {
+      return val is string && val.size() <= maxLen;
+    }
+
+    function isOptionalString(data, key, maxLen) {
+      return !(key in data) || isStringMax(data[key], maxLen);
+    }
+
+    function isOptionalBool(data, key) {
+      return !(key in data) || data[key] is bool;
+    }
+
+    function isOptionalListMax(data, key, maxSize) {
+      return !(key in data) || (data[key] is list && data[key].size() <= maxSize);
+    }
+
+    function isOptionalNumber(data, key) {
+      return !(key in data) || (data[key] is int || data[key] is float);
+    }
+
+    function isValidUserConfig(data, userId) {
+      return data.keys().hasAll(['uid', 'siteTitle', 'themeMode', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'uid',
+          'siteTitle',
+          'tagline',
+          'siteIcon',
+          'headerTitle',
+          'headerNavLinks',
+          'footerText',
+          'footerLinks',
+          'authorName',
+          'authorBio',
+          'authorAvatar',
+          'githubOwner',
+          'githubRepo',
+          'pagesUrl',
+          'themeMode',
+          'postsDirectory',
+          'astroTemplate',
+          'liveChat',
+          'customDomain',
+          'analyticsProvider',
+          'analyticsId',
+          'giscus',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.uid == userId
+        && isStringMax(data.siteTitle, 160)
+        && data.themeMode in ['light', 'dark']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && isOptionalString(data, 'tagline', 400)
+        && isOptionalString(data, 'siteIcon', 250000)
+        && isOptionalString(data, 'headerTitle', 120)
+        && isOptionalListMax(data, 'headerNavLinks', 20)
+        && isOptionalString(data, 'footerText', 300)
+        && isOptionalListMax(data, 'footerLinks', 20)
+        && isOptionalString(data, 'authorName', 120)
+        && isOptionalString(data, 'authorBio', 600)
+        && isOptionalString(data, 'authorAvatar', 2000)
+        && isOptionalString(data, 'githubOwner', 100)
+        && isOptionalString(data, 'githubRepo', 120)
+        && isOptionalString(data, 'pagesUrl', 300)
+        && isOptionalString(data, 'postsDirectory', 120)
+        && isOptionalString(data, 'astroTemplate', 60)
+        && (!('liveChat' in data) || (
+          data.liveChat is map
+          && data.liveChat.keys().hasOnly(['enabled', 'title', 'welcomeText', 'channels'])
+          && data.liveChat.enabled is bool
+          && isOptionalString(data.liveChat, 'title', 120)
+          && isOptionalString(data.liveChat, 'welcomeText', 300)
+          && isOptionalListMax(data.liveChat, 'channels', 10)
+        ))
+        && isOptionalString(data, 'customDomain', 255)
+        && (!('analyticsProvider' in data) || data.analyticsProvider in ['none', 'ga4', 'cloudflare', 'plausible', 'umami'])
+        && isOptionalString(data, 'analyticsId', 120)
+        && (!('giscus' in data) || (
+          data.giscus is map
+          && data.giscus.keys().hasOnly(['enabled', 'repo', 'repoId', 'category', 'categoryId'])
+          && data.giscus.enabled is bool
+          && isOptionalString(data.giscus, 'repo', 160)
+          && isOptionalString(data.giscus, 'repoId', 120)
+          && isOptionalString(data.giscus, 'category', 120)
+          && isOptionalString(data.giscus, 'categoryId', 120)
+        ));
+    }
+
+    function isValidUserDraft(data, userId, draftId) {
+      return data.keys().hasAll([
+          'id',
+          'uid',
+          'collection',
+          'slug',
+          'title',
+          'date',
+          'category',
+          'tags',
+          'excerpt',
+          'draft',
+          'markdownBody',
+          'rawContent',
+          'path',
+          'source',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'uid',
+          'collection',
+          'slug',
+          'title',
+          'date',
+          'category',
+          'tags',
+          'excerpt',
+          'cover',
+          'draft',
+          'markdownBody',
+          'rawContent',
+          'path',
+          'sha',
+          'source',
+          'seoTitle',
+          'seoDescription',
+          'canonicalUrl',
+          'noindex',
+          'authorName',
+          'price',
+          'originalPrice',
+          'inStock',
+          'linkDemo',
+          'linkGithub',
+          'linkBuy',
+          'formats',
+          'publishYear',
+          'featured',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.id == draftId
+        && data.uid == userId
+        && data.collection in ['bai_viet', 'du_an', 'sach', 'cua_hang']
+        && isStringMax(data.slug, 160)
+        && isStringMax(data.title, 240)
+        && isStringMax(data.date, 30)
+        && isStringMax(data.category, 120)
+        && data.tags is list && data.tags.size() <= 25
+        && (data.tags.size() == 0 || data.tags[0] is string)
+        && isStringMax(data.excerpt, 600)
+        && data.draft is bool
+        && isStringMax(data.markdownBody, 400000)
+        && isStringMax(data.rawContent, 450000)
+        && isStringMax(data.path, 260)
+        && data.source in ['local', 'github', 'sample']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && isOptionalString(data, 'cover', 2000)
+        && isOptionalString(data, 'sha', 120)
+        && isOptionalString(data, 'seoTitle', 200)
+        && isOptionalString(data, 'seoDescription', 400)
+        && isOptionalString(data, 'canonicalUrl', 400)
+        && isOptionalBool(data, 'noindex')
+        && isOptionalString(data, 'authorName', 120)
+        && isOptionalString(data, 'price', 60)
+        && isOptionalString(data, 'originalPrice', 60)
+        && isOptionalBool(data, 'inStock')
+        && isOptionalString(data, 'linkDemo', 400)
+        && isOptionalString(data, 'linkGithub', 400)
+        && isOptionalString(data, 'linkBuy', 400)
+        && (!('formats' in data) || (
+          data.formats is list
+          && data.formats.size() <= 10
+          && (data.formats.size() == 0 || data.formats[0] is string)
+        ))
+        && isOptionalNumber(data, 'publishYear')
+        && isOptionalBool(data, 'featured');
+    }
+
+    match /users/{userId}/config/{configId} {
+      allow get: if isOwner(userId) && isValidConfigId(configId);
+      allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+      allow create: if isOwner(userId)
+        && isValidConfigId(configId)
+        && isValidUserConfig(request.resource.data, userId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidConfigId(configId)
+        && isValidUserConfig(request.resource.data, userId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isOwner(userId) && isValidConfigId(configId);
+    }
+
+    match /users/{userId}/drafts/{draftId} {
+      allow get: if isOwner(userId) && isValidDraftId(draftId);
+      allow list: if isOwner(userId) && resource.data.uid == request.auth.uid;
+      allow create: if isOwner(userId)
+        && isValidDraftId(draftId)
+        && isValidUserDraft(request.resource.data, userId, draftId)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidDraftId(draftId)
+        && isValidUserDraft(request.resource.data, userId, draftId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isOwner(userId) && isValidDraftId(draftId);
     }
   }
 }

@@ -18,7 +18,7 @@ function escapeHtml(str: string): string {
 }
 
 export function normalizeBaseUrl(pagesUrl: string): string {
-  const clean = (pagesUrl || 'https://trungtin87.github.io').trim().replace(/\/+$/, '');
+  const clean = (pagesUrl || 'https://example.github.io').trim().replace(/\/+$/, '');
   return clean.startsWith('http') ? clean : `https://${clean}`;
 }
 

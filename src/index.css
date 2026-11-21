@@ -166,3 +166,96 @@
   font-weight: 600;
   background: var(--prose-surface, rgba(120, 120, 120, 0.06));
 }
+
+.blog-prose .dk-callout {
+  margin: 1.5em 0;
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  border-left: 4px solid #2563eb;
+  background: rgba(37, 99, 235, 0.07);
+}
+
+.blog-prose .dk-callout-tip {
+  border-left-color: #059669;
+  background: rgba(5, 150, 105, 0.08);
+}
+
+.blog-prose .dk-callout-important {
+  border-left-color: #7c3aed;
+  background: rgba(124, 58, 237, 0.08);
+}
+
+.blog-prose .dk-callout-warning,
+.blog-prose .dk-callout-caution {
+  border-left-color: #d97706;
+  background: rgba(217, 119, 6, 0.09);
+}
+
+.blog-prose .dk-callout-title {
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.35rem;
+}
+
+.blog-prose .dk-callout-body p:last-child {
+  margin-bottom: 0;
+}
+
+.blog-prose .dk-video-embed {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%;
+  margin: 1.75em 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--prose-border, rgba(120, 120, 120, 0.18));
+  background: #000;
+}
+
+.blog-prose .dk-video-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.blog-prose .dk-mermaid-card {
+  margin: 1.5em 0;
+  border-radius: 10px;
+  border: 1px solid var(--prose-border, rgba(120, 120, 120, 0.22));
+  background: var(--prose-surface, rgba(120, 120, 120, 0.05));
+  overflow: hidden;
+}
+
+.blog-prose .dk-mermaid-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--prose-border, rgba(120, 120, 120, 0.16));
+  opacity: 0.75;
+}
+
+.blog-prose .dk-mermaid-card pre.mermaid {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.blog-prose .dk-math-block {
+  margin: 1.5em 0;
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  border: 1px solid var(--prose-border, rgba(120, 120, 120, 0.18));
+  background: var(--prose-code-bg, rgba(120, 120, 120, 0.07));
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  overflow-x: auto;
+  text-align: center;
+}
+

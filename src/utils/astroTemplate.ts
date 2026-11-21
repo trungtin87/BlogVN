@@ -514,7 +514,15 @@ export function buildAstroSiteConfigModule(params: {
     ASTRO_TEMPLATE_PRESETS.find((p) => p.id === templateStyle) || ASTRO_TEMPLATE_PRESETS[0];
   const resolvedMode: ThemeMode = requestedMode || (presetMeta.isDark ? 'dark' : 'light');
   const isUserSite = repo.toLowerCase() === `${owner.toLowerCase()}.github.io`;
-  const defaultPagesUrl = isUserSite ? `https://${repo}` : `https://${owner}.github.io/${repo}`;
+  const cleanCustomDomain = (config.customDomain || '')
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/.*$/, '');
+  const defaultPagesUrl = cleanCustomDomain
+    ? `https://${cleanCustomDomain}`
+    : isUserSite
+    ? `https://${repo}`
+    : `https://${owner}.github.io/${repo}`;
 
   const rawIcon = (config.siteIcon || '').trim();
   const usePngFavicon = rawIcon.startsWith('data:image/') || (hasBundledPngFavicon && isBundledDefaultIcon(rawIcon));
@@ -537,7 +545,7 @@ export function buildAstroSiteConfigModule(params: {
       : [],
     footerText: (
       config.footerText ||
-      `© ${new Date().getFullYear()} ${(config.siteTitle || repo || 'Đạo Ký').trim()} · Xuất bản trên GitHub Pages.`
+      `© ${new Date().getFullYear()} ${(config.siteTitle || repo || 'Đạo Ký').trim()} · Ấn phẩm blog cá nhân.`
     ).trim(),
     footerLinks: Array.isArray(config.footerLinks)
       ? config.footerLinks.filter((l) => l?.label?.trim() && l?.url?.trim())
@@ -550,9 +558,21 @@ export function buildAstroSiteConfigModule(params: {
     themeMode: resolvedMode,
     templateStyle,
     isMultiPage: isMultiPageTemplate(templateStyle),
-    pagesUrl: (config.pagesUrl || defaultPagesUrl).trim().replace(/\/+$/, ''),
-    githubOwner: owner,
-    githubRepo: repo,
+    pagesUrl: cleanCustomDomain
+      ? `https://${cleanCustomDomain}`
+      : (config.pagesUrl || defaultPagesUrl).trim().replace(/\/+$/, ''),
+    customDomain: cleanCustomDomain,
+    analyticsProvider: config.analyticsProvider || 'none',
+    analyticsId: (config.analyticsId || '').trim(),
+    giscus: config.giscus
+      ? {
+          enabled: Boolean(config.giscus.enabled),
+          repo: (config.giscus.repo || '').trim(),
+          repoId: (config.giscus.repoId || '').trim(),
+          category: (config.giscus.category || 'Announcements').trim(),
+          categoryId: (config.giscus.categoryId || '').trim(),
+        }
+      : { enabled: false, repo: '', repoId: '', category: 'Announcements', categoryId: '' },
     liveChat: config.liveChat
       ? {
           enabled: Boolean(config.liveChat.enabled),
@@ -591,6 +611,14 @@ export interface LiveChatSettings {
   channels: LiveChatChannel[];
 }
 
+export interface GiscusSettings {
+  enabled: boolean;
+  repo: string;
+  repoId: string;
+  category: string;
+  categoryId: string;
+}
+
 export type AstroTemplateStyle =
   | 'newyorker-light'
   | 'nytimes-light'
@@ -617,8 +645,10 @@ export interface SiteIdentityConfig {
   templateStyle: AstroTemplateStyle;
   isMultiPage: boolean;
   pagesUrl: string;
-  githubOwner: string;
-  githubRepo: string;
+  customDomain?: string;
+  analyticsProvider?: 'none' | 'ga4' | 'cloudflare' | 'plausible' | 'umami';
+  analyticsId?: string;
+  giscus?: GiscusSettings;
   liveChat?: LiveChatSettings;
 }
 
@@ -655,7 +685,7 @@ export function buildVietnameseAstroTemplateFiles(params: {
   const siteTitle = (config.siteTitle || repo || 'Đạo Ký').trim();
   const tagline = (
     config.tagline ||
-    'Ghi chép cá nhân, bài luận chuyên sâu và góc nhìn tĩnh tại trên GitHub Pages.'
+    'Ghi chép cá nhân, bài luận chuyên sâu và góc nhìn tĩnh tại.'
   ).trim();
   const headerBrand = (config.headerTitle || siteTitle).trim();
   const authorName = (config.authorName || owner || 'Tác giả').trim();
@@ -674,8 +704,16 @@ export function buildVietnameseAstroTemplateFiles(params: {
     : defaultFaviconPngBase64 && isBundledDefaultIcon(rawIcon)
     ? defaultFaviconPngBase64.replace(/^data:[^;]+;base64,/, '')
     : undefined;
+  const cleanCustomDomain = (config.customDomain || '')
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/.*$/, '');
   const isUserSite = repo.toLowerCase() === `${owner.toLowerCase()}.github.io`;
-  const defaultPagesUrl = isUserSite ? `https://${repo}` : `https://${owner}.github.io/${repo}`;
+  const defaultPagesUrl = cleanCustomDomain
+    ? `https://${cleanCustomDomain}`
+    : isUserSite
+    ? `https://${repo}`
+    : `https://${owner}.github.io/${repo}`;
 
   const persistedConfig: Partial<BlogConfig> = {
     ...config,
@@ -685,7 +723,10 @@ export function buildVietnameseAstroTemplateFiles(params: {
     authorName,
     githubOwner: owner,
     githubRepo: repo,
-    pagesUrl: (config.pagesUrl || defaultPagesUrl).trim().replace(/\/+$/, ''),
+    customDomain: cleanCustomDomain || undefined,
+    pagesUrl: cleanCustomDomain
+      ? `https://${cleanCustomDomain}`
+      : (config.pagesUrl || defaultPagesUrl).trim().replace(/\/+$/, ''),
     postsDirectory: 'src/content/bai_viet',
     themeMode: resolvedMode,
     astroTemplate: templateStyle,
@@ -733,22 +774,66 @@ export function buildVietnameseAstroTemplateFiles(params: {
 const repoOwner = process.env.GITHUB_REPOSITORY_OWNER || '${escapeSingleQuote(owner)}';
 const repoFull = process.env.GITHUB_REPOSITORY || '${escapeSingleQuote(owner)}/${escapeSingleQuote(repo)}';
 const repoName = repoFull.split('/')[1] || '${escapeSingleQuote(repo)}';
+const customDomain = '${escapeSingleQuote(cleanCustomDomain)}';
 const isUserSite =
-  Boolean(repoName && repoOwner) &&
-  repoName.toLowerCase() === \`\${repoOwner.toLowerCase()}.github.io\`;
+  Boolean(customDomain) ||
+  (Boolean(repoName && repoOwner) &&
+    repoName.toLowerCase() === \`\${repoOwner.toLowerCase()}.github.io\`);
 
 const site =
   process.env.SITE_URL ||
-  (repoOwner ? \`https://\${repoOwner}.github.io\` : '${escapeSingleQuote(defaultPagesUrl)}');
+  (customDomain
+    ? \`https://\${customDomain}\`
+    : repoOwner
+    ? \`https://\${repoOwner}.github.io\`
+    : '${escapeSingleQuote(defaultPagesUrl)}');
 const base =
   process.env.BASE_PATH ||
-  (repoName && !isUserSite ? \`/\${repoName}\` : '/');
+  (customDomain || isUserSite || !repoName ? '/' : \`/\${repoName}\`);
 
-function remarkPrefixLocalAssets() {
+const CALLOUT_LABELS = {
+  note: 'Ghi chú',
+  tip: 'Mẹo hay',
+  important: 'Quan trọng',
+  warning: 'Cảnh báo',
+  caution: 'Lưu ý',
+  info: 'Thông tin',
+};
+
+function escapeHtmlBasic(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function extractVideoEmbed(rawUrl) {
+  const str = String(rawUrl || '').trim();
+  const ytMatch = str.match(
+    /(?:youtube\\.com\\/(?:watch\\?v=|shorts\\/|embed\\/)|youtu\\.be\\/)([a-zA-Z0-9_-]{11})/i
+  );
+  if (ytMatch && ytMatch[1]) {
+    return (
+      '<div class="dk-video-embed"><iframe src="https://www.youtube.com/embed/' +
+      ytMatch[1] +
+      '" title="YouTube video" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>'
+    );
+  }
+  const vmMatch = str.match(/vimeo\\.com\\/(?:video\\/)?(\\d{5,12})/i);
+  if (vmMatch && vmMatch[1]) {
+    return (
+      '<div class="dk-video-embed"><iframe src="https://player.vimeo.com/video/' +
+      vmMatch[1] +
+      '" title="Vimeo video" loading="lazy" allowfullscreen></iframe></div>'
+    );
+  }
+  return null;
+}
+
+function remarkDaoKyEnhancements() {
   const cleanBase = base === '/' ? '' : base.replace(/\\/+$/, '');
-  if (!cleanBase) return () => {};
   const rewriteSrc = (val) => {
-    if (typeof val !== 'string') return val;
+    if (typeof val !== 'string' || !cleanBase) return val;
     if (
       (val.startsWith('/tainguyen/') || val.startsWith('/images/')) &&
       !val.startsWith(cleanBase + '/')
@@ -759,10 +844,79 @@ function remarkPrefixLocalAssets() {
   };
   const walk = (node) => {
     if (!node || typeof node !== 'object') return;
-    if (node.type === 'image' && typeof node.url === 'string') {
-      node.url = rewriteSrc(node.url);
+    if (node.type === 'image') {
+      if (typeof node.url === 'string') {
+        node.url = rewriteSrc(node.url);
+      }
+      node.data = node.data || {};
+      node.data.hProperties = {
+        ...(node.data.hProperties || {}),
+        loading: 'lazy',
+        decoding: 'async',
+      };
     }
-    if (node.type === 'html' && typeof node.value === 'string') {
+    if (node.type === 'code' && String(node.lang || '').toLowerCase() === 'mermaid') {
+      node.type = 'html';
+      node.value = '<div class="dk-mermaid-box"><pre class="mermaid">' + escapeHtmlBasic(node.value) + '</pre></div>';
+      delete node.lang;
+      return;
+    }
+    if (node.type === 'blockquote' && Array.isArray(node.children) && node.children.length > 0) {
+      const firstPara = node.children[0];
+      if (firstPara && firstPara.type === 'paragraph' && Array.isArray(firstPara.children) && firstPara.children.length > 0) {
+        const firstText = firstPara.children[0];
+        if (firstText && firstText.type === 'text' && typeof firstText.value === 'string') {
+          const m = firstText.value.match(/^\\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|INFO)\\]([^\\n]*)(\\n[\\s\\S]*)?$/i);
+          if (m) {
+            const cType = m[1].toLowerCase();
+            const customTitle = (m[2] || '').trim() || CALLOUT_LABELS[cType] || cType.toUpperCase();
+            const rest = (m[3] || '').replace(/^\\n+/, '');
+            node.data = node.data || {};
+            node.data.hProperties = {
+              ...(node.data.hProperties || {}),
+              class: 'dk-callout dk-callout-' + cType,
+              'data-callout': cType,
+            };
+            firstText.value = rest;
+            firstPara.children.unshift({
+              type: 'html',
+              value: '<span class="dk-callout-title">' + escapeHtmlBasic(customTitle) + '</span>',
+            });
+          }
+        }
+      }
+    }
+    if (node.type === 'paragraph' && Array.isArray(node.children) && node.children.length === 1) {
+      const only = node.children[0];
+      let candidate = '';
+      if (only.type === 'text' && typeof only.value === 'string') {
+        const macro = only.value.trim().match(/^@\\[(youtube|vimeo)\\]\\(([^)]+)\\)$/i);
+        if (macro) {
+          const kind = macro[1].toLowerCase();
+          const arg = macro[2].trim();
+          candidate =
+            kind === 'youtube' && !arg.includes('http')
+              ? 'https://www.youtube.com/watch?v=' + arg
+              : kind === 'vimeo' && !arg.includes('http')
+              ? 'https://vimeo.com/' + arg
+              : arg;
+        } else if (/^https?:\\/\\/(?:www\\.)?(?:youtube\\.com|youtu\\.be|vimeo\\.com)\\/\\S+$/i.test(only.value.trim())) {
+          candidate = only.value.trim();
+        }
+      } else if (only.type === 'link' && typeof only.url === 'string' && /^https?:\\/\\/(?:www\\.)?(?:youtube\\.com|youtu\\.be|vimeo\\.com)\\/\\S+$/i.test(only.url)) {
+        candidate = only.url;
+      }
+      if (candidate) {
+        const embedHtml = extractVideoEmbed(candidate);
+        if (embedHtml) {
+          node.type = 'html';
+          node.value = embedHtml;
+          delete node.children;
+          return;
+        }
+      }
+    }
+    if (node.type === 'html' && typeof node.value === 'string' && cleanBase) {
       node.value = node.value.replace(
         /(src=["'])(\\/(?:tainguyen|images)\\/[^"']+)(["'])/gi,
         (_m, p, rel, s) => p + rewriteSrc(rel) + s
@@ -780,7 +934,7 @@ export default defineConfig({
   base,
   output: 'static',
   markdown: {
-    remarkPlugins: [remarkPrefixLocalAssets],
+    remarkPlugins: [remarkDaoKyEnhancements],
   },
 });
 `;
@@ -993,7 +1147,7 @@ jobs:
   <text x="96" y="280" font-family="Georgia, serif" font-weight="700" font-size="58" fill="${tokens.text}">${escXml(siteTitle)}</text>
   <text x="96" y="355" font-family="sans-serif" font-size="26" fill="${tokens.text2}">${escXml(tagline.slice(0, 78))}</text>
   <line x1="96" y1="450" x2="1104" y2="450" stroke="${tokens.border}" stroke-width="1"/>
-  <text x="96" y="510" font-family="monospace" font-size="22" fill="${tokens.muted}">${escXml(authorName)} · GitHub Pages Blog</text>
+  <text x="96" y="510" font-family="monospace" font-size="22" fill="${tokens.muted}">${escXml(authorName)} · Ấn phẩm Blog</text>
 </svg>
 `;
 
@@ -1125,44 +1279,73 @@ export function estimateReadingTime(body = ''): number {
   const contentConfigTs = `import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
 
-const postSchema = z.object({
-  tieu_de: z.string().optional(),
-  title: z.string().optional(),
-  danh_muc: z.union([z.string(), z.array(z.string())]).optional(),
-  category: z.string().optional(),
-  chuyen_muc: z.string().optional(),
-  slug: z.string().optional(),
-  tags: z.array(z.string()).optional().default([]),
-  mo_ta: z.string().optional(),
-  excerpt: z.string().optional(),
-  description: z.string().optional(),
-  ngay: z.coerce.string().optional(),
-  date: z.coerce.string().optional(),
-  pubDate: z.coerce.string().optional(),
-  anh_bia: z.string().optional(),
-  cover: z.string().optional(),
-  heroImage: z.string().optional(),
-  image: z.string().optional(),
-  nhap: z.boolean().optional().default(false),
-  draft: z.boolean().optional().default(false),
-  tac_gia: z.string().optional(),
-  author: z.string().optional(),
-  noi_bat: z.boolean().optional(),
-  seo_title: z.string().optional(),
-  seo_description: z.string().optional(),
-  canonical_url: z.string().optional(),
-  noindex: z.boolean().optional(),
-});
+const postSchema = z
+  .object({
+    tieu_de: z.string().optional(),
+    ten_san_pham: z.string().optional(),
+    title: z.string().optional(),
+    danh_muc: z.union([z.string(), z.array(z.string())]).optional(),
+    category: z.string().optional(),
+    chuyen_muc: z.string().optional(),
+    slug: z.string().optional(),
+    tags: z.array(z.string()).optional().default([]),
+    cong_nghe: z.union([z.string(), z.array(z.string())]).optional(),
+    the_loai: z.union([z.string(), z.array(z.string())]).optional(),
+    mo_ta: z.string().optional(),
+    mo_ta_ngan: z.string().optional(),
+    excerpt: z.string().optional(),
+    description: z.string().optional(),
+    ngay: z.coerce.string().optional(),
+    date: z.coerce.string().optional(),
+    pubDate: z.coerce.string().optional(),
+    anh_bia: z.string().optional(),
+    anh_dai_dien: z.string().optional(),
+    anh_san_pham: z.string().optional(),
+    cover: z.string().optional(),
+    heroImage: z.string().optional(),
+    image: z.string().optional(),
+    nhap: z.boolean().optional().default(false),
+    draft: z.boolean().optional().default(false),
+    tac_gia: z.string().optional(),
+    author: z.string().optional(),
+    noi_bat: z.boolean().optional(),
+    gia: z.coerce.string().optional(),
+    gia_goc: z.coerce.string().optional(),
+    con_hang: z.boolean().optional(),
+    link_demo: z.string().optional(),
+    link_github: z.string().optional(),
+    link_mua: z.string().optional(),
+    dinh_dang: z.union([z.string(), z.array(z.string())]).optional(),
+    nam_xuat_ban: z.coerce.number().optional(),
+    seo_title: z.string().optional(),
+    seo_description: z.string().optional(),
+    canonical_url: z.string().optional(),
+    noindex: z.boolean().optional(),
+  })
+  .passthrough();
 
 export const collections = {
   bai_viet: defineCollection({
     loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/bai_viet' }),
     schema: postSchema,
   }),
+  du_an: defineCollection({
+    loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/du_an' }),
+    schema: postSchema,
+  }),
+  sach: defineCollection({
+    loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/sach' }),
+    schema: postSchema,
+  }),
+  cua_hang: defineCollection({
+    loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/cua_hang' }),
+    schema: postSchema,
+  }),
 };
 `;
 
   const baseLayoutAstro = `---
+import { getCollection } from 'astro:content';
 import { SITE_CONFIG } from '../cau_hinh/trang_web';
 import { withBase } from '../utils/url';
 
@@ -1191,6 +1374,8 @@ const ogImgHref = withBase(ogImage);
 const initialMode = SITE_CONFIG.themeMode === 'dark' ? 'dark' : 'light';
 const initialDark = initialMode === 'dark';
 const currentPath = Astro.url.pathname;
+const analyticsProvider = SITE_CONFIG.analyticsProvider || 'none';
+const analyticsId = (SITE_CONFIG.analyticsId || '').trim();
 const liveChat = SITE_CONFIG.liveChat;
 const activeChatChannels = (liveChat?.channels || []).filter(
   (ch) => ch.enabled && ch.value && ch.value.trim().length > 0
@@ -1231,17 +1416,38 @@ function isNavActive(targetHref: string): boolean {
   return cleanCurrent === cleanTarget || cleanCurrent.startsWith(\`\${cleanTarget}/\`);
 }
 
+let hasProjects = false;
+let hasBooks = false;
+let hasShop = false;
+try {
+  hasProjects = (await getCollection('du_an')).some((e) => !e.data.nhap && !e.data.draft);
+} catch {}
+try {
+  hasBooks = (await getCollection('sach')).some((e) => !e.data.nhap && !e.data.draft);
+} catch {}
+try {
+  hasShop = (await getCollection('cua_hang')).some((e) => !e.data.nhap && !e.data.draft);
+} catch {}
+
+const extraCollectionNav = [
+  ...(hasProjects ? [{ label: 'Dự án', href: withBase('/du-an/') }] : []),
+  ...(hasBooks ? [{ label: 'Sách', href: withBase('/sach/') }] : []),
+  ...(hasShop ? [{ label: 'Cửa hàng', href: withBase('/cua-hang/') }] : []),
+];
+
 const mainNav = SITE_CONFIG.isMultiPage
   ? [
       { label: 'Trang nhất', href: withBase('/') },
       { label: 'Chuyên mục', href: withBase('/chuyen-muc/') },
       { label: 'Kho bài', href: withBase('/bai-viet/') },
+      ...extraCollectionNav,
       { label: 'Lưu trữ', href: withBase('/luu-tru/') },
       { label: 'Giới thiệu', href: withBase('/gioi-thieu/') },
     ]
   : [
       { label: 'Trang nhất', href: withBase('/') },
       { label: 'Kho bài viết', href: withBase('/bai-viet/') },
+      ...extraCollectionNav,
     ];
 
 const drawerExtraNav = SITE_CONFIG.isMultiPage
@@ -1272,6 +1478,27 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
         } catch (e) {}
       })();
     </script>
+
+    {analyticsProvider === 'ga4' && analyticsId && (
+      <>
+        <script async src={\`https://www.googletagmanager.com/gtag/js?id=\${encodeURIComponent(analyticsId)}\`}></script>
+        <script is:inline define:vars={{ gaId: analyticsId }}>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', gaId);
+        </script>
+      </>
+    )}
+    {analyticsProvider === 'cloudflare' && analyticsId && (
+      <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon={JSON.stringify({ token: analyticsId })}></script>
+    )}
+    {analyticsProvider === 'plausible' && analyticsId && (
+      <script defer data-domain={analyticsId} src="https://plausible.io/js/script.js"></script>
+    )}
+    {analyticsProvider === 'umami' && analyticsId && (
+      <script defer src="https://cloud.umami.is/script.js" data-website-id={analyticsId}></script>
+    )}
 
     <meta property="og:type" content="website" />
     <meta property="og:title" content={fullTitle} />
@@ -1472,6 +1699,13 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
           try {
             localStorage.setItem('daoky_theme_mode', next);
           } catch (e) {}
+          const giscusFrame = document.querySelector('iframe.giscus-frame');
+          if (giscusFrame && giscusFrame.contentWindow) {
+            giscusFrame.contentWindow.postMessage(
+              { giscus: { setConfig: { theme: next } } },
+              'https://giscus.app'
+            );
+          }
         });
       }
       const mBtn = document.getElementById('mobileMenuBtn');
@@ -1495,6 +1729,78 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
             chatToggle.setAttribute('aria-expanded', 'false');
           });
         }
+      }
+
+      document.querySelectorAll('.prose pre').forEach((preEl) => {
+        if (preEl.classList.contains('mermaid')) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'dk-copy-btn';
+        btn.textContent = 'Sao chép';
+        btn.addEventListener('click', () => {
+          const codeEl = preEl.querySelector('code');
+          const txt = codeEl ? codeEl.textContent || '' : preEl.textContent || '';
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(txt).then(() => {
+              btn.textContent = 'Đã chép';
+              window.setTimeout(() => {
+                btn.textContent = 'Sao chép';
+              }, 1600);
+            }).catch(() => {});
+          }
+        });
+        preEl.appendChild(btn);
+      });
+
+      const proseBlocks = document.querySelectorAll('.prose');
+      let needsKatex = false;
+      proseBlocks.forEach((el) => {
+        if (el.textContent && el.textContent.includes('$')) {
+          needsKatex = true;
+        }
+      });
+      if (needsKatex) {
+        const kCss = document.createElement('link');
+        kCss.rel = 'stylesheet';
+        kCss.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';
+        document.head.appendChild(kCss);
+        const kJs = document.createElement('script');
+        kJs.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';
+        kJs.onload = () => {
+          const kAuto = document.createElement('script');
+          kAuto.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js';
+          kAuto.onload = () => {
+            if (typeof window.renderMathInElement === 'function') {
+              proseBlocks.forEach((el) => {
+                window.renderMathInElement(el, {
+                  delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '$', right: '$', display: false },
+                  ],
+                  throwOnError: false,
+                });
+              });
+            }
+          };
+          document.head.appendChild(kAuto);
+        };
+        document.head.appendChild(kJs);
+      }
+
+      if (document.querySelectorAll('.mermaid').length > 0) {
+        const mScript = document.createElement('script');
+        mScript.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+        mScript.onload = () => {
+          if (window.mermaid) {
+            const isDarkMode = document.documentElement.getAttribute('data-mode') === 'dark';
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: isDarkMode ? 'dark' : 'default',
+            });
+            window.mermaid.run();
+          }
+        };
+        document.head.appendChild(mScript);
       }
     </script>
   </body>
@@ -1841,7 +2147,8 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
   }
 
   .prose pre {
-    padding: 1rem;
+    position: relative;
+    padding: 1.1rem;
     border-radius: 10px;
     overflow-x: auto;
     background: var(--surface);
@@ -1861,6 +2168,100 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
   .prose pre code {
     background: transparent;
     padding: 0;
+  }
+
+  .dk-copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text-2);
+    cursor: pointer;
+    opacity: 0.85;
+  }
+
+  .dk-copy-btn:hover {
+    opacity: 1;
+    border-color: var(--link);
+    color: var(--text);
+  }
+
+  .prose blockquote.dk-callout {
+    font-family: var(--font-body);
+    font-style: normal;
+    font-size: 1rem;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--link);
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 0.95rem 1.15rem;
+  }
+
+  .prose blockquote.dk-callout-tip {
+    border-left-color: #10b981;
+  }
+
+  .prose blockquote.dk-callout-important {
+    border-left-color: #8b5cf6;
+  }
+
+  .prose blockquote.dk-callout-warning {
+    border-left-color: #f59e0b;
+  }
+
+  .prose blockquote.dk-callout-caution {
+    border-left-color: #ef4444;
+  }
+
+  .dk-callout-title {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .dk-video-embed {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    margin: 1.5rem 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: #000;
+  }
+
+  .dk-video-embed iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+  }
+
+  .dk-mermaid-box {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    overflow-x: auto;
+  }
+
+  .dk-mermaid-box pre.mermaid {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    text-align: center;
   }
 
   .livechat-dock {
@@ -3094,6 +3495,32 @@ const blogPostingJsonLd = {
       <div class="author-name">{resolvedAuthor}</div>
       <p class="author-bio">{SITE_CONFIG.authorBio}</p>
     </aside>
+
+    {SITE_CONFIG.giscus?.enabled &&
+      SITE_CONFIG.giscus.repo &&
+      SITE_CONFIG.giscus.repoId &&
+      SITE_CONFIG.giscus.categoryId && (
+        <section class="comments-box" aria-label="Bình luận độc giả">
+          <h2 class="comments-heading">Thảo luận &amp; Bình luận</h2>
+          <script
+            is:inline
+            src="https://giscus.app/client.js"
+            data-repo={SITE_CONFIG.giscus.repo}
+            data-repo-id={SITE_CONFIG.giscus.repoId}
+            data-category={SITE_CONFIG.giscus.category || 'Announcements'}
+            data-category-id={SITE_CONFIG.giscus.categoryId}
+            data-mapping="pathname"
+            data-strict="0"
+            data-reactions-enabled="1"
+            data-emit-metadata="0"
+            data-input-position="bottom"
+            data-theme={SITE_CONFIG.themeMode === 'dark' ? 'dark' : 'light'}
+            data-lang="vi"
+            crossorigin="anonymous"
+            async
+          />
+        </section>
+      )}
   </article>
 
   {relatedPosts.length > 0 && (
@@ -3304,6 +3731,20 @@ const blogPostingJsonLd = {
     .related-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
+  }
+
+  .comments-box {
+    margin-top: 32px;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--card);
+  }
+
+  .comments-heading {
+    margin: 0 0 14px;
+    font-family: var(--font-display);
+    font-size: 1.2rem;
   }
 </style>
 `;
@@ -4094,7 +4535,7 @@ const iconHref = withBase(SITE_CONFIG.siteIcon || '/favicon.svg');
       <h2>Tôn chỉ xuất bản</h2>
       <p>
         <strong>{SITE_CONFIG.siteTitle}</strong> được xây dựng trên nền tảng tệp văn bản thuần Markdown
-        và bộ khung tĩnh Astro 5 lưu trữ công khai trên GitHub repository <code>{SITE_CONFIG.githubOwner}/{SITE_CONFIG.githubRepo}</code>.
+        và bộ khung tĩnh Astro 5, hướng tới sự bền vững và tốc độ đọc tức thì.
         Mọi bài viết đều thuộc toàn quyền sở hữu của tác giả, tối ưu trải nghiệm đọc lâu dài ở cả hai chế độ Sáng và Tối.
       </p>
     </section>
@@ -4274,7 +4715,7 @@ const rssUrl = \`\${SITE_CONFIG.pagesUrl.replace(/\\/+$/, '')}\${withBase('/rss.
       </section>
 
       <section class="contact-card">
-        <h2>Theo dõi qua RSS & GitHub</h2>
+        <h2>Theo dõi qua RSS</h2>
         <p class="card-note">
           Thêm địa chỉ RSS vào trình đọc tin ưa thích (Feedly, NetNewsWire, Reeder) để nhận bài mới không qua thuật toán.
         </p>
@@ -4283,14 +4724,6 @@ const rssUrl = \`\${SITE_CONFIG.pagesUrl.replace(/\\/+$/, '')}\${withBase('/rss.
         </div>
         <div class="rss-actions">
           <a class="btn-rss" href={withBase('/rss.xml')}>Mở RSS Feed</a>
-          <a
-            class="btn-gh"
-            href={\`https://github.com/\${SITE_CONFIG.githubOwner}/\${SITE_CONFIG.githubRepo}\`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Kho nguồn GitHub ↗
-          </a>
         </div>
       </section>
     </div>
@@ -4395,8 +4828,7 @@ const rssUrl = \`\${SITE_CONFIG.pagesUrl.replace(/\\/+$/, '')}\${withBase('/rss.
     flex-wrap: wrap;
     gap: 10px;
   }
-  .btn-rss,
-  .btn-gh {
+  .btn-rss {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -4407,15 +4839,8 @@ const rssUrl = \`\${SITE_CONFIG.pagesUrl.replace(/\\/+$/, '')}\${withBase('/rss.
     font-weight: 600;
     text-decoration: none !important;
     white-space: nowrap;
-  }
-  .btn-rss {
     background: var(--accent);
     color: var(--accent-text);
-  }
-  .btn-gh {
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
   }
 </style>
 `;
@@ -4531,6 +4956,312 @@ export const GET: APIRoute = async ({ site }) => {
 };
 `;
 
+  const duAnIndexAstro = `---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getPostCover, getPostDate, getPostExcerpt, getPostSlug, getPostTitle, withBase } from '../../utils/url';
+
+let entries: any[] = [];
+try {
+  entries = (await getCollection('du_an'))
+    .filter((e) => !e.data.nhap && !e.data.draft)
+    .sort((a, b) => getPostDate(b).localeCompare(getPostDate(a)));
+} catch {}
+---
+
+<BaseLayout title="Dự án" description="Danh sách dự án phần mềm và sản phẩm sáng tạo.">
+  <header class="page-head">
+    <p class="page-kicker">Hồ sơ công việc</p>
+    <h1>Dự án đã thực hiện</h1>
+    <p class="page-sub">Tổng hợp các dự án kỹ thuật, công cụ nguồn mở và sản phẩm cá nhân.</p>
+  </header>
+
+  {entries.length === 0 ? (
+    <p class="empty-msg">Chưa có dự án nào được xuất bản.</p>
+  ) : (
+    <div class="col-grid">
+      {entries.map((entry) => {
+        const slug = getPostSlug(entry);
+        const title = getPostTitle(entry);
+        const excerpt = getPostExcerpt(entry);
+        const cover = getPostCover(entry);
+        const techs = Array.isArray(entry.data?.cong_nghe)
+          ? entry.data.cong_nghe
+          : Array.isArray(entry.data?.tags)
+          ? entry.data.tags
+          : [];
+        return (
+          <article class="proj-card">
+            {cover && (
+              <a href={withBase(\`/du-an/\${slug}/\`) } class="proj-cover">
+                <img src={cover} alt={title} loading="lazy" />
+              </a>
+            )}
+            <div class="proj-body">
+              <h2><a href={withBase(\`/du-an/\${slug}/\`) }>{title}</a></h2>
+              {excerpt && <p>{excerpt}</p>}
+              {techs.length > 0 && (
+                <div class="tech-list">
+                  {techs.slice(0, 5).map((t: string) => <span>{t}</span>)}
+                </div>
+              )}
+              <div class="proj-actions">
+                <a class="btn-main" href={withBase(\`/du-an/\${slug}/\`) }>Chi tiết →</a>
+                {entry.data?.link_demo && (
+                  <a class="btn-sub" href={entry.data.link_demo} target="_blank" rel="noreferrer">Demo ↗</a>
+                )}
+                {entry.data?.link_github && (
+                  <a class="btn-sub" href={entry.data.link_github} target="_blank" rel="noreferrer">GitHub ↗</a>
+                )}
+              </div>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  )}
+</BaseLayout>
+
+<style>
+  .page-head { padding-bottom: 20px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .page-kicker { margin: 0 0 8px; font-family: var(--font-mono); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--link); }
+  .page-head h1 { margin: 0 0 8px; font-family: var(--font-display); font-size: 2rem; }
+  .page-sub, .empty-msg { color: var(--text-2); margin: 0; }
+  .col-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+  @media (min-width: 760px) { .col-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .proj-card { border: 1px solid var(--border); border-radius: 12px; background: var(--card); overflow: hidden; display: flex; flex-direction: column; }
+  .proj-cover { aspect-ratio: 16/9; display: block; overflow: hidden; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .proj-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .proj-body { padding: 18px 20px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .proj-body h2 { margin: 0; font-family: var(--font-display); font-size: 1.3rem; }
+  .proj-body h2 a { color: var(--text); }
+  .proj-body p { margin: 0; font-size: 0.92rem; color: var(--text-2); }
+  .tech-list { display: flex; flex-wrap: wrap; gap: 6px; font-family: var(--font-mono); font-size: 0.72rem; color: var(--link); }
+  .tech-list span { padding: 2px 8px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); }
+  .proj-actions { margin-top: auto; padding-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn-main, .btn-sub { display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; text-decoration: none !important; }
+  .btn-main { background: var(--accent); color: var(--accent-text); }
+  .btn-sub { border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+</style>
+`;
+
+  const duAnDetailAstro = `---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getPostCover, getPostExcerpt, getPostSlug, getPostTitle, withBase } from '../../utils/url';
+
+export async function getStaticPaths() {
+  let entries: any[] = [];
+  try {
+    entries = (await getCollection('du_an')).filter((e) => !e.data.nhap && !e.data.draft);
+  } catch {}
+  return entries.map((entry) => ({
+    params: { slug: getPostSlug(entry) },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const title = getPostTitle(entry);
+const excerpt = getPostExcerpt(entry);
+const cover = getPostCover(entry);
+---
+
+<BaseLayout title={title} description={excerpt} ogImage={cover}>
+  <article class="detail-wrap">
+    <nav class="breadcrumb">
+      <a href={withBase('/')}>Trang nhất</a>
+      <span>/</span>
+      <a href={withBase('/du-an/')}>Dự án</a>
+      <span>/</span>
+      <span>{title}</span>
+    </nav>
+    <header class="detail-head">
+      <h1>{title}</h1>
+      {excerpt && <p class="lead">{excerpt}</p>}
+      <div class="links">
+        {entry.data?.link_demo && (
+          <a class="btn-main" href={entry.data.link_demo} target="_blank" rel="noreferrer">Mở Demo ↗</a>
+        )}
+        {entry.data?.link_github && (
+          <a class="btn-sub" href={entry.data.link_github} target="_blank" rel="noreferrer">Mã nguồn GitHub ↗</a>
+        )}
+      </div>
+    </header>
+    {cover && (
+      <figure class="detail-cover">
+        <img src={cover} alt={title} />
+      </figure>
+    )}
+    <div class="prose">
+      <Content />
+    </div>
+  </article>
+</BaseLayout>
+
+<style>
+  .detail-wrap { max-width: 760px; margin: 0 auto; }
+  .breadcrumb { display: flex; flex-wrap: wrap; gap: 8px; font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); margin-bottom: 18px; }
+  .breadcrumb a { color: var(--text-2); }
+  .detail-head { padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .detail-head h1 { margin: 0 0 10px; font-family: var(--font-display); font-size: clamp(1.8rem, 4vw, 2.5rem); }
+  .lead { margin: 0 0 14px; color: var(--text-2); font-size: 1.05rem; }
+  .links { display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn-main, .btn-sub { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 8px; font-size: 0.86rem; font-weight: 600; text-decoration: none !important; }
+  .btn-main { background: var(--accent); color: var(--accent-text); }
+  .btn-sub { border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+  .detail-cover { margin: 0 0 24px; }
+  .detail-cover img { width: 100%; max-height: 420px; object-fit: cover; border-radius: 12px; border: 1px solid var(--border); }
+</style>
+`;
+
+  const sachIndexAstro = `---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getPostCover, getPostDate, getPostExcerpt, getPostTitle } from '../../utils/url';
+
+let entries: any[] = [];
+try {
+  entries = (await getCollection('sach'))
+    .filter((e) => !e.data.nhap && !e.data.draft)
+    .sort((a, b) => getPostDate(b).localeCompare(getPostDate(a)));
+} catch {}
+---
+
+<BaseLayout title="Tủ sách & Ebook" description="Danh mục sách và tài liệu chuyên sâu.">
+  <header class="page-head">
+    <p class="page-kicker">Ấn phẩm &amp; Đọc sách</p>
+    <h1>Tủ sách &amp; Ebook</h1>
+    <p class="page-sub">Những cuốn sách biên soạn và tài liệu lưu trữ.</p>
+  </header>
+
+  {entries.length === 0 ? (
+    <p class="empty-msg">Chưa có đầu sách nào được xuất bản.</p>
+  ) : (
+    <div class="book-grid">
+      {entries.map((entry) => {
+        const title = getPostTitle(entry);
+        const excerpt = getPostExcerpt(entry);
+        const cover = getPostCover(entry);
+        const formats = Array.isArray(entry.data?.dinh_dang) ? entry.data.dinh_dang : [];
+        return (
+          <article class="book-card">
+            {cover && (
+              <div class="book-cover"><img src={cover} alt={title} loading="lazy" /></div>
+            )}
+            <div class="book-body">
+              <h2>{title}</h2>
+              {entry.data?.tac_gia && <div class="book-author">Tác giả: {entry.data.tac_gia}</div>}
+              {excerpt && <p>{excerpt}</p>}
+              {formats.length > 0 && (
+                <div class="book-meta">{formats.join(' · ')}</div>
+              )}
+              {entry.data?.link_mua && (
+                <a class="book-btn" href={entry.data.link_mua} target="_blank" rel="noreferrer">
+                  Xem chi tiết / Tải về ↗
+                </a>
+              )}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  )}
+</BaseLayout>
+
+<style>
+  .page-head { padding-bottom: 20px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .page-kicker { margin: 0 0 8px; font-family: var(--font-mono); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--link); }
+  .page-head h1 { margin: 0 0 8px; font-family: var(--font-display); font-size: 2rem; }
+  .page-sub, .empty-msg { color: var(--text-2); margin: 0; }
+  .book-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+  @media (min-width: 720px) { .book-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .book-card { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; background: var(--card); overflow: hidden; }
+  .book-cover { aspect-ratio: 16/10; overflow: hidden; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .book-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .book-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .book-body h2 { margin: 0; font-family: var(--font-display); font-size: 1.25rem; }
+  .book-author, .book-meta { font-family: var(--font-mono); font-size: 0.76rem; color: var(--muted); }
+  .book-body p { margin: 0; font-size: 0.92rem; color: var(--text-2); }
+  .book-btn { margin-top: auto; align-self: flex-start; display: inline-flex; align-items: center; min-height: 38px; padding: 0 14px; border-radius: 8px; background: var(--accent); color: var(--accent-text); font-size: 0.84rem; font-weight: 600; text-decoration: none !important; }
+</style>
+`;
+
+  const cuaHangIndexAstro = `---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getPostCover, getPostDate, getPostExcerpt, getPostTitle } from '../../utils/url';
+
+let entries: any[] = [];
+try {
+  entries = (await getCollection('cua_hang'))
+    .filter((e) => !e.data.nhap && !e.data.draft)
+    .sort((a, b) => getPostDate(b).localeCompare(getPostDate(a)));
+} catch {}
+---
+
+<BaseLayout title="Cửa hàng & Tài nguyên" description="Sản phẩm số, mẫu giao diện và tài nguyên chọn lọc.">
+  <header class="page-head">
+    <p class="page-kicker">Cửa hàng số</p>
+    <h1>Sản phẩm &amp; Tài nguyên</h1>
+    <p class="page-sub">Bộ công cụ, ebook và tài liệu hữu ích.</p>
+  </header>
+
+  {entries.length === 0 ? (
+    <p class="empty-msg">Hiện chưa có sản phẩm nào.</p>
+  ) : (
+    <div class="shop-grid">
+      {entries.map((entry) => {
+        const title = getPostTitle(entry);
+        const excerpt = getPostExcerpt(entry);
+        const cover = getPostCover(entry);
+        return (
+          <article class="shop-card">
+            {cover && (
+              <div class="shop-cover"><img src={cover} alt={title} loading="lazy" /></div>
+            )}
+            <div class="shop-body">
+              <h2>{title}</h2>
+              {entry.data?.gia && (
+                <div class="shop-price">
+                  <strong>{entry.data.gia}</strong>
+                  {entry.data?.gia_goc && <s>{entry.data.gia_goc}</s>}
+                </div>
+              )}
+              {excerpt && <p>{excerpt}</p>}
+              {entry.data?.link_mua && (
+                <a class="shop-btn" href={entry.data.link_mua} target="_blank" rel="noreferrer">
+                  Đặt mua / Nhận tài nguyên ↗
+                </a>
+              )}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  )}
+</BaseLayout>
+
+<style>
+  .page-head { padding-bottom: 20px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .page-kicker { margin: 0 0 8px; font-family: var(--font-mono); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--link); }
+  .page-head h1 { margin: 0 0 8px; font-family: var(--font-display); font-size: 2rem; }
+  .page-sub, .empty-msg { color: var(--text-2); margin: 0; }
+  .shop-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+  @media (min-width: 720px) { .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .shop-card { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; background: var(--card); overflow: hidden; }
+  .shop-cover { aspect-ratio: 16/10; overflow: hidden; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .shop-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .shop-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .shop-body h2 { margin: 0; font-family: var(--font-display); font-size: 1.2rem; }
+  .shop-price { display: flex; align-items: baseline; gap: 8px; font-family: var(--font-mono); color: var(--link); font-size: 0.96rem; }
+  .shop-price s { color: var(--muted); font-size: 0.8rem; }
+  .shop-body p { margin: 0; font-size: 0.9rem; color: var(--text-2); }
+  .shop-btn { margin-top: auto; align-self: flex-start; display: inline-flex; align-items: center; min-height: 38px; padding: 0 14px; border-radius: 8px; background: var(--accent); color: var(--accent-text); font-size: 0.84rem; font-weight: 600; text-decoration: none !important; }
+</style>
+`;
+
   const sitemapXmlTs = `import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
 import { SITE_CONFIG } from '../cau_hinh/trang_web';
@@ -4553,6 +5284,19 @@ export const GET: APIRoute = async ({ site }) => {
     (e) => !e.data.nhap && !e.data.draft && !e.data.noindex
   );
 
+  let projects: any[] = [];
+  let books: any[] = [];
+  let shop: any[] = [];
+  try {
+    projects = (await getCollection('du_an')).filter((e) => !e.data.nhap && !e.data.draft);
+  } catch {}
+  try {
+    books = (await getCollection('sach')).filter((e) => !e.data.nhap && !e.data.draft);
+  } catch {}
+  try {
+    shop = (await getCollection('cua_hang')).filter((e) => !e.data.nhap && !e.data.draft);
+  } catch {}
+
   const todayStr = new Date().toISOString().slice(0, 10);
   const staticRoutes = [
     '/',
@@ -4562,6 +5306,9 @@ export const GET: APIRoute = async ({ site }) => {
     '/luu-tru/',
     '/gioi-thieu/',
     '/lien-he/',
+    ...(projects.length > 0 ? ['/du-an/'] : []),
+    ...(books.length > 0 ? ['/sach/'] : []),
+    ...(shop.length > 0 ? ['/cua-hang/'] : []),
   ];
   const categorySlugs = Array.from(new Set(posts.map((p) => getPostCategorySlug(p))));
   const tagSlugs = Array.from(
@@ -4583,6 +5330,10 @@ export const GET: APIRoute = async ({ site }) => {
     })),
     ...posts.map((p) => ({
       loc: \`\${origin}\${withBase(\`/bai-viet/\${getPostSlug(p)}/\`)}\`,
+      lastmod: getPostDate(p),
+    })),
+    ...projects.map((p) => ({
+      loc: \`\${origin}\${withBase(\`/du-an/\${getPostSlug(p)}/\`)}\`,
       lastmod: getPostDate(p),
     })),
   ];
@@ -4644,7 +5395,7 @@ Khi tốc độ lướt tin tăng lên, khả năng kiên nhẫn với một l�
 
 ## Giữ độc lập khỏi thuật toán
 
-- **Chữ nghĩa thuần Markdown**: Lưu trữ ngay trên GitHub repository cá nhân dưới quyền kiểm soát 100% của bạn.
+- **Chữ nghĩa thuần Markdown**: Lưu trữ ngay dưới dạng tệp văn bản thuần dưới quyền kiểm soát 100% của bạn.
 - **Nhịp trình bày thư thái**: Độ rộng dòng chữ vừa tầm mắt, giấy ngà dịu nhẹ và hỗ trợ bật tắt chế độ Sáng/Tối bất cứ lúc nào.
 - **Định danh rõ ràng**: Tích hợp sẵn dữ liệu cấu trúc \`BlogPosting\`, RSS Feed và Sitemap chuẩn mực.`,
       },
@@ -4857,7 +5608,7 @@ Bằng hộp thoại Live Chat ở góc dưới bên phải, **${siteTitle}** k�
       {
         fileName: 'luu-tru-tron-doi-tren-git.md',
         coverIndex: 2,
-        title: 'Lưu trữ trọn đời bằng tệp văn bản thuần trên Git repository',
+        title: 'Lưu trữ trọn đời bằng tệp văn bản thuần Markdown',
         category: 'Lưu trữ Git',
         categorySlug: 'luu-tru-git',
         slug: 'luu-tru-tron-doi-tren-git',
@@ -5489,6 +6240,10 @@ Trang \`/lien-he/\` trên **${siteTitle}** lưu giữ trọn vẹn đường d�
     { path: 'public/tainguyen/hinhanh/og-default.svg', content: ogDefaultSvg },
     ...coverFiles,
     { path: 'public/tainguyen/hinhanh/uploads/.gitkeep', content: '' },
+    { path: 'src/content/du_an/.gitkeep', content: '' },
+    { path: 'src/content/sach/.gitkeep', content: '' },
+    { path: 'src/content/cua_hang/.gitkeep', content: '' },
+    ...(cleanCustomDomain ? [{ path: 'public/CNAME', content: `${cleanCustomDomain}\n` }] : []),
     {
       path: 'src/cau_hinh/trang_web.ts',
       content: buildAstroSiteConfigModule({
@@ -5510,6 +6265,10 @@ Trang \`/lien-he/\` trên **${siteTitle}** lưu giữ trọn vẹn đường d�
     { path: 'src/pages/chuyen-muc/[slug].astro', content: chuyenMucDetailAstro },
     { path: 'src/pages/chu-de/index.astro', content: chuDeIndexAstro },
     { path: 'src/pages/chu-de/[tag].astro', content: chuDeDetailAstro },
+    { path: 'src/pages/du-an/index.astro', content: duAnIndexAstro },
+    { path: 'src/pages/du-an/[slug].astro', content: duAnDetailAstro },
+    { path: 'src/pages/sach/index.astro', content: sachIndexAstro },
+    { path: 'src/pages/cua-hang/index.astro', content: cuaHangIndexAstro },
     { path: 'src/pages/luu-tru/index.astro', content: luuTruIndexAstro },
     { path: 'src/pages/gioi-thieu/index.astro', content: gioiThieuIndexAstro },
     { path: 'src/pages/lien-he/index.astro', content: lienHeIndexAstro },

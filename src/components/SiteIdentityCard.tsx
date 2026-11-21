@@ -15,11 +15,13 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import type {
+  AnalyticsProviderId,
   AstroTemplateId,
   AuthStatus,
   BlogConfig,
   BlogPost,
   BlogTheme,
+  GiscusConfig,
   GitHubRepoInfo,
   LiveChatChannelConfig,
   LiveChatConfig,
@@ -172,6 +174,18 @@ export function SiteIdentityCard({
   const [liveChat, setLiveChat] = useState<LiveChatConfig>(() =>
     mergeLiveChatConfig(config.liveChat)
   );
+  const [customDomain, setCustomDomain] = useState(config.customDomain || '');
+  const [analyticsProvider, setAnalyticsProvider] = useState<AnalyticsProviderId>(
+    config.analyticsProvider || 'none'
+  );
+  const [analyticsId, setAnalyticsId] = useState(config.analyticsId || '');
+  const [giscus, setGiscus] = useState<GiscusConfig>(() => ({
+    enabled: Boolean(config.giscus?.enabled),
+    repo: config.giscus?.repo || '',
+    repoId: config.giscus?.repoId || '',
+    category: config.giscus?.category || 'Announcements',
+    categoryId: config.giscus?.categoryId || '',
+  }));
   const [preservePostsOnDeploy, setPreservePostsOnDeploy] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
@@ -180,6 +194,11 @@ export function SiteIdentityCard({
   const [confirmWipeAstro, setConfirmWipeAstro] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; url?: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const repoDisplay =
+    config.githubOwner && config.githubRepo
+      ? `${config.githubOwner}/${config.githubRepo}`
+      : 'Chưa chọn repository';
 
   useEffect(() => {
     setSiteTitle(config.siteTitle || '');
@@ -192,6 +211,16 @@ export function SiteIdentityCard({
     setAuthorName(config.authorName || '');
     setAuthorBio(config.authorBio || '');
     setAstroTemplate(normalizeAstroTemplateId(config.astroTemplate, config.themeMode));
+    setCustomDomain(config.customDomain || '');
+    setAnalyticsProvider(config.analyticsProvider || 'none');
+    setAnalyticsId(config.analyticsId || '');
+    setGiscus({
+      enabled: Boolean(config.giscus?.enabled),
+      repo: config.giscus?.repo || '',
+      repoId: config.giscus?.repoId || '',
+      category: config.giscus?.category || 'Announcements',
+      categoryId: config.giscus?.categoryId || '',
+    });
   }, [
     config.githubOwner,
     config.githubRepo,
@@ -206,6 +235,10 @@ export function SiteIdentityCard({
     config.authorBio,
     config.astroTemplate,
     config.themeMode,
+    config.customDomain,
+    config.analyticsProvider,
+    config.analyticsId,
+    config.giscus,
   ]);
 
   useEffect(() => {
@@ -227,6 +260,10 @@ export function SiteIdentityCard({
     const chosenTpl = overrideTemplate || astroTemplate;
     const chosenPreset = EDITORIAL_THEMES[chosenTpl];
     const chosenChat = overrideLiveChat || liveChat;
+    const cleanedDomain = customDomain
+      .trim()
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/+$/, '');
     return {
       ...config,
       siteTitle: siteTitle.trim() || config.siteTitle,
@@ -245,6 +282,16 @@ export function SiteIdentityCard({
             : 'light'
           : config.themeMode || (chosenPreset?.isDark ? 'dark' : 'light'),
       astroTemplate: chosenTpl,
+      customDomain: cleanedDomain || undefined,
+      analyticsProvider,
+      analyticsId: analyticsId.trim() || undefined,
+      giscus: {
+        enabled: Boolean(giscus.enabled),
+        repo: giscus.repo.trim(),
+        repoId: giscus.repoId.trim(),
+        category: giscus.category.trim() || 'Announcements',
+        categoryId: giscus.categoryId.trim(),
+      },
       liveChat: {
         enabled: chosenChat.enabled,
         title: (chosenChat.title || '').trim(),
@@ -410,10 +457,7 @@ export function SiteIdentityCard({
             </h2>
             <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
               Tuỳ chỉnh Icon, Tiêu đề web, Header, Footer và Mô tả riêng cho{' '}
-              <code>
-                {config.githubOwner}/{config.githubRepo}
-              </code>
-              .
+              <code>{repoDisplay}</code>.
             </p>
           </div>
         </div>
@@ -508,7 +552,7 @@ export function SiteIdentityCard({
             type="text"
             value={siteTitle}
             onChange={(e) => setSiteTitle(e.target.value)}
-            placeholder="VD: Huyền Không Thư Quán"
+            placeholder="VD: Nhật Ký Viết Lách"
             style={{
               backgroundColor: palette.canvas,
               borderColor: palette.border,
@@ -738,6 +782,173 @@ export function SiteIdentityCard({
             </div>
           )}
         </div>
+      </div>
+
+      {/* Custom Domain (CNAME), Web Analytics & Giscus Comments */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div
+          style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
+          className="p-4 rounded-xl border space-y-3"
+        >
+          <div className="text-xs sm:text-sm font-semibold">
+            Tên miền riêng (Custom Domain / CNAME)
+          </div>
+          <input
+            type="text"
+            value={customDomain}
+            onChange={(e) => setCustomDomain(e.target.value)}
+            placeholder="VD: blog.tenmiencuaban.com"
+            style={{
+              backgroundColor: palette.surface,
+              borderColor: palette.border,
+              color: palette.textPrimary,
+              fontFamily: fonts.mono,
+            }}
+            className="w-full px-3 min-h-[44px] text-xs rounded-lg border"
+          />
+          <p style={{ color: palette.textMuted }} className="text-[11px] leading-relaxed">
+            Đạo Ký sẽ tự tạo tệp <code>public/CNAME</code> khi đồng bộ Astro. Hãy trỏ bản ghi DNS{' '}
+            <code>CNAME</code> tại nhà cung cấp tên miền về{' '}
+            <code>{config.githubOwner ? `${config.githubOwner}.github.io` : 'username.github.io'}</code>.
+          </p>
+        </div>
+
+        <div
+          style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
+          className="p-4 rounded-xl border space-y-3"
+        >
+          <div className="text-xs sm:text-sm font-semibold">
+            Phân tích lưu lượng truy cập (Web Analytics)
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <select
+              value={analyticsProvider}
+              onChange={(e) => setAnalyticsProvider(e.target.value as AnalyticsProviderId)}
+              style={{
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                color: palette.textPrimary,
+              }}
+              className="w-full px-3 min-h-[44px] text-xs rounded-lg border"
+            >
+              <option value="none">Không sử dụng</option>
+              <option value="ga4">Google Analytics 4 (GA4)</option>
+              <option value="cloudflare">Cloudflare Web Analytics</option>
+              <option value="plausible">Plausible Analytics</option>
+              <option value="umami">Umami Analytics</option>
+            </select>
+            {analyticsProvider !== 'none' && (
+              <input
+                type="text"
+                value={analyticsId}
+                onChange={(e) => setAnalyticsId(e.target.value)}
+                placeholder={
+                  analyticsProvider === 'ga4'
+                    ? 'G-XXXXXXXXXX'
+                    : analyticsProvider === 'plausible'
+                    ? 'blog.tenmien.com'
+                    : analyticsProvider === 'umami'
+                    ? 'website-id-uuid'
+                    : 'Cloudflare Beacon Token'
+                }
+                style={{
+                  backgroundColor: palette.surface,
+                  borderColor: palette.border,
+                  color: palette.textPrimary,
+                  fontFamily: fonts.mono,
+                }}
+                className="w-full px-3 min-h-[44px] text-xs rounded-lg border"
+              />
+            )}
+          </div>
+          <p style={{ color: palette.textMuted }} className="text-[11px] leading-relaxed">
+            Mã đo lường được nhúng tự động vào thẻ <code>&lt;head&gt;</code> khi xuất bản Astro Blog.
+          </p>
+        </div>
+      </div>
+
+      <div
+        style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
+        className="p-4 rounded-xl border space-y-3"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-xs sm:text-sm font-semibold">
+              Bình luận độc giả bằng GitHub Discussions (Giscus)
+            </div>
+            <p style={{ color: palette.textMuted }} className="text-[11px] mt-0.5">
+              Cho phép độc giả bình luận dưới mỗi bài viết Astro không cần cơ sở dữ liệu riêng, tự đồng bộ giao diện Sáng / Tối.
+            </p>
+          </div>
+          <label
+            className="inline-flex items-center gap-2 text-xs font-semibold cursor-pointer select-none min-h-[44px] px-3 rounded-lg border"
+            style={{ borderColor: palette.border, backgroundColor: palette.surface }}
+          >
+            <input
+              type="checkbox"
+              checked={giscus.enabled}
+              onChange={(e) => setGiscus((prev) => ({ ...prev, enabled: e.target.checked }))}
+              className="w-4 h-4 rounded"
+            />
+            <span>{giscus.enabled ? 'Đang bật bình luận' : 'Đang tắt'}</span>
+          </label>
+        </div>
+
+        {giscus.enabled && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
+            <input
+              type="text"
+              value={giscus.repo}
+              onChange={(e) => setGiscus((prev) => ({ ...prev, repo: e.target.value }))}
+              placeholder="Repo (VD: user/user.github.io)"
+              style={{
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                color: palette.textPrimary,
+                fontFamily: fonts.mono,
+              }}
+              className="w-full px-3 min-h-[44px] text-xs rounded-lg border"
+            />
+            <input
+              type="text"
+              value={giscus.repoId}
+              onChange={(e) => setGiscus((prev) => ({ ...prev, repoId: e.target.value }))}
+              placeholder="Repo ID (từ giscus.app)"
+              style={{
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                color: palette.textPrimary,
+                fontFamily: fonts.mono,
+              }}
+              className="w-full px-3 min-h-[44px] text-xs rounded-lg border"
+            />
+            <input
+              type="text"
+              value={giscus.category}
+              onChange={(e) => setGiscus((prev) => ({ ...prev, category: e.target.value }))}
+              placeholder="Category (Announcements)"
+              style={{
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                color: palette.textPrimary,
+              }}
+              className="w-full px-3 min-h-[44px] text-xs rounded-lg border"
+            />
+            <input
+              type="text"
+              value={giscus.categoryId}
+              onChange={(e) => setGiscus((prev) => ({ ...prev, categoryId: e.target.value }))}
+              placeholder="Category ID (DIC_...)"
+              style={{
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                color: palette.textPrimary,
+                fontFamily: fonts.mono,
+              }}
+              className="w-full px-3 min-h-[44px] text-xs rounded-lg border"
+            />
+          </div>
+        )}
       </div>
 
       {/* Live Chat Widget Controls (Bottom-Right Toggle & Selectable Platforms) */}
@@ -976,7 +1187,7 @@ export function SiteIdentityCard({
                 </div>
                 <p style={{ color: palette.textSecondary }} className="text-xs leading-relaxed">
                   Mẫu thuần túy phục vụ viết &amp; đọc blog: ẩn khung mục lục rườm rà trên giao diện, giữ nguyên SEO ngầm (<code>sitemap.xml</code>, <code>robots.txt</code>, <code>BlogPosting</code> JSON-LD, RSS) và đẩy sạch lên{' '}
-                  <code>{config.githubOwner}/{config.githubRepo}</code> kèm nhận dạng cá nhân.
+                  <code>{repoDisplay}</code> kèm nhận dạng cá nhân.
                 </p>
               </div>
 
@@ -1034,7 +1245,7 @@ export function SiteIdentityCard({
                     />
                     <span>
                       <strong>Xoá sạch hết &amp; Tải đầy đủ bài viết mẫu mới (Mặc định):</strong> Xoá toàn bộ tệp cũ trên nhánh mặc định của{' '}
-                      <code>{config.githubOwner}/{config.githubRepo}</code> và nạp mới trọn bộ template + các bài viết mẫu đầy đủ.
+                      <code>{repoDisplay}</code> và nạp mới trọn bộ template + các bài viết mẫu đầy đủ.
                     </span>
                   </label>
                   <label className="flex items-start gap-2 cursor-pointer">

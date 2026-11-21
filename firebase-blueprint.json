@@ -1,4 +1,86 @@
 {
-  "entities": {},
-  "firestore": {}
+  "entities": {
+    "UserConfig": {
+      "title": "UserConfig",
+      "description": "Synced website identity, Astro template preset, live chat, custom domain, comments, and analytics settings for a verified Google user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID owning this config." },
+        "siteTitle": { "type": "string", "description": "Website title." },
+        "tagline": { "type": "string", "description": "Website tagline and meta description." },
+        "siteIcon": { "type": "string", "description": "Favicon URL or compact base64 icon." },
+        "headerTitle": { "type": "string", "description": "Header brand name." },
+        "headerNavLinks": { "type": "array", "description": "Custom header navigation links." },
+        "footerText": { "type": "string", "description": "Footer copyright copy." },
+        "footerLinks": { "type": "array", "description": "Custom footer links." },
+        "authorName": { "type": "string", "description": "Primary author display name." },
+        "authorBio": { "type": "string", "description": "Primary author biography." },
+        "authorAvatar": { "type": "string", "description": "Author avatar URL." },
+        "githubOwner": { "type": "string", "description": "Connected GitHub owner/org." },
+        "githubRepo": { "type": "string", "description": "Connected GitHub repository." },
+        "pagesUrl": { "type": "string", "description": "Published GitHub Pages or custom URL." },
+        "themeMode": { "type": "string", "enum": ["light", "dark"] },
+        "postsDirectory": { "type": "string", "description": "Target Markdown directory." },
+        "astroTemplate": { "type": "string", "description": "Selected Astro 5 editorial template preset." },
+        "liveChat": { "type": "object", "description": "Floating live chat configuration." },
+        "customDomain": { "type": "string", "description": "Optional custom domain for GitHub Pages CNAME." },
+        "analyticsProvider": { "type": "string", "enum": ["none", "ga4", "cloudflare", "plausible", "umami"] },
+        "analyticsId": { "type": "string", "description": "Tracking ID / domain / token for web analytics." },
+        "giscus": { "type": "object", "description": "Giscus GitHub Discussions comments settings." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "siteTitle", "themeMode", "createdAt", "updatedAt"]
+    },
+    "UserDraft": {
+      "title": "UserDraft",
+      "description": "Cloud-synced Markdown draft belonging strictly to the signed-in Google user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "collection": { "type": "string", "enum": ["bai_viet", "du_an", "sach", "cua_hang"] },
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "category": { "type": "string" },
+        "tags": { "type": "array" },
+        "excerpt": { "type": "string" },
+        "cover": { "type": "string" },
+        "draft": { "type": "boolean" },
+        "markdownBody": { "type": "string" },
+        "rawContent": { "type": "string" },
+        "path": { "type": "string" },
+        "sha": { "type": "string" },
+        "source": { "type": "string", "enum": ["local", "github", "sample"] },
+        "seoTitle": { "type": "string" },
+        "seoDescription": { "type": "string" },
+        "canonicalUrl": { "type": "string" },
+        "noindex": { "type": "boolean" },
+        "authorName": { "type": "string" },
+        "price": { "type": "string" },
+        "originalPrice": { "type": "string" },
+        "inStock": { "type": "boolean" },
+        "linkDemo": { "type": "string" },
+        "linkGithub": { "type": "string" },
+        "linkBuy": { "type": "string" },
+        "formats": { "type": "array" },
+        "publishYear": { "type": "number" },
+        "featured": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "collection", "slug", "title", "date", "category", "tags", "excerpt", "draft", "markdownBody", "rawContent", "path", "source", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/config/{configId}": {
+      "schema": { "$ref": "#/entities/UserConfig" },
+      "description": "User-scoped website configuration documents (e.g. site)."
+    },
+    "/users/{userId}/drafts/{draftId}": {
+      "schema": { "$ref": "#/entities/UserDraft" },
+      "description": "User-scoped cloud-synced Markdown drafts."
+    }
+  }
 }

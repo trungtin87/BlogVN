@@ -7,6 +7,7 @@ import path from 'node:path';
 import dotenv from 'dotenv';
 import { dump as dumpYaml, load as loadYaml } from 'js-yaml';
 import { createServer as createViteServer } from 'vite';
+import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import type {
   AuthStatus,
   BlogCollection,
@@ -18,6 +19,7 @@ import type {
   FrontmatterSchemaHint,
   GitHubRepoInfo,
   GitHubUser,
+  MediaAssetItem,
   RepoInsightsData,
   RepoStructureInfo,
   ScheduledPostPayload,
@@ -39,8 +41,8 @@ import {
 dotenv.config();
 
 const PORT = 3000;
-const DEFAULT_OWNER = process.env.GITHUB_OWNER || 'trungtin87';
-const DEFAULT_REPO = process.env.GITHUB_REPO || 'trungtin87.github.io';
+const DEFAULT_OWNER = process.env.GITHUB_OWNER || '';
+const DEFAULT_REPO = process.env.GITHUB_REPO || '';
 
 interface SessionRecord {
   accessToken: string;
@@ -55,7 +57,7 @@ const SESSION_KEY = crypto
     process.env.SESSION_SECRET ||
       process.env.GITHUB_CLIENT_SECRET ||
       process.env.GITHUB_TOKEN ||
-      'huyen-khong-studio-local-secret'
+      'dao-ky-studio-local-secret'
   )
   .digest();
 
@@ -127,7 +129,7 @@ async function githubRequest<T = any>(
 ): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
-    'User-Agent': 'TrungTin87-Blog-Studio',
+    'User-Agent': 'DaoKy-Blog-Studio',
     'X-GitHub-Api-Version': '2022-11-28',
     ...(options.headers as Record<string, string> | undefined),
   };
@@ -574,6 +576,10 @@ function serializePostMarkdown(
         nhap: Boolean(input.draft),
       };
     }
+    if (input.seoTitle?.trim()) fm.seo_title = input.seoTitle.trim();
+    if (input.seoDescription?.trim()) fm.seo_description = input.seoDescription.trim();
+    if (input.canonicalUrl?.trim()) fm.canonical_url = input.canonicalUrl.trim();
+    if (input.noindex) fm.noindex = true;
     return `---\n${dumpYaml(fm, { lineWidth: -1 }).trim()}\n---\n\n${input.markdownBody.trim()}\n`;
   }
 
@@ -1585,6 +1591,13 @@ async function startServer() {
     const session = getSessionRecord(req);
     const envToken = process.env.GITHUB_TOKEN;
 
+    const defaultPagesUrl =
+      DEFAULT_OWNER && DEFAULT_REPO
+        ? DEFAULT_REPO.toLowerCase() === `${DEFAULT_OWNER.toLowerCase()}.github.io`
+          ? `https://${DEFAULT_REPO}`
+          : `https://${DEFAULT_OWNER}.github.io/${DEFAULT_REPO}`
+        : '';
+
     let status: AuthStatus = {
       authenticated: false,
       mode: 'readonly',
@@ -1593,7 +1606,7 @@ async function startServer() {
       targetRepo: {
         owner: DEFAULT_OWNER,
         repo: DEFAULT_REPO,
-        pagesUrl: `https://${DEFAULT_OWNER}.github.io`,
+        pagesUrl: defaultPagesUrl,
       },
     };
 
@@ -1787,9 +1800,14 @@ async function startServer() {
 
   // 5. Fetch GitHub Repo & Owner Profile & Commits
   app.get('/api/github/repo', async (req: Request, res: Response) => {
-    const owner = String(req.query.owner || DEFAULT_OWNER);
-    const repo = String(req.query.repo || DEFAULT_REPO);
+    const owner = String(req.query.owner || DEFAULT_OWNER).trim();
+    const repo = String(req.query.repo || DEFAULT_REPO).trim();
     const token = getSessionToken(req);
+
+    if (!owner || !repo) {
+      res.status(400).json({ error: 'Chưa chọn repository GitHub.' });
+      return;
+    }
 
     try {
       const [repoResp, userResp, commitsResp] = await Promise.all([
@@ -1851,12 +1869,28 @@ async function startServer() {
     }
   });
 
-  // 6. Fetch All Markdown Content Collections from GitHub Repo
+  // 6. Fetch Markdown Content Collections from GitHub Repo (Paginated)
   app.get('/api/github/posts', async (req: Request, res: Response) => {
-    const owner = String(req.query.owner || DEFAULT_OWNER);
-    const repo = String(req.query.repo || DEFAULT_REPO);
+    const owner = String(req.query.owner || DEFAULT_OWNER).trim();
+    const repo = String(req.query.repo || DEFAULT_REPO).trim();
     const branch = String(req.query.branch || 'main');
+    const offset = Math.max(0, Number.parseInt(String(req.query.offset || '0'), 10) || 0);
+    const limit = Math.min(200, Math.max(1, Number.parseInt(String(req.query.limit || '30'), 10) || 30));
     const token = getSessionToken(req);
+
+    if (!owner || !repo) {
+      res.json({
+        posts: [],
+        config: null,
+        structure: null,
+        totalCount: 0,
+        loadedCount: 0,
+        offset: 0,
+        limit,
+        hasMore: false,
+      });
+      return;
+    }
 
     try {
       const treeResp = await githubRequest<any>(
@@ -2068,7 +2102,8 @@ async function startServer() {
         }
       }
 
-      const targetFiles = mdFiles.slice(0, 50);
+      const sortedMdFiles = [...mdFiles].sort((a, b) => b.path.localeCompare(a.path));
+      const targetFiles = sortedMdFiles.slice(offset, offset + limit);
       const fetchedPosts = await Promise.all(
         targetFiles.map(async (file) => {
           const fileResp = await githubRequest<any>(
@@ -2148,7 +2183,19 @@ async function startServer() {
         frontmatterSchema,
       };
 
-      res.json({ posts, config: remoteConfig, structure });
+      const totalCount = sortedMdFiles.length;
+      const loadedCount = Math.min(totalCount, offset + targetFiles.length);
+
+      res.json({
+        posts,
+        config: remoteConfig,
+        structure,
+        totalCount,
+        loadedCount,
+        offset,
+        limit,
+        hasMore: loadedCount < totalCount,
+      });
     } catch (error) {
       console.error('Fetch posts error:', error);
       res.status(500).json({ error: 'Không thể đọc danh sách bài viết từ GitHub.' });
@@ -2757,6 +2804,190 @@ async function startServer() {
     } catch (error) {
       console.error('Batch upload images error:', error);
       res.status(500).json({ error: 'Lỗi máy chủ khi tải loạt ảnh lên GitHub.' });
+    }
+  });
+
+  // 9c. Repository Media Library (List & Delete Images)
+  app.get('/api/github/media', async (req: Request, res: Response) => {
+    const owner = String(req.query.owner || DEFAULT_OWNER).trim();
+    const repo = String(req.query.repo || DEFAULT_REPO).trim();
+    const branch = String(req.query.branch || 'main');
+    const token = getSessionToken(req);
+
+    if (!owner || !repo) {
+      res.json({ items: [] });
+      return;
+    }
+
+    try {
+      const treeResp = await githubRequest<any>(
+        `/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+        {},
+        token
+      );
+      if (!treeResp.ok || !Array.isArray(treeResp.data?.tree)) {
+        res.json({ items: [] });
+        return;
+      }
+
+      const imageExtRe = /\.(png|jpe?g|webp|gif|svg|avif)$/i;
+      const items: MediaAssetItem[] = (treeResp.data.tree as any[])
+        .filter((item) => {
+          if (item.type !== 'blob' || !item.path) return false;
+          const p = String(item.path);
+          if (!imageExtRe.test(p)) return false;
+          return (
+            p.startsWith('public/tainguyen/hinhanh/') ||
+            p.startsWith('public/images/') ||
+            p.startsWith('assets/') ||
+            p.startsWith('static/images/') ||
+            p.startsWith('source/images/')
+          );
+        })
+        .map((item) => {
+          const p = String(item.path);
+          const publicPath = p.startsWith('public/')
+            ? '/' + p.slice('public/'.length)
+            : p.startsWith('static/')
+            ? '/' + p.slice('static/'.length)
+            : p.startsWith('source/')
+            ? '/' + p.slice('source/'.length)
+            : '/' + p;
+          return {
+            path: p,
+            publicPath,
+            previewUrl: `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch)}/${p}`,
+            sha: String(item.sha || ''),
+            size: Number(item.size || 0),
+            name: path.basename(p),
+          };
+        })
+        .sort((a, b) => b.name.localeCompare(a.name));
+
+      res.json({ items });
+    } catch (error) {
+      console.error('List media assets error:', error);
+      res.status(500).json({ items: [], error: 'Không thể tải thư viện ảnh từ GitHub.' });
+    }
+  });
+
+  app.delete('/api/github/media', async (req: Request, res: Response) => {
+    const token = getSessionToken(req);
+    if (!token) {
+      res.status(401).json({
+        requiresAuth: true,
+        error: 'Cần xác thực GitHub để xoá ảnh trên repository.',
+      });
+      return;
+    }
+
+    const { owner = DEFAULT_OWNER, repo = DEFAULT_REPO, branch = 'main', filePath, sha } = req.body || {};
+    if (!owner || !repo || !filePath || !sha) {
+      res.status(400).json({ error: 'Thiếu thông tin tệp ảnh hoặc SHA để xoá.' });
+      return;
+    }
+
+    try {
+      const result = await githubRequest<any>(
+        `/repos/${owner}/${repo}/contents/${encodeURIComponent(filePath).replace(/%2F/g, '/')}`,
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `Delete media: ${path.basename(String(filePath))}`,
+            sha,
+            branch,
+          }),
+        },
+        token
+      );
+      if (!result.ok) {
+        res.status(result.status || 400).json({ error: result.error || 'Không thể xoá ảnh trên GitHub.' });
+        return;
+      }
+      res.json({ ok: true });
+    } catch (error) {
+      console.error('Delete media asset error:', error);
+      res.status(500).json({ error: 'Lỗi máy chủ khi xoá ảnh.' });
+    }
+  });
+
+  // 9d. Server-Side Gemini Auto-SEO Optimizer
+  app.post('/api/seo/optimize', async (req: Request, res: Response) => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      res.status(503).json({
+        code: 'NO_GEMINI_KEY',
+        error: 'GEMINI_API_KEY chưa được cấu hình trên máy chủ.',
+      });
+      return;
+    }
+
+    const { title = '', category = '', markdownBody = '', tags = [] } = req.body || {};
+    if (!title && !markdownBody) {
+      res.status(400).json({ error: 'Cần ít nhất tiêu đề hoặc nội dung bài viết để tối ưu SEO.' });
+      return;
+    }
+
+    try {
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
+
+      const truncatedBody = String(markdownBody).slice(0, 6000);
+      const imageMatches = [...String(markdownBody).matchAll(/!\[([^\]]*)\]\(([^)\s]+)[^)]*\)/g)].map(
+        (m, idx) => `#${idx + 1}: alt="${m[1]}" url="${m[2]}"`
+      );
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: [
+          `Tiêu đề gốc: ${String(title)}`,
+          `Danh mục: ${String(category)}`,
+          `Tags hiện có: ${Array.isArray(tags) ? tags.join(', ') : ''}`,
+          imageMatches.length > 0 ? `Ảnh trong bài:\n${imageMatches.join('\n')}` : '',
+          `Nội dung Markdown:\n${truncatedBody}`,
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+        config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          systemInstruction:
+            'Bạn là chuyên gia SEO tiếng Việt cho blog kỹ thuật & tri thức cá nhân. Hãy phân tích bài viết và trả về JSON tối ưu chuẩn Google SEO: seoTitle (50-60 ký tự, hấp dẫn, chứa từ khóa chính), seoDescription (140-158 ký tự, tự nhiên, mời nhấp chuột), slug (không dấu, chữ thường, gạch nối, ngắn gọn), excerpt (120-160 ký tự tóm tắt bài viết), tags (4-5 từ khóa ngắn gọn liên quan nhất), và imageAltSuggestions (mảng mô tả alt tiếng Việt giàu ngữ cảnh theo đúng thứ tự các ảnh thiếu alt trong bài).',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              seoTitle: { type: Type.STRING },
+              seoDescription: { type: Type.STRING },
+              slug: { type: Type.STRING },
+              excerpt: { type: Type.STRING },
+              tags: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              imageAltSuggestions: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+            },
+            required: ['seoTitle', 'seoDescription', 'slug', 'excerpt', 'tags'],
+          },
+        },
+      });
+
+      const parsed = JSON.parse((response.text || '{}').trim());
+      res.json({ ok: true, mode: 'ai', result: parsed });
+    } catch (error: any) {
+      console.error('Gemini SEO optimize error:', error);
+      res.status(error?.status || 500).json({
+        error: error?.message || 'Không thể tối ưu SEO bằng Gemini AI lúc này.',
+      });
     }
   });
 
@@ -3404,6 +3635,25 @@ async function startServer() {
                 : [],
             }
           : undefined,
+      customDomain: incomingCfg.customDomain
+        ? String(incomingCfg.customDomain).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '')
+        : undefined,
+      analyticsProvider: ['ga4', 'cloudflare', 'plausible', 'umami'].includes(
+        String(incomingCfg.analyticsProvider || '')
+      )
+        ? incomingCfg.analyticsProvider
+        : 'none',
+      analyticsId: incomingCfg.analyticsId ? String(incomingCfg.analyticsId).trim() : undefined,
+      giscus:
+        incomingCfg.giscus && typeof incomingCfg.giscus === 'object'
+          ? {
+              enabled: Boolean(incomingCfg.giscus.enabled),
+              repo: String(incomingCfg.giscus.repo || '').trim(),
+              repoId: String(incomingCfg.giscus.repoId || '').trim(),
+              category: String(incomingCfg.giscus.category || '').trim(),
+              categoryId: String(incomingCfg.giscus.categoryId || '').trim(),
+            }
+          : undefined,
     };
 
     const all = loadSiteConfigsFromDisk();
@@ -3461,6 +3711,13 @@ async function startServer() {
             }),
             isBase64: false,
           });
+          if (cleanCfg.customDomain) {
+            filesToCommit.push({
+              path: 'public/CNAME',
+              content: `${cleanCfg.customDomain}\n`,
+              isBase64: false,
+            });
+          }
           if (cleanCfg.siteIcon?.startsWith('data:image/')) {
             filesToCommit.push({
               path: 'public/favicon.png',
@@ -3474,7 +3731,19 @@ async function startServer() {
               isBase64: true,
             });
           }
+        } else if (cleanCfg.customDomain) {
+          filesToCommit.push({
+            path: 'CNAME',
+            content: `${cleanCfg.customDomain}\n`,
+            isBase64: false,
+          });
         }
+      } else if (cleanCfg.customDomain) {
+        filesToCommit.push({
+          path: 'CNAME',
+          content: `${cleanCfg.customDomain}\n`,
+          isBase64: false,
+        });
       }
 
       const commitRes = await commitMultipleFilesAtomic({
@@ -3551,7 +3820,10 @@ async function startServer() {
           for (const blob of blobs) {
             const p = String(blob.path);
             const isPost =
-              p.startsWith('src/content/bai_viet/') &&
+              (p.startsWith('src/content/bai_viet/') ||
+                p.startsWith('src/content/du_an/') ||
+                p.startsWith('src/content/sach/') ||
+                p.startsWith('src/content/cua_hang/')) &&
               (p.endsWith('.md') || p.endsWith('.mdx') || p.endsWith('.markdown'));
             const isAsset =
               p.startsWith('public/tainguyen/hinhanh/uploads/') || p.startsWith('public/images/');
@@ -3852,7 +4124,7 @@ async function startServer() {
   }, 20000);
 
   httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`Huyen Khong Studio listening on http://0.0.0.0:${PORT}`);
+    console.log(`Dao Ky Studio listening on http://0.0.0.0:${PORT}`);
   });
 }
 

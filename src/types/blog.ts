@@ -176,6 +176,25 @@ export interface SocialPublishResult {
   fallbackShareUrl?: string;
 }
 
+export type AnalyticsProviderId = 'none' | 'ga4' | 'cloudflare' | 'plausible' | 'umami';
+
+export interface GiscusConfig {
+  enabled: boolean;
+  repo: string;
+  repoId: string;
+  category: string;
+  categoryId: string;
+}
+
+export interface MediaAssetItem {
+  path: string;
+  publicPath: string;
+  previewUrl: string;
+  sha: string;
+  size: number;
+  name: string;
+}
+
 export interface BlogConfig {
   siteTitle: string;
   tagline: string;
@@ -194,6 +213,10 @@ export interface BlogConfig {
   postsDirectory: string;
   astroTemplate?: AstroTemplateId;
   liveChat?: LiveChatConfig;
+  customDomain?: string;
+  analyticsProvider?: AnalyticsProviderId;
+  analyticsId?: string;
+  giscus?: GiscusConfig;
 }
 
 export interface GitHubUser {

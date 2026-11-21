@@ -7,6 +7,92 @@ marked.setOptions({
   gfm: true,
 });
 
+function extractVimeoId(input: string): string | null {
+  const m = String(input || '').trim().match(/vimeo\.com\/(?:video\/)?(\d{5,12})/i);
+  if (m) return m[1];
+  if (/^\d{5,12}$/.test(String(input || '').trim())) return String(input).trim();
+  return null;
+}
+
+function preprocessAdvancedMarkdown(markdown: string): string {
+  let text = markdown || '';
+
+  // Protect code blocks first so we don't mutate inside fenced code
+  const codePlaceholders: string[] = [];
+  text = text.replace(/```([a-zA-Z0-9_-]*)\r?\n([\s\S]*?)```/g, (full, lang: string, body: string) => {
+    const cleanLang = (lang || '').trim().toLowerCase();
+    const idx = codePlaceholders.length;
+    if (cleanLang === 'mermaid') {
+      const escaped = body
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      codePlaceholders.push(
+        `\n<div class="dk-mermaid-card"><div class="dk-mermaid-label">Sơ đồ Mermaid</div><pre class="mermaid">${escaped}</pre></div>\n`
+      );
+      return `@@DK_CODE_BLOCK_${idx}@@`;
+    }
+    codePlaceholders.push(full);
+    return `@@DK_CODE_BLOCK_${idx}@@`;
+  });
+
+  // Block math $$...$$
+  text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_m, formula: string) => {
+    const escaped = formula.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `\n<div class="dk-math-block">$$${escaped}$$</div>\n`;
+  });
+
+  // Video embeds @[youtube](...) or @[vimeo](...) or standalone YouTube line
+  text = text.replace(/@\[(youtube|vimeo)\]\(([^)]+)\)/gi, (_m, provider: string, target: string) => {
+    const p = provider.toLowerCase();
+    if (p === 'vimeo') {
+      const vid = extractVimeoId(target);
+      if (!vid) return _m;
+      return `\n<div class="dk-video-embed"><iframe src="https://player.vimeo.com/video/${vid}" title="Vimeo Video" loading="lazy" allowfullscreen></iframe></div>\n`;
+    }
+    const ytId = extractYouTubeVideoId(target);
+    if (!ytId) return _m;
+    return `\n<div class="dk-video-embed"><iframe src="https://www.youtube.com/embed/${ytId}" title="YouTube Video" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>\n`;
+  });
+
+  // Standalone YouTube URL on its own line -> responsive embed
+  text = text.replace(
+    /^(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)[^\s]+)$/gim,
+    (line) => {
+      const ytId = extractYouTubeVideoId(line);
+      if (!ytId) return line;
+      return `<div class="dk-video-embed"><iframe src="https://www.youtube.com/embed/${ytId}" title="YouTube Video" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
+    }
+  );
+
+  // Restore fenced code blocks / mermaid cards
+  text = text.replace(/@@DK_CODE_BLOCK_(\d+)@@/g, (_m, idxStr) => codePlaceholders[Number(idxStr)] || '');
+  return text;
+}
+
+function postprocessCalloutsAndLazyImages(html: string): string {
+  // Convert Obsidian-style blockquotes > [!NOTE] ... into styled callouts
+  let out = html.replace(
+    /<blockquote>\s*<p>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s+([^\n<]*))?(?:<br\s*\/?>|\n)?([\s\S]*?)<\/blockquote>/gi,
+    (_m, rawType: string, customTitle: string, rest: string) => {
+      const kind = rawType.toLowerCase();
+      const defaultTitles: Record<string, string> = {
+        note: 'Ghi chú',
+        tip: 'Mẹo hay',
+        important: 'Quan trọng',
+        warning: 'Cảnh báo',
+        caution: 'Lưu ý',
+      };
+      const title = (customTitle || '').trim() || defaultTitles[kind] || rawType;
+      return `<div class="dk-callout dk-callout-${kind}"><div class="dk-callout-title">${title}</div><div class="dk-callout-body"><p>${rest}</div></div>`;
+    }
+  );
+
+  // Ensure every <img> gets loading="lazy" decoding="async"
+  out = out.replace(/<img\s+(?![^>]*loading=)/gi, '<img loading="lazy" decoding="async" ');
+  return out;
+}
+
 export function renderMarkdownToSafeHtml(
   markdown: string,
   assetContext?: {
@@ -17,8 +103,9 @@ export function renderMarkdownToSafeHtml(
     branch?: string;
   }
 ): string {
-  const rawHtml = marked.parse(markdown || '', { async: false }) as string;
-  let processed = rawHtml;
+  const prepared = preprocessAdvancedMarkdown(markdown || '');
+  const rawHtml = marked.parse(prepared, { async: false }) as string;
+  let processed = postprocessCalloutsAndLazyImages(rawHtml);
 
   if (assetContext) {
     const branch = assetContext.branch || 'main';
@@ -29,7 +116,7 @@ export function renderMarkdownToSafeHtml(
         : assetContext.isAstroRepo
         ? 'public'
         : '';
-    processed = rawHtml.replace(
+    processed = processed.replace(
       /(<img\s+[^>]*src=["'])(\/[^"']+)(["'][^>]*>)/gi,
       (_match, pfx, relPath, suffix) => {
         const repoPath = prefix ? `${prefix}${relPath}` : relPath.slice(1);
@@ -38,7 +125,10 @@ export function renderMarkdownToSafeHtml(
     );
   }
 
-  return DOMPurify.sanitize(processed);
+  return DOMPurify.sanitize(processed, {
+    ADD_TAGS: ['iframe'],
+    ADD_ATTR: ['allow', 'allowfullscreen', 'loading', 'decoding', 'title', 'src', 'class'],
+  });
 }
 
 export function slugifyVietnamese(input: string): string {

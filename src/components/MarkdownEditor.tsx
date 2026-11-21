@@ -13,9 +13,12 @@ import {
   Download,
   ExternalLink,
   FileText,
+  FolderOpen,
+  GitBranch,
   Heading,
   ImagePlus,
   Images,
+  Info,
   Italic,
   Link2,
   List,
@@ -27,12 +30,15 @@ import {
   Save,
   Search,
   Send,
+  Sigma,
   SlidersHorizontal,
+  Sparkles,
   Strikethrough,
   Table,
   Trash2,
   Undo2,
   Upload,
+  Video,
   X,
   Youtube,
 } from 'lucide-react';
@@ -62,6 +68,10 @@ import {
   type UploadedImageResult,
 } from '../utils/imageUpload';
 import { evaluatePostSeo } from '../utils/siteGenerators';
+import {
+  applyMissingImageAltSuggestions,
+  autoOptimizePostSeo,
+} from '../utils/seoAutoOptimizer';
 import { ghCreateSchedule, ghSavePost } from '../utils/githubClient';
 import {
   buildPublishedArticleUrl,
@@ -83,6 +93,7 @@ import {
   toggleLinePrefix,
 } from '../utils/obsidianFormat';
 import { ImageBatchModal, type BatchInsertLayout } from './ImageBatchModal';
+import { MediaLibraryModal } from './MediaLibraryModal';
 import { ObsidianMobileToolbar } from './ObsidianMobileToolbar';
 import { ResilientImage } from './ResilientImage';
 import { SocialSharePanel } from './SocialSharePanel';
@@ -206,6 +217,7 @@ export function MarkdownEditor({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchDropFiles, setBatchDropFiles] = useState<File[]>([]);
+  const [showMediaLibraryModal, setShowMediaLibraryModal] = useState(false);
 
   // Per-Post SEO Studio fields
   const [seoTitle, setSeoTitle] = useState('');
@@ -213,6 +225,8 @@ export function MarkdownEditor({
   const [canonicalUrl, setCanonicalUrl] = useState('');
   const [noindex, setNoindex] = useState(false);
   const [copiedJsonLd, setCopiedJsonLd] = useState(false);
+  const [isAutoOptimizingSeo, setIsAutoOptimizingSeo] = useState(false);
+  const [seoOptimizeNote, setSeoOptimizeNote] = useState<string | null>(null);
 
   // Social Media Sharing state
   const [socialCaption, setSocialCaption] = useState('');
@@ -499,14 +513,16 @@ export function MarkdownEditor({
     if (!cover) return '';
     if (sessionImagePreviews[cover]) return sessionImagePreviews[cover];
     if (cover.startsWith('/')) {
-      const base = config.githubRepo;
+      const owner = config.githubOwner?.trim();
+      const base = config.githubRepo?.trim();
+      if (!owner || !base) return cover;
       const pagesPrefix = base.endsWith('.github.io')
         ? `https://${base}`
-        : `https://${config.githubOwner}.github.io/${base}`;
+        : `https://${owner}.github.io/${base}`;
       return `${pagesPrefix}${cover}`;
     }
     return cover;
-  }, [cover, sessionImagePreviews, config]);
+  }, [cover, sessionImagePreviews, config.githubOwner, config.githubRepo]);
 
   const coverPreviewFallback = useMemo(() => {
     if (!cover) return undefined;
@@ -955,6 +971,53 @@ export function MarkdownEditor({
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [isDirty]);
+
+  const handleAutoOptimizeSeo = async () => {
+    if (isAutoOptimizingSeo) return;
+    setIsAutoOptimizingSeo(true);
+    setSeoOptimizeNote(null);
+    try {
+      const suggestion = await autoOptimizePostSeo({
+        title: title.trim() || 'Bài viết mới',
+        category: category.trim(),
+        markdownBody,
+        tags: parsedTags,
+      });
+
+      if (suggestion.seoTitle) setSeoTitle(suggestion.seoTitle);
+      if (suggestion.seoDescription) setSeoDescription(suggestion.seoDescription);
+      if (suggestion.excerpt) setExcerpt(suggestion.excerpt);
+      if (suggestion.slug) {
+        setSlug(suggestion.slug);
+        setSlugEdited(true);
+      }
+      if (suggestion.tags.length > 0) {
+        const merged = Array.from(new Set([...parsedTags, ...suggestion.tags])).slice(0, 6);
+        setTagsText(merged.join(', '));
+      }
+
+      let altCount = 0;
+      if (suggestion.imageAltSuggestions.length > 0) {
+        const altApplied = applyMissingImageAltSuggestions(
+          markdownBody,
+          suggestion.imageAltSuggestions
+        );
+        if (altApplied.updatedCount > 0) {
+          setMarkdownBody(altApplied.updatedMarkdown);
+          altCount = altApplied.updatedCount;
+        }
+      }
+
+      const modeLabel = suggestion.mode === 'ai' ? 'AI Gemini' : 'Phân tích tự động cục bộ';
+      setSeoOptimizeNote(
+        `Đã tối ưu SEO (${modeLabel}): cập nhật tiêu đề SEO, meta description, slug, thẻ tags${
+          altCount > 0 ? ` và bổ sung alt cho ${altCount} ảnh` : ''
+        }.`
+      );
+    } finally {
+      setIsAutoOptimizingSeo(false);
+    }
+  };
 
   const handleDownloadMarkdown = () => {
     const postObj = buildCurrentPostObject('local');
@@ -1447,6 +1510,21 @@ export function MarkdownEditor({
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setShowMediaLibraryModal(true)}
+                  style={{
+                    borderColor: palette.border,
+                    backgroundColor: palette.canvas,
+                    color: palette.textPrimary,
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[38px] text-xs font-semibold rounded-lg border cursor-pointer whitespace-nowrap shrink-0 mr-1 hover:opacity-85"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  Thư viện ảnh
+                </button>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={handleUndo}
                   disabled={!historyMeta.canUndo}
                   title="Hoàn tác"
@@ -1558,6 +1636,45 @@ export function MarkdownEditor({
                     label: 'Đường phân cách',
                     active: false,
                     action: () => applyFormatEdit((t, s, en) => insertBlockElement(t, s, en, 'hr')),
+                  },
+                  {
+                    icon: Info,
+                    label: 'Callout ghi chú (Obsidian)',
+                    active: false,
+                    action: () =>
+                      insertSnippet(
+                        '\n> [!NOTE] Ghi chú\n> ',
+                        '\n',
+                        'Nội dung ghi chú nổi bật...'
+                      ),
+                  },
+                  {
+                    icon: Sigma,
+                    label: 'Công thức toán LaTeX (KaTeX)',
+                    active: false,
+                    action: () => insertSnippet('\n$$\n', '\n$$\n', 'E = mc^2'),
+                  },
+                  {
+                    icon: GitBranch,
+                    label: 'Sơ đồ Mermaid',
+                    active: false,
+                    action: () =>
+                      insertSnippet(
+                        '\n```mermaid\ngraph TD;\n  A[Bắt đầu] --> B[Kết thúc];\n',
+                        '```\n',
+                        ''
+                      ),
+                  },
+                  {
+                    icon: Video,
+                    label: 'Nhúng Video YouTube / Vimeo',
+                    active: false,
+                    action: () =>
+                      insertSnippet(
+                        '\n@[youtube](',
+                        ')\n',
+                        'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+                      ),
                   },
                 ].map((tool) => {
                   const Icon = tool.icon;
@@ -1763,6 +1880,20 @@ export function MarkdownEditor({
                       <Youtube className="w-4 h-4 text-red-500" />
                     )}
                     Lấy từ YouTube
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowMediaLibraryModal(true)}
+                    style={{
+                      backgroundColor: palette.canvas,
+                      borderColor: palette.border,
+                      color: palette.textPrimary,
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    Thư viện ảnh
                   </button>
 
                   <input
@@ -2183,25 +2314,63 @@ export function MarkdownEditor({
               }}
               className="p-4 sm:p-6 rounded-2xl border space-y-4"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-base font-bold">
                   <Search className="w-4 h-4" style={{ color: palette.link }} />
                   <span style={{ fontFamily: fonts.display }}>
                     Tối ưu SEO, Google Snippet &amp; Schema JSON-LD
                   </span>
                 </div>
-                <span
-                  className={`text-sm font-bold tabular-nums ${
-                    seoAudit.score >= 80
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : seoAudit.score >= 50
-                      ? 'text-amber-600 dark:text-amber-400'
-                      : 'text-red-500'
-                  }`}
-                >
-                  Điểm SEO: {seoAudit.score}/100
-                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void handleAutoOptimizeSeo()}
+                    disabled={isAutoOptimizingSeo}
+                    style={{
+                      backgroundColor: palette.accent,
+                      color: palette.accentText,
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] text-xs font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {isAutoOptimizingSeo ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Đang tối ưu SEO...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Tự động tối ưu SEO
+                      </>
+                    )}
+                  </button>
+                  <span
+                    className={`text-sm font-bold tabular-nums ${
+                      seoAudit.score >= 80
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : seoAudit.score >= 50
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-red-500'
+                    }`}
+                  >
+                    Điểm SEO: {seoAudit.score}/100
+                  </span>
+                </div>
               </div>
+
+              {seoOptimizeNote && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center justify-between gap-2">
+                  <span>{seoOptimizeNote}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSeoOptimizeNote(null)}
+                    aria-label="Đóng thông báo tối ưu SEO"
+                    className="p-1 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Google Search Snippet Preview */}
               <div className="space-y-1.5">
@@ -2488,7 +2657,11 @@ export function MarkdownEditor({
                   Đăng {COLLECTION_LABELS[collection].label.toLowerCase()} lên GitHub
                 </h2>
                 <p style={{ color: palette.textMuted }} className="text-xs mt-1">
-                  Commit vào {config.githubOwner}/{config.githubRepo} và tự động build Astro Pages
+                  Commit vào{' '}
+                  {config.githubOwner && config.githubRepo
+                    ? `${config.githubOwner}/${config.githubRepo}`
+                    : 'kho GitHub chưa chọn'}{' '}
+                  và tự động build Astro Pages
                 </p>
               </div>
               <button
@@ -2859,6 +3032,18 @@ export function MarkdownEditor({
           setBatchDropFiles([]);
         }}
         onUploadedAndInsert={handleBatchUploaded}
+      />
+
+      {/* Repository Media Library Browser */}
+      <MediaLibraryModal
+        isOpen={showMediaLibraryModal}
+        onClose={() => setShowMediaLibraryModal(false)}
+        owner={config.githubOwner}
+        repo={config.githubRepo}
+        branch={defaultBranch}
+        isDark={isDark}
+        onInsertMarkdown={(snippet) => insertSnippet(`\n${snippet}\n`, '', '')}
+        onSelectCover={(publicPath) => setCover(publicPath)}
       />
 
       {/* Mobile Obsidian Accessory Toolbar (Docked flush above soft keyboard via visualViewport) */}

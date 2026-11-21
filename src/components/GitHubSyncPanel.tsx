@@ -1,11 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import {
+  Archive,
   CheckCircle2,
   Clock,
+  Cloud,
+  Download,
   Edit3,
   ExternalLink,
+  FileCode2,
   FolderGit2,
+  FolderOpen,
   GitBranch,
   GitCommitHorizontal,
   KeyRound,
@@ -17,6 +22,7 @@ import {
   ShieldCheck,
   Smartphone,
   Trash2,
+  Upload,
   UserCheck,
   X,
 } from 'lucide-react';
@@ -36,6 +42,12 @@ import type {
 import { COLLECTION_LABELS, EDITORIAL_THEMES, normalizeAstroTemplateId } from '../data/themes';
 import { formatDisplayDate } from '../utils/markdown';
 import { ghCreateStarterPagesSite, ghDeployAstroTemplate } from '../utils/githubClient';
+import {
+  exportSiteBackupZip,
+  importBackupZip,
+  importWordPressXml,
+} from '../utils/backupZip';
+import { MediaLibraryModal } from './MediaLibraryModal';
 import { ResilientImage } from './ResilientImage';
 import { PWAInstallButton } from './PWAInstallButton';
 import { SiteEssentialsCard } from './SiteEssentialsCard';
@@ -48,18 +60,25 @@ interface GitHubSyncPanelProps {
   config: BlogConfig;
   firebaseUser: User | null;
   hasPersonalPat: boolean;
+  cloudSyncActive?: boolean;
   authStatus: AuthStatus | null;
   repoInfo: GitHubRepoInfo | null;
   repoStructure: RepoStructureInfo | null;
   buildStatus: BuildStatusInfo | null;
   userRepos: GitHubRepoSummary[];
   posts: BlogPost[];
+  postsTotalCount?: number;
+  hasMorePosts?: boolean;
+  isLoadingMorePosts?: boolean;
   scheduledTasks: ScheduledTask[];
   isLoading: boolean;
   repoError: string | null;
   onRefresh: () => void;
+  onLoadMorePosts?: () => void;
   onRefreshSchedules: () => Promise<void>;
   onUpdateConfig: (next: BlogConfig) => void;
+  onImportPosts?: (posts: BlogPost[]) => void;
+  onImportConfig?: (config: Partial<BlogConfig>) => void;
   onDeployedToGitHub?: (message: string, commitUrl?: string) => void;
   onScheduleDeletePost: (post: BlogPost, scheduledAtIso: string) => Promise<void>;
   onEditPost: (post: BlogPost) => void;
@@ -86,18 +105,25 @@ export function GitHubSyncPanel({
   config,
   firebaseUser,
   hasPersonalPat,
+  cloudSyncActive = false,
   authStatus,
   repoInfo,
   repoStructure,
   buildStatus,
   userRepos,
   posts,
+  postsTotalCount = 0,
+  hasMorePosts = false,
+  isLoadingMorePosts = false,
   scheduledTasks,
   isLoading,
   repoError,
   onRefresh,
+  onLoadMorePosts,
   onRefreshSchedules,
   onUpdateConfig,
+  onImportPosts,
+  onImportConfig,
   onDeployedToGitHub,
   onScheduleDeletePost,
   onEditPost,
@@ -118,6 +144,13 @@ export function GitHubSyncPanel({
   const [deletingPath, setDeletingPath] = useState<string | null>(null);
   const [confirmDeletePath, setConfirmDeletePath] = useState<string | null>(null);
   const [collectionFilter, setCollectionFilter] = useState<'all' | BlogCollection>('all');
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+
+  const zipImportRef = useRef<HTMLInputElement | null>(null);
+  const wpImportRef = useRef<HTMLInputElement | null>(null);
+  const [isProcessingBackup, setIsProcessingBackup] = useState(false);
+  const [backupStatus, setBackupStatus] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
 
   // Auto-delete scheduling modal state for an existing post
   const [scheduleDeleteTarget, setScheduleDeleteTarget] = useState<BlogPost | null>(null);
@@ -152,15 +185,80 @@ export function GitHubSyncPanel({
 
   const githubPosts = posts.filter((p) => p.source === 'github');
   const localPosts = posts.filter((p) => p.source === 'local');
+  const hasTargetRepo = Boolean(config.githubOwner?.trim() && config.githubRepo?.trim());
+  const repoDisplay = hasTargetRepo
+    ? `${config.githubOwner}/${config.githubRepo}`
+    : 'Chưa chọn repository';
 
   const filteredGithubPosts = useMemo(() => {
     if (collectionFilter === 'all') return githubPosts;
     return githubPosts.filter((p) => p.collection === collectionFilter);
   }, [githubPosts, collectionFilter]);
 
-  const appOrigin =
-    typeof window !== 'undefined' ? window.location.origin : 'https://trungtin87.github.io';
-  const callbackUrl = `${appOrigin}/auth/callback`;
+  const handleExportZip = async () => {
+    setBackupError(null);
+    setBackupStatus(null);
+    setIsProcessingBackup(true);
+    try {
+      const res = await exportSiteBackupZip(posts, config);
+      setBackupStatus(`Đã xuất tệp sao lưu "${res.fileName}" (${res.count} mục nội dung).`);
+    } catch (err: any) {
+      setBackupError(err?.message || 'Không thể tạo tệp sao lưu .zip.');
+    } finally {
+      setIsProcessingBackup(false);
+    }
+  };
+
+  const handleImportZipFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBackupError(null);
+    setBackupStatus(null);
+    setIsProcessingBackup(true);
+    try {
+      const result = await importBackupZip(file);
+      if (result.config) {
+        onImportConfig?.(result.config);
+      }
+      if (result.posts.length > 0) {
+        onImportPosts?.(result.posts);
+      }
+      setBackupStatus(
+        `Đã khôi phục ${result.posts.length} bài viết${
+          result.config ? ' và cấu hình website' : ''
+        } từ tệp ZIP.`
+      );
+    } catch (err: any) {
+      setBackupError(err?.message || 'Tệp .zip không hợp lệ hoặc bị hỏng.');
+    } finally {
+      setIsProcessingBackup(false);
+    }
+  };
+
+  const handleImportWordPressFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBackupError(null);
+    setBackupStatus(null);
+    setIsProcessingBackup(true);
+    try {
+      const imported = await importWordPressXml(file);
+      if (imported.length === 0) {
+        setBackupError('Không tìm thấy bài viết (post/page) hợp lệ trong tệp WordPress XML.');
+        return;
+      }
+      onImportPosts?.(imported);
+      setBackupStatus(
+        `Đã chuyển đổi ${imported.length} bài viết từ WordPress XML sang Markdown (Bản nháp).`
+      );
+    } catch (err: any) {
+      setBackupError(err?.message || 'Không thể phân tích tệp WordPress .xml.');
+    } finally {
+      setIsProcessingBackup(false);
+    }
+  };
 
   const handleApplyRepo = (e: React.FormEvent) => {
     e.preventDefault();
@@ -260,7 +358,7 @@ export function GitHubSyncPanel({
         >
           <div>
             <div style={{ color: palette.textMuted, fontFamily: fonts.mono }} className="text-xs mb-2">
-              Đạo Ký Workspace · {config.githubOwner}/{config.githubRepo}
+              Đạo Ký Workspace · {repoDisplay}
             </div>
             <h1 style={{ fontFamily: fonts.display }} className="text-2xl sm:text-3xl font-bold tracking-tight">
               Kết nối GitHub &amp; Cài đặt App
@@ -334,8 +432,14 @@ export function GitHubSyncPanel({
                     </div>
                   )}
                   <div className="min-w-0">
-                    <div className="text-xs sm:text-sm font-semibold truncate">
-                      {firebaseUser.displayName || 'Người dùng Google'}
+                    <div className="text-xs sm:text-sm font-semibold truncate flex items-center gap-2">
+                      <span>{firebaseUser.displayName || 'Người dùng Google'}</span>
+                      {cloudSyncActive && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                          <Cloud className="w-3.5 h-3.5" />
+                          Cloud Sync
+                        </span>
+                      )}
                     </div>
                     <div
                       style={{ color: palette.textMuted, fontFamily: fonts.mono }}
@@ -543,6 +647,8 @@ export function GitHubSyncPanel({
                 >
                   {userRepos.slice(0, 12).map((repoItem) => {
                     const isSelected =
+                      Boolean(config.githubOwner) &&
+                      Boolean(config.githubRepo) &&
                       repoItem.owner.toLowerCase() === config.githubOwner.toLowerCase() &&
                       repoItem.name.toLowerCase() === config.githubRepo.toLowerCase();
                     return (
@@ -958,12 +1064,12 @@ export function GitHubSyncPanel({
             className="p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4"
           >
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-semibold">
+                <div className="flex items-center gap-2 text-sm font-semibold">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                Quyền riêng tư &amp; Dữ liệu tách biệt trên máy
+                Quyền riêng tư &amp; Đồng bộ Cloud Firestore theo Google UID
               </div>
               <p style={{ color: palette.textSecondary }} className="text-xs leading-relaxed">
-                Mọi bản nháp, cấu hình nhận dạng web và GitHub Token được lưu riêng theo tài khoản Google trên trình duyệt của bạn. Đạo Ký chỉ thao tác trên repository bạn trực tiếp chọn.
+                Bản nháp và cấu hình giao diện được đồng bộ an toàn lên Cloud Firestore (theo tài khoản Google riêng của bạn) và lưu cục bộ trên máy. GitHub PAT chỉ lưu cục bộ trên trình duyệt, không đồng bộ lên máy chủ đám mây.
               </p>
             </div>
             <button
@@ -980,6 +1086,127 @@ export function GitHubSyncPanel({
           </div>
         </div>
 
+        {/* Media Library, Backup Export/Import (.zip) & WordPress Migration (.xml) */}
+        <div
+          style={{
+            borderColor: palette.border,
+            backgroundColor: palette.surface,
+          }}
+          className="rounded-2xl border p-5 sm:p-6 space-y-4"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div
+                style={{
+                  backgroundColor: palette.canvas,
+                  borderColor: palette.border,
+                }}
+                className="w-10 h-10 rounded-xl border flex items-center justify-center shrink-0"
+              >
+                <Archive className="w-5 h-5" style={{ color: palette.link }} />
+              </div>
+              <div>
+                <h2 style={{ fontFamily: fonts.display }} className="text-lg font-bold">
+                  5. Thư viện Media, Sao lưu (.zip) &amp; Nhập từ WordPress (.xml)
+                </h2>
+                <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
+                  Duyệt toàn bộ ảnh đã tải lên repository, sao lưu toàn bộ bài viết + cấu hình ra tệp <code>.zip</code>, hoặc chuyển dữ liệu từ WordPress sang Markdown.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <input
+            ref={zipImportRef}
+            type="file"
+            accept=".zip,application/zip"
+            className="hidden"
+            onChange={(e) => void handleImportZipFile(e)}
+          />
+          <input
+            ref={wpImportRef}
+            type="file"
+            accept=".xml,text/xml,application/xml"
+            className="hidden"
+            onChange={(e) => void handleImportWordPressFile(e)}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <button
+              type="button"
+              onClick={() => setShowMediaLibrary(true)}
+              style={{
+                borderColor: palette.border,
+                backgroundColor: palette.canvas,
+                color: palette.textPrimary,
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap"
+            >
+              <FolderOpen className="w-4 h-4" style={{ color: palette.link }} />
+              Thư viện Media Repo
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handleExportZip()}
+              disabled={isProcessingBackup}
+              style={{
+                backgroundColor: palette.accent,
+                color: palette.accentText,
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+            >
+              {isProcessingBackup ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              Xuất sao lưu (.zip)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => zipImportRef.current?.click()}
+              disabled={isProcessingBackup}
+              style={{
+                borderColor: palette.border,
+                backgroundColor: palette.canvas,
+                color: palette.textPrimary,
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-50 whitespace-nowrap"
+            >
+              <Upload className="w-4 h-4" />
+              Nhập sao lưu (.zip)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => wpImportRef.current?.click()}
+              disabled={isProcessingBackup}
+              style={{
+                borderColor: palette.border,
+                backgroundColor: palette.canvas,
+                color: palette.textPrimary,
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-50 whitespace-nowrap"
+            >
+              <FileCode2 className="w-4 h-4" />
+              Nhập WordPress (.xml)
+            </button>
+          </div>
+
+          {backupStatus && (
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs">
+              {backupStatus}
+            </div>
+          )}
+          {backupError && (
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs">
+              {backupError}
+            </div>
+          )}
+        </div>
+
         {/* Markdown Files in Repository */}
         <div
           style={{
@@ -994,7 +1221,11 @@ export function GitHubSyncPanel({
           >
             <div>
               <h2 style={{ fontFamily: fonts.display }} className="text-lg font-bold">
-                Nội dung Markdown trên GitHub ({filteredGithubPosts.length})
+                Nội dung Markdown trên GitHub (
+                {postsTotalCount > filteredGithubPosts.length && collectionFilter === 'all'
+                  ? `${filteredGithubPosts.length}/${postsTotalCount}`
+                  : filteredGithubPosts.length}
+                )
               </h2>
               <p style={{ color: palette.textMuted }} className="text-xs mt-0.5">
                 Chọn bất kỳ tệp nào để chỉnh sửa và commit trực tiếp
@@ -1169,6 +1400,31 @@ export function GitHubSyncPanel({
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {hasMorePosts && onLoadMorePosts && (
+            <div
+              style={{ borderColor: palette.border, backgroundColor: palette.surface }}
+              className="px-5 sm:px-6 py-4 border-t flex items-center justify-between gap-3"
+            >
+              <span style={{ color: palette.textMuted }} className="text-xs tabular-nums">
+                Đang hiển thị {githubPosts.length} / {postsTotalCount} tệp bài viết
+              </span>
+              <button
+                type="button"
+                onClick={onLoadMorePosts}
+                disabled={isLoadingMorePosts}
+                style={{
+                  borderColor: palette.border,
+                  backgroundColor: palette.canvas,
+                  color: palette.textPrimary,
+                }}
+                className="inline-flex items-center gap-2 px-4 min-h-[40px] text-xs font-semibold rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-50 whitespace-nowrap"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMorePosts ? 'animate-spin' : ''}`} />
+                {isLoadingMorePosts ? 'Đang tải thêm...' : 'Tải thêm bài viết'}
+              </button>
             </div>
           )}
         </div>
@@ -1383,6 +1639,16 @@ export function GitHubSyncPanel({
           </div>
         </div>
       )}
+
+      {/* Repository Media Library Modal */}
+      <MediaLibraryModal
+        isOpen={showMediaLibrary}
+        onClose={() => setShowMediaLibrary(false)}
+        owner={config.githubOwner}
+        repo={config.githubRepo}
+        branch={repoInfo?.defaultBranch || 'main'}
+        isDark={isDark}
+      />
     </div>
   );
 }

@@ -590,11 +590,11 @@ export const DEFAULT_BLOG_CONFIG: BlogConfig = {
   authorName: 'Tác giả',
   authorBio:
     'Tác giả blog cá nhân chia sẻ ghi chép thực chiến, tiểu luận và góc nhìn dài hạn.',
-  githubOwner: 'trungtin87',
-  githubRepo: 'trungtin87.github.io',
-  pagesUrl: 'https://trungtin87.github.io',
+  githubOwner: '',
+  githubRepo: '',
+  pagesUrl: '',
   themeMode: 'light',
-  postsDirectory: '_posts',
+  postsDirectory: 'src/content/bai_viet',
   astroTemplate: 'newyorker-light',
   liveChat: DEFAULT_LIVE_CHAT_CONFIG,
 };

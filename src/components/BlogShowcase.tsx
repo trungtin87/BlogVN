@@ -42,6 +42,10 @@ interface BlogShowcaseProps {
   frameworkLabel?: string;
   buildStatus?: BuildStatusInfo | null;
   authStatus?: AuthStatus | null;
+  postsTotalCount?: number;
+  hasMorePosts?: boolean;
+  isLoadingMorePosts?: boolean;
+  onLoadMorePosts?: () => void;
   onToggleThemeMode: (mode: ThemeMode) => void;
   onEditPost: (post: BlogPost) => void;
   onCreateNewPost: (collection?: BlogCollection) => void;
@@ -68,6 +72,10 @@ export function BlogShowcase({
   frameworkLabel,
   buildStatus,
   authStatus,
+  postsTotalCount = 0,
+  hasMorePosts = false,
+  isLoadingMorePosts = false,
+  onLoadMorePosts,
   onToggleThemeMode,
   onEditPost,
   onCreateNewPost,
@@ -79,6 +87,10 @@ export function BlogShowcase({
 
   const { palette, fonts, isDark } = theme;
   const hasMultipleCollections = posts.some((p) => p.collection !== 'bai_viet');
+  const hasTargetRepo = Boolean(config.githubOwner?.trim() && config.githubRepo?.trim());
+  const repoDisplay = hasTargetRepo
+    ? `${config.githubOwner}/${config.githubRepo}`
+    : 'Chưa kết nối kho GitHub';
 
   const filteredPosts = useMemo(() => {
     if (activeCollection === 'all' || activeCollection === 'insights') return posts;
@@ -289,31 +301,35 @@ export function BlogShowcase({
             className="flex flex-wrap items-center gap-2 text-xs sm:text-sm"
           >
             <span className="font-medium" style={{ color: palette.textPrimary }}>
-              {config.githubOwner}/{config.githubRepo}
+              {repoDisplay}
             </span>
-            <span aria-hidden="true">·</span>
-            <a
-              href={config.pagesUrl}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: palette.link }}
-              className="inline-flex items-center gap-1 hover:underline underline-offset-4"
-            >
-              {config.pagesUrl.replace('https://', '')}
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </a>
-            <span aria-hidden="true">·</span>
-            <a
-              href={`${config.pagesUrl.replace(/\/+$/, '')}/rss.xml`}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: palette.textMuted }}
-              className="inline-flex items-center gap-1 hover:underline underline-offset-4"
-              title="RSS Feed của trang blog"
-            >
-              <Rss className="w-3.5 h-3.5" />
-              RSS
-            </a>
+            {config.pagesUrl && (
+              <>
+                <span aria-hidden="true">·</span>
+                <a
+                  href={config.pagesUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: palette.link }}
+                  className="inline-flex items-center gap-1 hover:underline underline-offset-4"
+                >
+                  {config.pagesUrl.replace('https://', '')}
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </a>
+                <span aria-hidden="true">·</span>
+                <a
+                  href={`${config.pagesUrl.replace(/\/+$/, '')}/rss.xml`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: palette.textMuted }}
+                  className="inline-flex items-center gap-1 hover:underline underline-offset-4"
+                  title="RSS Feed của trang blog"
+                >
+                  <Rss className="w-3.5 h-3.5" />
+                  RSS
+                </a>
+              </>
+            )}
             {config.headerNavLinks &&
               config.headerNavLinks.map((navLink, idx) => (
                 <span key={`${navLink.url}-${idx}`} className="inline-flex items-center gap-2">
@@ -539,8 +555,8 @@ export function BlogShowcase({
               {repoConnected ? 'Chưa có bài viết nào' : 'Chào mừng đến với Đạo Ký'}
             </h2>
             <p style={{ color: palette.textSecondary }} className="text-sm">
-              {repoConnected
-                ? `Nhấn nút bên dưới để viết bài Markdown và đẩy thẳng lên ${config.githubOwner}/${config.githubRepo}.`
+              {repoConnected && hasTargetRepo
+                ? `Nhấn nút bên dưới để viết bài Markdown và đẩy thẳng lên ${repoDisplay}.`
                 : 'Kết nối kho GitHub Pages sẵn có hoặc tạo blog GitHub Pages mới chỉ với 1 chạm.'}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
@@ -658,6 +674,27 @@ export function BlogShowcase({
                 </article>
               );
             })}
+
+            {hasMorePosts && onLoadMorePosts && (
+              <div className="pt-6 pb-2 flex justify-center">
+                <button
+                  type="button"
+                  onClick={onLoadMorePosts}
+                  disabled={isLoadingMorePosts}
+                  style={{
+                    borderColor: palette.border,
+                    backgroundColor: palette.surface,
+                    color: palette.textPrimary,
+                  }}
+                  className="inline-flex items-center justify-center gap-2 px-5 min-h-[44px] text-sm font-semibold rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isLoadingMorePosts ? 'animate-spin' : ''}`} />
+                  {isLoadingMorePosts
+                    ? 'Đang tải thêm bài viết...'
+                    : `Tải thêm bài viết (đã tải ${posts.filter((p) => p.source === 'github').length}/${postsTotalCount})`}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>
