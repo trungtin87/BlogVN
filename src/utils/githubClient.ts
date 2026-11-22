@@ -23,6 +23,8 @@ import type {
 import { slugifyVietnamese } from './markdown';
 import {
   buildAstroBaseLayoutModule,
+  buildAstroManifestJson,
+  buildAstroOgDefaultSvg,
   buildAstroSiteConfigModule,
   buildVietnameseAstroTemplateFiles,
 } from './astroTemplate';
@@ -2209,6 +2211,23 @@ export async function ghSaveSiteConfig(
         content: buildAstroBaseLayoutModule({
           config: params.config,
         }),
+      },
+      {
+        path: 'public/manifest.webmanifest',
+        content: buildAstroManifestJson({
+          owner: params.owner,
+          repo: params.repo,
+          config: params.config,
+          hasBundledPngFavicon,
+        }),
+      },
+      {
+        path: 'public/tainguyen/hinhanh/og-default.svg',
+        content: buildAstroOgDefaultSvg({
+          owner: params.owner,
+          repo: params.repo,
+          config: params.config,
+        }),
       }
     );
     if (params.config.customDomain?.trim()) {
@@ -2279,7 +2298,7 @@ export async function ghSaveSiteConfig(
             start_url: './',
             display: 'standalone',
             background_color: activeTheme.palette.canvas,
-            theme_color: activeTheme.palette.accent,
+            theme_color: activeTheme.palette.canvas,
             icons: [{ src: iconHref, sizes: '512x512', type: 'image/png' }],
           },
           null,
@@ -2288,7 +2307,7 @@ export async function ghSaveSiteConfig(
       },
       {
         path: 'index.html',
-        content: `<!doctype html><html lang="vi"${activeTheme.isDark ? ' class="dark"' : ''}><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${title.replace(/</g, '&lt;')}</title><meta name="description" content="${tagline.replace(/"/g, '&quot;')}"/><link rel="manifest" href="./manifest.webmanifest"/><link rel="icon" href="${iconHref}"/><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>:root{--bg:${lightTheme.palette.canvas};--surface:${lightTheme.palette.surface};--border:${lightTheme.palette.border};--text:${lightTheme.palette.textPrimary};--muted:${lightTheme.palette.textMuted};--link:${lightTheme.palette.link};--accent:${lightTheme.palette.accent}}html.dark{--bg:${darkTheme.palette.canvas};--surface:${darkTheme.palette.surface};--border:${darkTheme.palette.border};--text:${darkTheme.palette.textPrimary};--muted:${darkTheme.palette.textMuted};--link:${darkTheme.palette.link};--accent:${darkTheme.palette.accent}}body{margin:0;font-family:${activeTheme.fonts.body};background:var(--bg);color:var(--text);line-height:1.65}a{color:var(--link)}.wrap{max-width:900px;margin:0 auto;padding:24px 18px}header{border-bottom:1px solid var(--border);padding:14px 0}footer{border-top:1px solid var(--border);padding:20px 0;margin-top:40px;font-size:13px;color:var(--muted)}.post{padding:20px 0;border-bottom:1px solid var(--border);cursor:pointer}img{max-width:100%;border-radius:10px}</style></head><body><header><div class="wrap"><strong>${headerBrand.replace(/</g, '&lt;')}</strong></div></header><main class="wrap" id="app"></main><footer><div class="wrap">${footerText.replace(/</g, '&lt;')}</div></footer><script>fetch('./posts-manifest.json').then(r=>r.json()).then(d=>{const app=document.getElementById('app');const posts=d.posts||[];app.innerHTML='<h1>'+${JSON.stringify(title)}+'</h1><p>'+${JSON.stringify(tagline)}+'</p>'+posts.map((p,i)=>'<article class="post" onclick="openP('+i+')"><h2>'+p.title+'</h2><p>'+p.excerpt+'</p></article>').join('');window.openP=i=>{const p=posts[i];app.innerHTML='<button onclick="location.reload()">← Quay lại</button><h1>'+p.title+'</h1>'+(window.marked?marked.parse(p.markdownBody||''):p.markdownBody);};});</script></body></html>`,
+        content: `<!doctype html><html lang="vi"${activeTheme.isDark ? ' class="dark"' : ''}><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="${activeTheme.palette.canvas}"/><title>${title.replace(/</g, '&lt;')}</title><meta name="description" content="${tagline.replace(/"/g, '&quot;')}"/><link rel="manifest" href="./manifest.webmanifest"/><link rel="icon" href="${iconHref}"/><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>:root{--bg:${lightTheme.palette.canvas};--surface:${lightTheme.palette.surface};--border:${lightTheme.palette.border};--text:${lightTheme.palette.textPrimary};--muted:${lightTheme.palette.textMuted};--link:${lightTheme.palette.link};--accent:${lightTheme.palette.accent}}html.dark{--bg:${darkTheme.palette.canvas};--surface:${darkTheme.palette.surface};--border:${darkTheme.palette.border};--text:${darkTheme.palette.textPrimary};--muted:${darkTheme.palette.textMuted};--link:${darkTheme.palette.link};--accent:${darkTheme.palette.accent}}body{margin:0;font-family:${activeTheme.fonts.body};background:var(--bg);color:var(--text);line-height:1.65}a{color:var(--link)}.wrap{max-width:900px;margin:0 auto;padding:24px 18px}header{border-bottom:1px solid var(--border);padding:14px 0}footer{border-top:1px solid var(--border);padding:20px 0;margin-top:40px;font-size:13px;color:var(--muted)}.post{padding:20px 0;border-bottom:1px solid var(--border);cursor:pointer}img{max-width:100%;border-radius:10px}</style></head><body><header><div class="wrap"><strong>${headerBrand.replace(/</g, '&lt;')}</strong></div></header><main class="wrap" id="app"></main><footer><div class="wrap">${footerText.replace(/</g, '&lt;')}</div></footer><script>fetch('./posts-manifest.json').then(r=>r.json()).then(d=>{const app=document.getElementById('app');const posts=d.posts||[];app.innerHTML='<h1>'+${JSON.stringify(title)}+'</h1><p>'+${JSON.stringify(tagline)}+'</p>'+posts.map((p,i)=>'<article class="post" onclick="openP('+i+')"><h2>'+p.title+'</h2><p>'+p.excerpt+'</p></article>').join('');window.openP=i=>{const p=posts[i];app.innerHTML='<button onclick="location.reload()">← Quay lại</button><h1>'+p.title+'</h1>'+(window.marked?marked.parse(p.markdownBody||''):p.markdownBody);};});</script></body></html>`,
       }
     );
     if (params.config.siteIcon?.startsWith('data:image/')) {

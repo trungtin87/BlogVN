@@ -34,6 +34,8 @@ import {
 } from './src/utils/siteGenerators.ts';
 import {
   buildAstroBaseLayoutModule,
+  buildAstroManifestJson,
+  buildAstroOgDefaultSvg,
   buildAstroSiteConfigModule,
   buildVietnameseAstroTemplateFiles,
   normalizeAstroTemplateId,
@@ -1080,7 +1082,7 @@ function buildStandaloneWebAppFiles(params: {
     start_url: './',
     display: 'standalone',
     background_color: activeTheme.palette.canvas,
-    theme_color: activeTheme.palette.accent,
+    theme_color: activeTheme.palette.canvas,
     icons: [
       {
         src: iconHref,
@@ -1115,6 +1117,7 @@ self.addEventListener('fetch', (e) => {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" id="dk-theme-color" content="${escapeHtmlAttr(activeTheme.palette.canvas)}" />
   <title>${escapeHtmlAttr(title)}</title>
   <meta name="description" content="${escapeHtmlAttr(tagline)}" />
   <meta property="og:title" content="${escapeHtmlAttr(title)}" />
@@ -1188,9 +1191,17 @@ self.addEventListener('fetch', (e) => {
     }
     const savedTheme = localStorage.getItem('blogvn_site_theme') || DEFAULT_THEME_MODE;
     document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+    const LIGHT_BG = ${JSON.stringify(lightTheme.palette.canvas)};
+    const DARK_BG = ${JSON.stringify(darkTheme.palette.canvas)};
+    const updateMetaColor = (isDark) => {
+      const m = document.querySelector('meta[name="theme-color"]');
+      if (m) m.setAttribute('content', isDark ? DARK_BG : LIGHT_BG);
+    };
+    updateMetaColor(savedTheme === 'dark');
     document.getElementById('themeBtn').onclick = () => {
       const dark = document.documentElement.classList.toggle('dark');
       localStorage.setItem('blogvn_site_theme', dark ? 'dark' : 'light');
+      updateMetaColor(dark);
     };
     const SITE_META = ${JSON.stringify({ title, tagline })};
     let POSTS = []; let query = ''; let activeSlug = null;
@@ -3722,6 +3733,9 @@ async function startServer() {
           const defaultPngB64 = isBundledDefaultSiteIcon(cleanCfg.siteIcon)
             ? readDefaultDaoKyPngBase64()
             : undefined;
+          const hasBundledPngFavicon = Boolean(
+            cleanCfg.siteIcon?.startsWith('data:image/') || defaultPngB64
+          );
           filesToCommit.push(
             {
               path: 'src/cau_hinh/trang_web.ts',
@@ -3729,13 +3743,32 @@ async function startServer() {
                 owner,
                 repo,
                 config: cleanCfg,
-                hasBundledPngFavicon: Boolean(cleanCfg.siteIcon?.startsWith('data:image/') || defaultPngB64),
+                hasBundledPngFavicon,
               }),
               isBase64: false,
             },
             {
               path: 'src/layouts/BaseLayout.astro',
               content: buildAstroBaseLayoutModule({
+                config: cleanCfg,
+              }),
+              isBase64: false,
+            },
+            {
+              path: 'public/manifest.webmanifest',
+              content: buildAstroManifestJson({
+                owner,
+                repo,
+                config: cleanCfg,
+                hasBundledPngFavicon,
+              }),
+              isBase64: false,
+            },
+            {
+              path: 'public/tainguyen/hinhanh/og-default.svg',
+              content: buildAstroOgDefaultSvg({
+                owner,
+                repo,
                 config: cleanCfg,
               }),
               isBase64: false,

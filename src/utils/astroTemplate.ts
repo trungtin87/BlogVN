@@ -836,6 +836,104 @@ function buildBaseTemplateColorJson(): string {
   );
 }
 
+export function buildAstroManifestJson(params: {
+  owner?: string;
+  repo?: string;
+  config: Partial<BlogConfig>;
+  hasBundledPngFavicon?: boolean;
+}): string {
+  const { repo = 'Đạo Ký', config, hasBundledPngFavicon = false } = params;
+  const requestedMode: ThemeMode | undefined =
+    config.themeMode === 'dark' ? 'dark' : config.themeMode === 'light' ? 'light' : undefined;
+  const templateStyle = normalizeAstroTemplateId(
+    config.astroTemplate,
+    requestedMode || 'light'
+  );
+  const presetMeta =
+    ASTRO_TEMPLATE_PRESETS.find((p) => p.id === templateStyle) || ASTRO_TEMPLATE_PRESETS[0];
+  const resolvedMode: ThemeMode = requestedMode || (presetMeta.isDark ? 'dark' : 'light');
+  const sanitizedThemeColors = sanitizeAstroThemeColors(config.themeColors);
+  const tokens = applyThemeColorsToTokens(
+    TEMPLATE_DUAL_TOKENS[templateStyle][resolvedMode],
+    sanitizedThemeColors?.[resolvedMode],
+    resolvedMode === 'dark'
+  );
+  const siteTitle = (config.siteTitle || repo || 'Đạo Ký').trim();
+  const headerBrand = (config.headerTitle || siteTitle).trim();
+  const tagline = (
+    config.tagline ||
+    'Ghi chép cá nhân, bài luận chuyên sâu và góc nhìn tĩnh tại.'
+  ).trim();
+  return (
+    JSON.stringify(
+      {
+        name: siteTitle,
+        short_name: headerBrand.slice(0, 24),
+        description: tagline,
+        start_url: './',
+        display: 'standalone',
+        background_color: tokens.bg,
+        theme_color: tokens.bg,
+        icons: [
+          {
+            src: hasBundledPngFavicon ? './favicon.png' : './favicon.svg',
+            sizes: hasBundledPngFavicon ? '192x192' : 'any',
+            type: hasBundledPngFavicon ? 'image/png' : 'image/svg+xml',
+          },
+        ],
+      },
+      null,
+      2
+    ) + '\n'
+  );
+}
+
+export function buildAstroOgDefaultSvg(params: {
+  owner?: string;
+  repo?: string;
+  config: Partial<BlogConfig>;
+  templateId?: AstroTemplateId | string;
+}): string {
+  const { owner = '', repo = 'Đạo Ký', config } = params;
+  const requestedMode: ThemeMode | undefined =
+    config.themeMode === 'dark' ? 'dark' : config.themeMode === 'light' ? 'light' : undefined;
+  const templateStyle = normalizeAstroTemplateId(
+    params.templateId || config.astroTemplate,
+    requestedMode || 'light'
+  );
+  const presetMeta =
+    ASTRO_TEMPLATE_PRESETS.find((p) => p.id === templateStyle) || ASTRO_TEMPLATE_PRESETS[0];
+  const resolvedMode: ThemeMode = requestedMode || (presetMeta.isDark ? 'dark' : 'light');
+  const sanitizedThemeColors = sanitizeAstroThemeColors(config.themeColors);
+  const tokens = applyThemeColorsToTokens(
+    TEMPLATE_DUAL_TOKENS[templateStyle][resolvedMode],
+    sanitizedThemeColors?.[resolvedMode],
+    resolvedMode === 'dark'
+  );
+  const siteTitle = (config.siteTitle || repo || 'Đạo Ký').trim();
+  const tagline = (
+    config.tagline ||
+    'Ghi chép cá nhân, bài luận chuyên sâu và góc nhìn tĩnh tại.'
+  ).trim();
+  const authorName = (config.authorName || owner || 'Tác giả').trim();
+  const escXml = (s: string) =>
+    String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="${tokens.bg}"/>
+  <rect x="48" y="48" width="1104" height="534" rx="16" fill="${tokens.surface}" stroke="${tokens.border}" stroke-width="2"/>
+  <text x="96" y="190" font-family="monospace" font-size="20" fill="${tokens.link}">${escXml(presetMeta.name.toUpperCase())}</text>
+  <text x="96" y="280" font-family="Georgia, serif" font-weight="700" font-size="58" fill="${tokens.text}">${escXml(siteTitle)}</text>
+  <text x="96" y="355" font-family="sans-serif" font-size="26" fill="${tokens.text2}">${escXml(tagline.slice(0, 78))}</text>
+  <line x1="96" y1="450" x2="1104" y2="450" stroke="${tokens.border}" stroke-width="1"/>
+  <text x="96" y="510" font-family="monospace" font-size="22" fill="${tokens.muted}">${escXml(authorName)} · Ấn phẩm Blog</text>
+</svg>
+`;
+}
+
 export function buildAstroBaseLayoutModule(params: {
   config: Partial<BlogConfig>;
   templateId?: AstroTemplateId | string;
@@ -953,6 +1051,10 @@ function buildCustomColorCss(): string {
   return blocks.join('\\n');
 }
 const customColorCss = buildCustomColorCss();
+const activeTplColors = BASE_TEMPLATE_COLORS[SITE_CONFIG.templateStyle] || BASE_TEMPLATE_COLORS['newyorker-light'];
+const lightBgColor = cleanHex(SITE_CONFIG.themeColors?.light?.canvas) || activeTplColors.light.bg;
+const darkBgColor = cleanHex(SITE_CONFIG.themeColors?.dark?.canvas) || activeTplColors.dark.bg;
+const initialBgColor = initialDark ? darkBgColor : lightBgColor;
 
 const analyticsProvider = SITE_CONFIG.analyticsProvider || 'none';
 const analyticsId = (SITE_CONFIG.analyticsId || '').trim();
@@ -1043,12 +1145,14 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" id="dk-theme-color" content={initialBgColor} />
+    <meta name="color-scheme" content="light dark" />
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex" />}
     {canonical && <link rel="canonical" href={canonical} />}
 
-    <script is:inline define:vars={{ defaultMode: initialMode, defaultSig: defaultThemeSig }}>
+    <script is:inline define:vars={{ defaultMode: initialMode, defaultSig: defaultThemeSig, lightBgColor, darkBgColor }}>
       (function () {
         try {
           var prevSig = localStorage.getItem('daoky_theme_default_sig');
@@ -1060,6 +1164,11 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
           var mode = saved === 'dark' || saved === 'light' ? saved : defaultMode;
           document.documentElement.setAttribute('data-mode', mode);
           document.documentElement.classList.toggle('dark', mode === 'dark');
+          document.documentElement.style.colorScheme = mode;
+          var metaTheme = document.querySelector('meta[name="theme-color"]');
+          if (metaTheme) {
+            metaTheme.setAttribute('content', mode === 'dark' ? darkBgColor : lightBgColor);
+          }
         } catch (e) {}
       })();
     </script>
@@ -1274,7 +1383,7 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
       </script>
     )}
 
-    <script is:inline>
+    <script is:inline define:vars={{ lightBgColor, darkBgColor }}>
       const themeBtn = document.getElementById('themeToggleBtn');
       if (themeBtn) {
         themeBtn.addEventListener('click', () => {
@@ -1282,6 +1391,11 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
           const next = cur === 'dark' ? 'light' : 'dark';
           document.documentElement.setAttribute('data-mode', next);
           document.documentElement.classList.toggle('dark', next === 'dark');
+          document.documentElement.style.colorScheme = next;
+          const metaTheme = document.querySelector('meta[name="theme-color"]');
+          if (metaTheme) {
+            metaTheme.setAttribute('content', next === 'dark' ? darkBgColor : lightBgColor);
+          }
           try {
             localStorage.setItem('daoky_theme_mode', next);
           } catch (e) {}
@@ -2442,37 +2556,19 @@ jobs:
 `;
   };
 
-  const ogDefaultSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
-  <rect width="1200" height="630" fill="${tokens.bg}"/>
-  <rect x="48" y="48" width="1104" height="534" rx="16" fill="${tokens.surface}" stroke="${tokens.border}" stroke-width="2"/>
-  <text x="96" y="190" font-family="monospace" font-size="20" fill="${tokens.link}">${escXml(presetMeta.name.toUpperCase())}</text>
-  <text x="96" y="280" font-family="Georgia, serif" font-weight="700" font-size="58" fill="${tokens.text}">${escXml(siteTitle)}</text>
-  <text x="96" y="355" font-family="sans-serif" font-size="26" fill="${tokens.text2}">${escXml(tagline.slice(0, 78))}</text>
-  <line x1="96" y1="450" x2="1104" y2="450" stroke="${tokens.border}" stroke-width="1"/>
-  <text x="96" y="510" font-family="monospace" font-size="22" fill="${tokens.muted}">${escXml(authorName)} · Ấn phẩm Blog</text>
-</svg>
-`;
+  const ogDefaultSvg = buildAstroOgDefaultSvg({
+    owner,
+    repo,
+    config: persistedConfig,
+    templateId: templateStyle,
+  });
 
-  const manifestJson = JSON.stringify(
-    {
-      name: siteTitle,
-      short_name: headerBrand.slice(0, 24),
-      description: tagline,
-      start_url: './',
-      display: 'standalone',
-      background_color: tokens.bg,
-      theme_color: tokens.accent,
-      icons: [
-        {
-          src: hasBundledPngFavicon ? './favicon.png' : './favicon.svg',
-          sizes: hasBundledPngFavicon ? '192x192' : 'any',
-          type: hasBundledPngFavicon ? 'image/png' : 'image/svg+xml',
-        },
-      ],
-    },
-    null,
-    2
-  ) + '\n';
+  const manifestJson = buildAstroManifestJson({
+    owner,
+    repo,
+    config: persistedConfig,
+    hasBundledPngFavicon,
+  });
 
   const robotsTxt = `User-agent: *
 Allow: /
