@@ -242,8 +242,11 @@ service cloud.firestore {
       allow update: if isOwner(userId)
         && isValidConfigId(configId)
         && isValidUserConfig(request.resource.data, userId)
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.createdAt == resource.data.createdAt
+        && (!('uid' in resource.data) || request.resource.data.uid == resource.data.uid)
+        && (
+          ('createdAt' in resource.data && resource.data.createdAt is timestamp && request.resource.data.createdAt == resource.data.createdAt)
+          || ((!('createdAt' in resource.data) || !(resource.data.createdAt is timestamp)) && request.resource.data.createdAt == request.time)
+        )
         && request.resource.data.updatedAt == request.time;
       allow delete: if isOwner(userId) && isValidConfigId(configId);
     }
@@ -259,9 +262,12 @@ service cloud.firestore {
       allow update: if isOwner(userId)
         && isValidDraftId(draftId)
         && isValidUserDraft(request.resource.data, userId, draftId)
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.id == resource.data.id
-        && request.resource.data.createdAt == resource.data.createdAt
+        && (!('uid' in resource.data) || request.resource.data.uid == resource.data.uid)
+        && (!('id' in resource.data) || request.resource.data.id == resource.data.id)
+        && (
+          ('createdAt' in resource.data && resource.data.createdAt is timestamp && request.resource.data.createdAt == resource.data.createdAt)
+          || ((!('createdAt' in resource.data) || !(resource.data.createdAt is timestamp)) && request.resource.data.createdAt == request.time)
+        )
         && request.resource.data.updatedAt == request.time;
       allow delete: if isOwner(userId) && isValidDraftId(draftId);
     }

@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Check, Eye, Moon, Palette, RotateCcw, Sun } from 'lucide-react';
+import {
+  Check,
+  CheckCircle2,
+  Eye,
+  Loader2,
+  Moon,
+  Palette,
+  RotateCcw,
+  Sun,
+  UploadCloud,
+} from 'lucide-react';
 import type {
   AstroTemplateId,
   BlogTheme,
@@ -32,6 +42,12 @@ interface ThemeVisualSelectorProps {
   previewAuthorName?: string;
   previewSiteIcon?: string;
   compact?: boolean;
+  hasPendingChanges?: boolean;
+  isApplying?: boolean;
+  applyStatusText?: string | null;
+  applyErrorText?: string | null;
+  onApply?: () => void;
+  onDiscard?: () => void;
 }
 
 const THEME_PREVIEW_ART: Record<
@@ -162,6 +178,12 @@ export function ThemeVisualSelector({
   previewAuthorName,
   previewSiteIcon,
   compact = false,
+  hasPendingChanges = false,
+  isApplying = false,
+  applyStatusText = null,
+  applyErrorText = null,
+  onApply,
+  onDiscard,
 }: ThemeVisualSelectorProps) {
   const { palette, fonts } = theme;
   const currentMode: ThemeMode = previewMode || (theme.isDark ? 'dark' : 'light');
@@ -331,6 +353,60 @@ export function ThemeVisualSelector({
           </button>
         </div>
       </div>
+
+      {onApply && hasPendingChanges && (
+        <div
+          style={{
+            borderColor: palette.link,
+            backgroundColor: palette.surfaceElevated,
+          }}
+          className="rounded-xl border p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
+        >
+          <div className="text-xs font-medium min-w-0">
+            <span style={{ color: palette.link }} className="font-semibold">
+              Đang xem thử cục bộ:
+            </span>{' '}
+            <span style={{ color: palette.textSecondary }}>
+              {activePreset.name} ({currentMode === 'dark' ? 'Tối' : 'Sáng'}). Chưa lưu lên Cloud &amp; GitHub.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+            {onDiscard && (
+              <button
+                type="button"
+                onClick={onDiscard}
+                disabled={isApplying}
+                style={{
+                  borderColor: palette.border,
+                  backgroundColor: palette.canvas,
+                  color: palette.textPrimary,
+                }}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 min-h-[40px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 disabled:opacity-50 whitespace-nowrap"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Huỷ
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onApply}
+              disabled={isApplying}
+              style={{
+                backgroundColor: palette.accent,
+                color: palette.accentText,
+              }}
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 min-h-[40px] text-xs font-semibold rounded-lg cursor-pointer hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+            >
+              {isApplying ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <UploadCloud className="w-3.5 h-3.5" />
+              )}
+              Áp dụng &amp; Đồng bộ
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Visual Theme Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
@@ -559,7 +635,7 @@ export function ThemeVisualSelector({
                 <span>Tuỳ chỉnh màu sắc mặc định (Sáng &amp; Tối)</span>
               </div>
               <p style={{ color: palette.textMuted }} className="text-xs">
-                Thay đổi màu cho giao diện <strong>{activePreset.name}</strong> đang chọn — áp dụng tức thì trên Đạo Ký và đồng bộ lên website ở cả 2 chế độ Sáng/Tối.
+                Chọn giao diện <strong>{activePreset.name}</strong> &amp; phối màu để <strong>xem thử cục bộ</strong> bên dưới — chỉ khi nhấn <strong>Áp dụng</strong> mới lưu đồng bộ lên Firestore &amp; GitHub.
               </p>
             </div>
 
@@ -746,6 +822,82 @@ export function ThemeVisualSelector({
               })}
             </div>
           </div>
+
+          {onApply && (
+            <div
+              style={{
+                borderColor: hasPendingChanges ? palette.link : palette.border,
+                backgroundColor: palette.canvas,
+              }}
+              className="rounded-xl border p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            >
+              <div className="min-w-0 space-y-1">
+                <div className="text-xs font-semibold flex items-center gap-1.5">
+                  {hasPendingChanges ? (
+                    <span style={{ color: palette.link }}>
+                      Đang xem thử cục bộ — chưa lưu lên Cloud Firestore &amp; GitHub
+                    </span>
+                  ) : applyStatusText ? (
+                    <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      {applyStatusText}
+                    </span>
+                  ) : (
+                    <span style={{ color: palette.textSecondary }}>
+                      Đang dùng cấu hình đã đồng bộ. Bạn có thể chọn thử mẫu/màu khác trước khi nhấn Áp dụng.
+                    </span>
+                  )}
+                </div>
+                {applyErrorText && (
+                  <div className="text-xs text-red-600 dark:text-red-400 break-words [overflow-wrap:anywhere] max-w-full">
+                    {applyErrorText}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0 w-full sm:w-auto">
+                {hasPendingChanges && onDiscard && (
+                  <button
+                    type="button"
+                    onClick={onDiscard}
+                    disabled={isApplying}
+                    style={{
+                      borderColor: palette.border,
+                      backgroundColor: palette.surface,
+                      color: palette.textPrimary,
+                    }}
+                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 min-h-[44px] sm:min-h-[40px] text-xs font-medium rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Huỷ xem thử
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onApply}
+                  disabled={isApplying}
+                  style={{
+                    backgroundColor: hasPendingChanges ? palette.accent : palette.surface,
+                    color: hasPendingChanges ? palette.accentText : palette.textPrimary,
+                    borderColor: hasPendingChanges ? palette.accent : palette.border,
+                  }}
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 min-h-[44px] sm:min-h-[40px] text-xs sm:text-sm font-semibold rounded-xl border cursor-pointer hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+                >
+                  {isApplying ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Đang áp dụng...
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="w-4 h-4" />
+                      {hasPendingChanges ? 'Áp dụng & Đồng bộ' : 'Áp dụng lại lên Cloud & GitHub'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1079,6 +1231,51 @@ export function ThemeVisualSelector({
               </div>
             )}
           </div>
+
+          {onApply && hasPendingChanges && (
+            <div
+              style={{ borderColor: palette.border, backgroundColor: palette.surface }}
+              className="px-4 py-3 border-t flex flex-wrap items-center justify-between gap-2.5"
+            >
+              <span style={{ color: palette.textSecondary }} className="text-xs font-medium">
+                Bản xem trước cục bộ chưa được ghi đồng bộ.
+              </span>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {onDiscard && (
+                  <button
+                    type="button"
+                    onClick={onDiscard}
+                    disabled={isApplying}
+                    style={{
+                      borderColor: palette.border,
+                      backgroundColor: palette.canvas,
+                      color: palette.textPrimary,
+                    }}
+                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 min-h-[42px] text-xs font-medium rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-50"
+                  >
+                    Huỷ xem thử
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onApply}
+                  disabled={isApplying}
+                  style={{
+                    backgroundColor: palette.accent,
+                    color: palette.accentText,
+                  }}
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 min-h-[42px] text-xs font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-50"
+                >
+                  {isApplying ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <UploadCloud className="w-4 h-4" />
+                  )}
+                  Áp dụng &amp; Đồng bộ
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

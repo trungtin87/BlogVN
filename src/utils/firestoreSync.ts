@@ -20,6 +20,7 @@ import type { BlogConfig, BlogPost } from '../types/blog';
 const SITE_CONFIG_DOC_ID = 'site';
 
 const cachedConfigCreatedAt = new Map<string, Timestamp>();
+const cachedDraftCreatedAt = new Map<string, Timestamp>();
 const configWriteQueues = new Map<string, Promise<void>>();
 
 function clampString(val: unknown, maxLen: number): string {
@@ -274,23 +275,21 @@ export async function saveUserConfigToFirestore(userId: string, config: BlogConf
       const path = `users/${userId}/config/${SITE_CONFIG_DOC_ID}`;
       const ref = doc(db, 'users', userId, 'config', SITE_CONFIG_DOC_ID);
       try {
-        let existingCreatedAt: unknown = cachedConfigCreatedAt.get(userId);
+        let existingCreatedAt: Timestamp | undefined = cachedConfigCreatedAt.get(userId);
         if (!(existingCreatedAt instanceof Timestamp)) {
-          const existing = await getDoc(ref);
-          const candidate = existing.exists() ? existing.data()?.createdAt : undefined;
-          if (candidate instanceof Timestamp) {
-            existingCreatedAt = candidate;
-            cachedConfigCreatedAt.set(userId, candidate);
-          } else if (existing.exists()) {
-            try {
-              const serverSnap = await getDocFromServer(ref);
-              const serverCreatedAt = serverSnap.exists() ? serverSnap.data()?.createdAt : undefined;
-              if (serverCreatedAt instanceof Timestamp) {
-                existingCreatedAt = serverCreatedAt;
-                cachedConfigCreatedAt.set(userId, serverCreatedAt);
-              }
-            } catch {
-              // Offline or cache-only fallback
+          try {
+            const serverSnap = await getDocFromServer(ref);
+            const serverCreatedAt = serverSnap.exists() ? serverSnap.data()?.createdAt : undefined;
+            if (serverCreatedAt instanceof Timestamp) {
+              existingCreatedAt = serverCreatedAt;
+              cachedConfigCreatedAt.set(userId, serverCreatedAt);
+            }
+          } catch {
+            const existing = await getDoc(ref);
+            const candidate = existing.exists() ? existing.data()?.createdAt : undefined;
+            if (candidate instanceof Timestamp) {
+              existingCreatedAt = candidate;
+              cachedConfigCreatedAt.set(userId, candidate);
             }
           }
         }
@@ -316,7 +315,14 @@ export function subscribeUserDrafts(
     q,
     (snapshot) => {
       const items = snapshot.docs
-        .map((d) => docToBlogPost(d.data()))
+        .map((d) => {
+          const raw = d.data();
+          const post = docToBlogPost(raw);
+          if (raw.createdAt instanceof Timestamp && post.id) {
+            cachedDraftCreatedAt.set(`users/${userId}/drafts/${sanitizeDraftId(post.id)}`, raw.createdAt);
+          }
+          return post;
+        })
         .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
       onData(items);
     },
@@ -331,8 +337,24 @@ export async function upsertUserDraftToFirestore(userId: string, post: BlogPost)
   const path = `users/${userId}/drafts/${safeId}`;
   const ref = doc(db, 'users', userId, 'drafts', safeId);
   try {
-    const existing = await getDoc(ref);
-    const existingCreatedAt = existing.exists() ? existing.data()?.createdAt : undefined;
+    let existingCreatedAt: Timestamp | undefined = cachedDraftCreatedAt.get(path);
+    if (!(existingCreatedAt instanceof Timestamp)) {
+      try {
+        const serverSnap = await getDocFromServer(ref);
+        const serverCreatedAt = serverSnap.exists() ? serverSnap.data()?.createdAt : undefined;
+        if (serverCreatedAt instanceof Timestamp) {
+          existingCreatedAt = serverCreatedAt;
+          cachedDraftCreatedAt.set(path, serverCreatedAt);
+        }
+      } catch {
+        const existing = await getDoc(ref);
+        const candidate = existing.exists() ? existing.data()?.createdAt : undefined;
+        if (candidate instanceof Timestamp) {
+          existingCreatedAt = candidate;
+          cachedDraftCreatedAt.set(path, candidate);
+        }
+      }
+    }
     const payload = buildUserDraftPayload({ ...post, id: safeId }, userId, existingCreatedAt);
     await setDoc(ref, payload);
   } catch (error) {
@@ -362,9 +384,26 @@ export async function batchSeedUserDraftsToFirestore(
     const batch = writeBatch(db);
     for (const post of chunk) {
       const safeId = sanitizeDraftId(post.id);
+      const cacheKey = `users/${userId}/drafts/${safeId}`;
       const ref = doc(db, 'users', userId, 'drafts', safeId);
-      const existing = await getDoc(ref);
-      const existingCreatedAt = existing.exists() ? existing.data()?.createdAt : undefined;
+      let existingCreatedAt: Timestamp | undefined = cachedDraftCreatedAt.get(cacheKey);
+      if (!(existingCreatedAt instanceof Timestamp)) {
+        try {
+          const serverSnap = await getDocFromServer(ref);
+          const serverCreatedAt = serverSnap.exists() ? serverSnap.data()?.createdAt : undefined;
+          if (serverCreatedAt instanceof Timestamp) {
+            existingCreatedAt = serverCreatedAt;
+            cachedDraftCreatedAt.set(cacheKey, serverCreatedAt);
+          }
+        } catch {
+          const existing = await getDoc(ref);
+          const candidate = existing.exists() ? existing.data()?.createdAt : undefined;
+          if (candidate instanceof Timestamp) {
+            existingCreatedAt = candidate;
+            cachedDraftCreatedAt.set(cacheKey, candidate);
+          }
+        }
+      }
       const payload = buildUserDraftPayload({ ...post, id: safeId }, userId, existingCreatedAt);
       batch.set(ref, payload);
     }

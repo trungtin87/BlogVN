@@ -29,6 +29,7 @@ import type {
   RepoStructureInfo,
   SiteNavLink,
   ThemeCustomColors,
+  ThemeMode,
 } from '../types/blog';
 import {
   DEFAULT_LIVE_CHAT_CONFIG,
@@ -104,6 +105,7 @@ interface SiteIdentityCardProps {
   repoInfo: GitHubRepoInfo | null;
   repoStructure?: RepoStructureInfo | null;
   onUpdateConfig: (next: BlogConfig | ((prev: BlogConfig) => BlogConfig)) => void;
+  onApplyAndSyncConfig?: (nextCfg: BlogConfig) => Promise<void>;
   onDeployedToGitHub?: (message: string, commitUrl?: string) => void;
   onRefreshRepo?: () => void;
 }
@@ -146,6 +148,7 @@ export function SiteIdentityCard({
   repoInfo,
   repoStructure = null,
   onUpdateConfig,
+  onApplyAndSyncConfig,
   onDeployedToGitHub,
   onRefreshRepo,
 }: SiteIdentityCardProps) {
@@ -173,6 +176,9 @@ export function SiteIdentityCard({
   const [astroTemplate, setAstroTemplate] = useState<AstroTemplateId>(() =>
     normalizeAstroTemplateId(config.astroTemplate, config.themeMode)
   );
+  const [stagedThemeMode, setStagedThemeMode] = useState<ThemeMode>(() =>
+    config.themeMode === 'dark' ? 'dark' : 'light'
+  );
   const [themeColors, setThemeColors] = useState<ThemeCustomColors | undefined>(() =>
     sanitizeThemeCustomColors(config.themeColors)
   );
@@ -196,9 +202,15 @@ export function SiteIdentityCard({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeployingApp, setIsDeployingApp] = useState(false);
   const [isDeployingAstro, setIsDeployingAstro] = useState(false);
+  const [isApplyingTheme, setIsApplyingTheme] = useState(false);
   const [confirmWipeAstro, setConfirmWipeAstro] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; url?: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [themeApplyStatus, setThemeApplyStatus] = useState<string | null>(null);
+  const [themeApplyError, setThemeApplyError] = useState<string | null>(null);
+
+  const hasLocalThemeDraftRef = useRef(false);
+  const lastRepoKeyRef = useRef(`${config.githubOwner}/${config.githubRepo}`);
 
   const repoDisplay =
     config.githubOwner && config.githubRepo
@@ -206,6 +218,13 @@ export function SiteIdentityCard({
       : 'Chưa chọn repository';
 
   useEffect(() => {
+    const repoKey = `${config.githubOwner}/${config.githubRepo}`;
+    const repoChanged = repoKey !== lastRepoKeyRef.current;
+    if (repoChanged) {
+      lastRepoKeyRef.current = repoKey;
+      hasLocalThemeDraftRef.current = false;
+    }
+
     setSiteTitle(config.siteTitle || '');
     setTagline(config.tagline || '');
     setSiteIcon(config.siteIcon || './assets/aistudio/1794978557793_3b5d5cb0.png');
@@ -215,8 +234,11 @@ export function SiteIdentityCard({
     setFooterLinks(config.footerLinks || []);
     setAuthorName(config.authorName || '');
     setAuthorBio(config.authorBio || '');
-    setAstroTemplate(normalizeAstroTemplateId(config.astroTemplate, config.themeMode));
-    setThemeColors(sanitizeThemeCustomColors(config.themeColors));
+    if (repoChanged || !hasLocalThemeDraftRef.current) {
+      setAstroTemplate(normalizeAstroTemplateId(config.astroTemplate, config.themeMode));
+      setStagedThemeMode(config.themeMode === 'dark' ? 'dark' : 'light');
+      setThemeColors(sanitizeThemeCustomColors(config.themeColors));
+    }
     setCustomDomain(config.customDomain || '');
     setAnalyticsProvider(config.analyticsProvider || 'none');
     setAnalyticsId(config.analyticsId || '');
@@ -287,7 +309,7 @@ export function SiteIdentityCard({
           ? chosenPreset.isDark
             ? 'dark'
             : 'light'
-          : config.themeMode || (chosenPreset?.isDark ? 'dark' : 'light'),
+          : stagedThemeMode || (chosenPreset?.isDark ? 'dark' : 'light'),
       astroTemplate: chosenTpl,
       themeColors: sanitizeThemeCustomColors(themeColors),
       customDomain: cleanedDomain || undefined,
@@ -313,6 +335,77 @@ export function SiteIdentityCard({
     };
   };
 
+  const savedTemplateId = normalizeAstroTemplateId(config.astroTemplate, config.themeMode);
+  const savedThemeMode: ThemeMode = config.themeMode === 'dark' ? 'dark' : 'light';
+  const hasPendingThemeChanges =
+    astroTemplate !== savedTemplateId ||
+    stagedThemeMode !== savedThemeMode ||
+    JSON.stringify(sanitizeThemeCustomColors(themeColors) || null) !==
+      JSON.stringify(sanitizeThemeCustomColors(config.themeColors) || null);
+
+  const handleDiscardThemeChanges = () => {
+    hasLocalThemeDraftRef.current = false;
+    setAstroTemplate(savedTemplateId);
+    setStagedThemeMode(savedThemeMode);
+    setThemeColors(sanitizeThemeCustomColors(config.themeColors));
+    setThemeApplyStatus(null);
+    setThemeApplyError(null);
+  };
+
+  const handleApplyThemeAndSync = async () => {
+    const nextCfg = buildDraftConfig();
+    hasLocalThemeDraftRef.current = false;
+    setIsApplyingTheme(true);
+    setThemeApplyStatus(null);
+    setThemeApplyError(null);
+    setErrorMessage(null);
+
+    try {
+      if (onApplyAndSyncConfig) {
+        await onApplyAndSyncConfig(nextCfg);
+      } else {
+        onUpdateConfig(nextCfg);
+      }
+
+      const canSyncGitHub = Boolean(
+        authStatus?.authenticated && config.githubOwner?.trim() && config.githubRepo?.trim()
+      );
+      if (!canSyncGitHub) {
+        setThemeApplyStatus(
+          'Đã áp dụng & lưu lên Cloud Firestore. Kết nối GitHub để đồng bộ lên website.'
+        );
+        return;
+      }
+
+      const ghRes = await ghSaveSiteConfig({
+        owner: config.githubOwner,
+        repo: config.githubRepo,
+        branch: repoInfo?.defaultBranch || 'main',
+        config: nextCfg,
+        syncToGitHub: true,
+        publishWebApp: false,
+        posts: [],
+      });
+
+      if (!ghRes.ok) {
+        setThemeApplyError(
+          `Đã lưu lên Cloud Firestore nhưng đồng bộ GitHub lỗi: ${ghRes.error || 'Không xác định'}`
+        );
+        return;
+      }
+
+      const okMsg = isAstroRepo
+        ? `Đã áp dụng giao diện & màu sắc lên Firestore và Astro (${config.githubOwner}/${config.githubRepo}).`
+        : 'Đã áp dụng giao diện & màu sắc lên Cloud Firestore và GitHub.';
+      setThemeApplyStatus(okMsg);
+      onDeployedToGitHub?.(okMsg, ghRes.commitUrl || config.pagesUrl);
+    } catch (err: any) {
+      setThemeApplyError(err?.message || 'Không thể đồng bộ giao diện lên Firestore / GitHub.');
+    } finally {
+      setIsApplyingTheme(false);
+    }
+  };
+
   const handleIconFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -328,7 +421,7 @@ export function SiteIdentityCard({
 
   const persistConfig = async (options: { syncToGitHub: boolean; publishWebApp: boolean }) => {
     const nextCfg = buildDraftConfig();
-    onUpdateConfig(nextCfg);
+    hasLocalThemeDraftRef.current = false;
     setErrorMessage(null);
     setStatusMessage(null);
 
@@ -339,6 +432,12 @@ export function SiteIdentityCard({
     }
 
     try {
+      if (onApplyAndSyncConfig) {
+        await onApplyAndSyncConfig(nextCfg);
+      } else {
+        onUpdateConfig(nextCfg);
+      }
+
       const result = await ghSaveSiteConfig({
         owner: config.githubOwner,
         repo: config.githubRepo,
@@ -365,7 +464,7 @@ export function SiteIdentityCard({
         onDeployedToGitHub?.(msg, result.commitUrl);
       } else {
         setStatusMessage({
-          text: 'Đã lưu nhận dạng web vào thiết bị & áp dụng ngay trên giao diện.',
+          text: 'Đã lưu nhận dạng web lên Cloud Firestore & thiết bị.',
         });
       }
     } catch {
@@ -381,12 +480,17 @@ export function SiteIdentityCard({
       ...buildDraftConfig(),
       postsDirectory: 'src/content/bai_viet',
     };
-    onUpdateConfig(nextCfg);
+    hasLocalThemeDraftRef.current = false;
     setErrorMessage(null);
     setStatusMessage(null);
     setIsDeployingAstro(true);
 
     try {
+      if (onApplyAndSyncConfig) {
+        await onApplyAndSyncConfig(nextCfg);
+      } else {
+        onUpdateConfig(nextCfg);
+      }
       const result = await ghDeployAstroTemplate({
         owner: config.githubOwner,
         repo: config.githubRepo,
@@ -1095,7 +1199,7 @@ export function SiteIdentityCard({
       </div>
 
       {errorMessage && (
-        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs">
+        <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs break-words [overflow-wrap:anywhere] max-w-full">
           {errorMessage}
         </div>
       )}
@@ -1220,29 +1324,35 @@ export function SiteIdentityCard({
               theme={theme}
               selectedTemplate={astroTemplate}
               onSelectTemplate={(tplId) => {
+                hasLocalThemeDraftRef.current = true;
+                setThemeApplyStatus(null);
+                setThemeApplyError(null);
                 setAstroTemplate(tplId);
                 const chosenPreset = EDITORIAL_THEMES[tplId];
-                const nextMode = chosenPreset
-                  ? chosenPreset.isDark
-                    ? 'dark'
-                    : 'light'
-                  : config.themeMode;
-                onUpdateConfig((prev) => ({
-                  ...prev,
-                  astroTemplate: tplId,
-                  themeMode: nextMode,
-                }));
+                if (chosenPreset) {
+                  setStagedThemeMode(chosenPreset.isDark ? 'dark' : 'light');
+                }
               }}
-              previewMode={config.themeMode}
-              onToggleThemeMode={(mode) =>
-                onUpdateConfig((prev) => ({ ...prev, themeMode: mode }))
-              }
-              themeColors={sanitizeThemeCustomColors(config.themeColors) ?? themeColors}
+              previewMode={stagedThemeMode}
+              onToggleThemeMode={(mode) => {
+                hasLocalThemeDraftRef.current = true;
+                setThemeApplyStatus(null);
+                setThemeApplyError(null);
+                setStagedThemeMode(mode);
+              }}
+              themeColors={themeColors}
               onChangeColors={(nextColors) => {
-                const cleaned = sanitizeThemeCustomColors(nextColors);
-                setThemeColors(cleaned);
-                onUpdateConfig((prev) => ({ ...prev, themeColors: cleaned }));
+                hasLocalThemeDraftRef.current = true;
+                setThemeApplyStatus(null);
+                setThemeApplyError(null);
+                setThemeColors(sanitizeThemeCustomColors(nextColors));
               }}
+              hasPendingChanges={hasPendingThemeChanges}
+              isApplying={isApplyingTheme}
+              applyStatusText={themeApplyStatus}
+              applyErrorText={themeApplyError}
+              onApply={handleApplyThemeAndSync}
+              onDiscard={handleDiscardThemeChanges}
               previewSiteTitle={siteTitle}
               previewHeaderTitle={headerTitle}
               previewTagline={tagline}

@@ -38,8 +38,15 @@ import type {
   GitHubRepoSummary,
   RepoStructureInfo,
   ScheduledTask,
+  ThemeCustomColors,
+  ThemeMode,
 } from '../types/blog';
-import { COLLECTION_LABELS, EDITORIAL_THEMES, normalizeAstroTemplateId } from '../data/themes';
+import {
+  COLLECTION_LABELS,
+  EDITORIAL_THEMES,
+  normalizeAstroTemplateId,
+  sanitizeThemeCustomColors,
+} from '../data/themes';
 import { formatDisplayDate } from '../utils/markdown';
 import { ghCreateStarterPagesSite, ghDeployAstroTemplate } from '../utils/githubClient';
 import {
@@ -77,6 +84,7 @@ interface GitHubSyncPanelProps {
   onLoadMorePosts?: () => void;
   onRefreshSchedules: () => Promise<void>;
   onUpdateConfig: (next: BlogConfig | ((prev: BlogConfig) => BlogConfig)) => void;
+  onApplyAndSyncConfig?: (nextCfg: BlogConfig) => Promise<void>;
   onImportPosts?: (posts: BlogPost[]) => void;
   onImportConfig?: (config: Partial<BlogConfig>) => void;
   onDeployedToGitHub?: (message: string, commitUrl?: string) => void;
@@ -122,6 +130,7 @@ export function GitHubSyncPanel({
   onLoadMorePosts,
   onRefreshSchedules,
   onUpdateConfig,
+  onApplyAndSyncConfig,
   onImportPosts,
   onImportConfig,
   onDeployedToGitHub,
@@ -165,6 +174,12 @@ export function GitHubSyncPanel({
   const [selectedAstroPreset, setSelectedAstroPreset] = useState<AstroTemplateId>(() =>
     normalizeAstroTemplateId(config.astroTemplate, config.themeMode)
   );
+  const [stagedNewThemeMode, setStagedNewThemeMode] = useState<ThemeMode>(() =>
+    config.themeMode === 'dark' ? 'dark' : 'light'
+  );
+  const [stagedNewThemeColors, setStagedNewThemeColors] = useState<ThemeCustomColors | undefined>(
+    () => sanitizeThemeCustomColors(config.themeColors)
+  );
   const [isCreatingSite, setIsCreatingSite] = useState(false);
   const [createSiteError, setCreateSiteError] = useState<string | null>(null);
 
@@ -172,7 +187,9 @@ export function GitHubSyncPanel({
     setOwnerInput(config.githubOwner);
     setRepoInput(config.githubRepo);
     setSelectedAstroPreset(normalizeAstroTemplateId(config.astroTemplate, config.themeMode));
-  }, [config.githubOwner, config.githubRepo, config.astroTemplate, config.themeMode]);
+    setStagedNewThemeMode(config.themeMode === 'dark' ? 'dark' : 'light');
+    setStagedNewThemeColors(sanitizeThemeCustomColors(config.themeColors));
+  }, [config.githubOwner, config.githubRepo, config.astroTemplate, config.themeMode, config.themeColors]);
 
   useEffect(() => {
     if (authStatus?.user?.login && !newRepoName) {
@@ -292,8 +309,11 @@ export function GitHubSyncPanel({
           githubRepo: data.repo,
           pagesUrl: data.pagesUrl,
           postsDirectory: 'src/content/bai_viet',
-          themeMode: chosenTheme ? (chosenTheme.isDark ? 'dark' : 'light') : config.themeMode,
+          themeMode:
+            stagedNewThemeMode ||
+            (chosenTheme ? (chosenTheme.isDark ? 'dark' : 'light') : config.themeMode),
           astroTemplate: selectedAstroPreset,
+          themeColors: sanitizeThemeCustomColors(stagedNewThemeColors),
         };
         const astroRes = await ghDeployAstroTemplate({
           owner: data.owner,
@@ -309,7 +329,11 @@ export function GitHubSyncPanel({
           );
           return;
         }
-        onUpdateConfig(nextCfg);
+        if (onApplyAndSyncConfig) {
+          await onApplyAndSyncConfig(nextCfg);
+        } else {
+          onUpdateConfig(nextCfg);
+        }
         postsDir = 'src/content/bai_viet';
       }
 
@@ -970,14 +994,18 @@ export function GitHubSyncPanel({
               <ThemeVisualSelector
                 theme={theme}
                 selectedTemplate={selectedAstroPreset}
-                onSelectTemplate={(tplId) => setSelectedAstroPreset(tplId)}
-                previewMode={config.themeMode}
-                onToggleThemeMode={(mode) =>
-                  onUpdateConfig((prev) => ({ ...prev, themeMode: mode }))
-                }
-                themeColors={config.themeColors}
+                onSelectTemplate={(tplId) => {
+                  setSelectedAstroPreset(tplId);
+                  const chosen = EDITORIAL_THEMES[tplId];
+                  if (chosen) {
+                    setStagedNewThemeMode(chosen.isDark ? 'dark' : 'light');
+                  }
+                }}
+                previewMode={stagedNewThemeMode}
+                onToggleThemeMode={(mode) => setStagedNewThemeMode(mode)}
+                themeColors={stagedNewThemeColors}
                 onChangeColors={(nextColors) =>
-                  onUpdateConfig((prev) => ({ ...prev, themeColors: nextColors }))
+                  setStagedNewThemeColors(sanitizeThemeCustomColors(nextColors))
                 }
                 previewSiteTitle={newSiteTitle || config.siteTitle}
                 previewHeaderTitle={config.headerTitle}
@@ -1016,6 +1044,7 @@ export function GitHubSyncPanel({
           repoInfo={repoInfo}
           repoStructure={repoStructure}
           onUpdateConfig={onUpdateConfig}
+          onApplyAndSyncConfig={onApplyAndSyncConfig}
           onDeployedToGitHub={onDeployedToGitHub}
           onRefreshRepo={onRefresh}
         />

@@ -219,7 +219,7 @@ export default function App() {
       })
       .catch((err) => {
         isConfigWriteInFlightRef.current = false;
-        throw err;
+        console.warn('Cloud config background sync deferred:', err instanceof Error ? err.message : err);
       });
   }, []);
 
@@ -261,6 +261,41 @@ export default function App() {
     },
     [flushPendingConfigSave]
   );
+
+  const commitAndSyncConfigToCloud = useCallback(async (nextCfg: BlogConfig) => {
+    if (configSaveTimerRef.current !== null) {
+      window.clearTimeout(configSaveTimerRef.current);
+      configSaveTimerRef.current = null;
+    }
+
+    const targetSeq = ++localConfigSeqRef.current;
+    latestConfigRef.current = nextCfg;
+    setConfig(nextCfg);
+    setGateThemeMode(nextCfg.themeMode);
+    try {
+      localStorage.setItem(GATE_THEME_KEY, nextCfg.themeMode);
+    } catch {
+      // ignore
+    }
+
+    const uid = activeUidRef.current;
+    if (!uid) return;
+
+    try {
+      localStorage.setItem(getUserStorageKey(uid, 'config_v1'), JSON.stringify(nextCfg));
+    } catch {
+      // ignore
+    }
+
+    isConfigWriteInFlightRef.current = true;
+    try {
+      await saveUserConfigToFirestore(uid, nextCfg);
+      firestoreSavedSeqRef.current = Math.max(firestoreSavedSeqRef.current, targetSeq);
+      firestoreHydratedUidRef.current = uid;
+    } finally {
+      isConfigWriteInFlightRef.current = false;
+    }
+  }, []);
 
   const activeTheme = useMemo(
     () =>
@@ -1340,6 +1375,7 @@ export default function App() {
             onLoadMorePosts={handleLoadMorePosts}
             onRefreshSchedules={() => fetchSchedules()}
             onUpdateConfig={updateLocalConfig}
+            onApplyAndSyncConfig={commitAndSyncConfigToCloud}
             onImportPosts={handleImportPosts}
             onImportConfig={handleImportConfig}
             onDeployedToGitHub={(message, commitUrl) => {
