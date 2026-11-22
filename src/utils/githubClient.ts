@@ -22,9 +22,11 @@ import type {
 } from '../types/blog';
 import { slugifyVietnamese } from './markdown';
 import {
+  buildAstroBaseLayoutModule,
   buildAstroSiteConfigModule,
   buildVietnameseAstroTemplateFiles,
 } from './astroTemplate';
+import { resolveBlogTheme } from '../data/themes';
 
 // Strictly isolated per Firebase Google UID in browser localStorage
 export function getUserStorageKey(uid: string, suffix: string): string {
@@ -2147,7 +2149,7 @@ export async function ghSaveSiteConfig(
     posts: BlogPost[];
   },
   uid = activeUid
-): Promise<{ ok: boolean; commitUrl?: string; error?: string }> {
+): Promise<{ ok: boolean; commitUrl?: string; astroSynced?: boolean; error?: string }> {
   const pat = getStoredGitHubPat(uid);
   const hasBackend = await isBackendAvailable();
   if (hasBackend && !pat) {
@@ -2158,7 +2160,11 @@ export async function ghSaveSiteConfig(
     });
     const data = await res.json();
     if (!res.ok) return { ok: false, error: data.error };
-    return { ok: true, commitUrl: data.commit?.htmlUrl };
+    return {
+      ok: true,
+      commitUrl: data.commit?.htmlUrl,
+      astroSynced: typeof data.astroSynced === 'boolean' ? data.astroSynced : undefined,
+    };
   }
 
   if (!params.syncToGitHub && !params.publishWebApp) {
@@ -2173,25 +2179,38 @@ export async function ghSaveSiteConfig(
     },
   ];
 
-  // If this repo uses the Vietnamese Astro template, keep src/cau_hinh/trang_web.ts synced too
+  // If this repo uses the Vietnamese Astro template, keep BOTH src/cau_hinh/trang_web.ts AND src/layouts/BaseLayout.astro synced
+  let astroSynced = false;
   const existingAstroCfg = await ghApiRequest<any>(
     `/repos/${params.owner}/${params.repo}/contents/src/cau_hinh/trang_web.ts?ref=${encodeURIComponent(params.branch)}`,
     {},
     pat
   );
   if (existingAstroCfg.ok) {
+    astroSynced = true;
     const defaultPngB64 = shouldBundleDefaultDaoKyLogo(params.config.siteIcon)
       ? await fetchDefaultDaoKyPngBase64()
       : undefined;
-    files.push({
-      path: 'src/cau_hinh/trang_web.ts',
-      content: buildAstroSiteConfigModule({
-        owner: params.owner,
-        repo: params.repo,
-        config: params.config,
-        hasBundledPngFavicon: Boolean(params.config.siteIcon?.startsWith('data:image/') || defaultPngB64),
-      }),
-    });
+    const hasBundledPngFavicon = Boolean(
+      params.config.siteIcon?.startsWith('data:image/') || defaultPngB64
+    );
+    files.push(
+      {
+        path: 'src/cau_hinh/trang_web.ts',
+        content: buildAstroSiteConfigModule({
+          owner: params.owner,
+          repo: params.repo,
+          config: params.config,
+          hasBundledPngFavicon,
+        }),
+      },
+      {
+        path: 'src/layouts/BaseLayout.astro',
+        content: buildAstroBaseLayoutModule({
+          config: params.config,
+        }),
+      }
+    );
     if (params.config.customDomain?.trim()) {
       files.push({
         path: 'public/CNAME',
@@ -2223,6 +2242,9 @@ export async function ghSaveSiteConfig(
     const tagline = params.config.tagline || `Blog ${title}`;
     const headerBrand = params.config.headerTitle || title;
     const footerText = params.config.footerText || `© ${new Date().getFullYear()} ${title}`;
+    const lightTheme = resolveBlogTheme({ ...params.config, themeMode: 'light' }, 'light');
+    const darkTheme = resolveBlogTheme({ ...params.config, themeMode: 'dark' }, 'dark');
+    const activeTheme = resolveBlogTheme(params.config);
     const defaultPngB64 = shouldBundleDefaultDaoKyLogo(params.config.siteIcon)
       ? await fetchDefaultDaoKyPngBase64()
       : undefined;
@@ -2256,8 +2278,8 @@ export async function ghSaveSiteConfig(
             description: tagline,
             start_url: './',
             display: 'standalone',
-            background_color: '#FAFAFA',
-            theme_color: '#111827',
+            background_color: activeTheme.palette.canvas,
+            theme_color: activeTheme.palette.accent,
             icons: [{ src: iconHref, sizes: '512x512', type: 'image/png' }],
           },
           null,
@@ -2266,7 +2288,7 @@ export async function ghSaveSiteConfig(
       },
       {
         path: 'index.html',
-        content: `<!doctype html><html lang="vi"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${title.replace(/</g, '&lt;')}</title><meta name="description" content="${tagline.replace(/"/g, '&quot;')}"/><link rel="manifest" href="./manifest.webmanifest"/><link rel="icon" href="${iconHref}"/><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>body{margin:0;font-family:system-ui,sans-serif;background:#fafafa;color:#111827;line-height:1.65}.wrap{max-width:900px;margin:0 auto;padding:24px 18px}header{border-bottom:1px solid #e5e7eb;padding:14px 0}footer{border-top:1px solid #e5e7eb;padding:20px 0;margin-top:40px;font-size:13px;color:#6b7280}.post{padding:20px 0;border-bottom:1px solid #e5e7eb;cursor:pointer}img{max-width:100%;border-radius:10px}</style></head><body><header><div class="wrap"><strong>${headerBrand.replace(/</g, '&lt;')}</strong></div></header><main class="wrap" id="app"></main><footer><div class="wrap">${footerText.replace(/</g, '&lt;')}</div></footer><script>fetch('./posts-manifest.json').then(r=>r.json()).then(d=>{const app=document.getElementById('app');const posts=d.posts||[];app.innerHTML='<h1>'+${JSON.stringify(title)}+'</h1><p>'+${JSON.stringify(tagline)}+'</p>'+posts.map((p,i)=>'<article class="post" onclick="openP('+i+')"><h2>'+p.title+'</h2><p>'+p.excerpt+'</p></article>').join('');window.openP=i=>{const p=posts[i];app.innerHTML='<button onclick="location.reload()">← Quay lại</button><h1>'+p.title+'</h1>'+(window.marked?marked.parse(p.markdownBody||''):p.markdownBody);};});</script></body></html>`,
+        content: `<!doctype html><html lang="vi"${activeTheme.isDark ? ' class="dark"' : ''}><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${title.replace(/</g, '&lt;')}</title><meta name="description" content="${tagline.replace(/"/g, '&quot;')}"/><link rel="manifest" href="./manifest.webmanifest"/><link rel="icon" href="${iconHref}"/><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><style>:root{--bg:${lightTheme.palette.canvas};--surface:${lightTheme.palette.surface};--border:${lightTheme.palette.border};--text:${lightTheme.palette.textPrimary};--muted:${lightTheme.palette.textMuted};--link:${lightTheme.palette.link};--accent:${lightTheme.palette.accent}}html.dark{--bg:${darkTheme.palette.canvas};--surface:${darkTheme.palette.surface};--border:${darkTheme.palette.border};--text:${darkTheme.palette.textPrimary};--muted:${darkTheme.palette.textMuted};--link:${darkTheme.palette.link};--accent:${darkTheme.palette.accent}}body{margin:0;font-family:${activeTheme.fonts.body};background:var(--bg);color:var(--text);line-height:1.65}a{color:var(--link)}.wrap{max-width:900px;margin:0 auto;padding:24px 18px}header{border-bottom:1px solid var(--border);padding:14px 0}footer{border-top:1px solid var(--border);padding:20px 0;margin-top:40px;font-size:13px;color:var(--muted)}.post{padding:20px 0;border-bottom:1px solid var(--border);cursor:pointer}img{max-width:100%;border-radius:10px}</style></head><body><header><div class="wrap"><strong>${headerBrand.replace(/</g, '&lt;')}</strong></div></header><main class="wrap" id="app"></main><footer><div class="wrap">${footerText.replace(/</g, '&lt;')}</div></footer><script>fetch('./posts-manifest.json').then(r=>r.json()).then(d=>{const app=document.getElementById('app');const posts=d.posts||[];app.innerHTML='<h1>'+${JSON.stringify(title)}+'</h1><p>'+${JSON.stringify(tagline)}+'</p>'+posts.map((p,i)=>'<article class="post" onclick="openP('+i+')"><h2>'+p.title+'</h2><p>'+p.excerpt+'</p></article>').join('');window.openP=i=>{const p=posts[i];app.innerHTML='<button onclick="location.reload()">← Quay lại</button><h1>'+p.title+'</h1>'+(window.marked?marked.parse(p.markdownBody||''):p.markdownBody);};});</script></body></html>`,
       }
     );
     if (params.config.siteIcon?.startsWith('data:image/')) {
@@ -2283,11 +2305,11 @@ export async function ghSaveSiteConfig(
     files,
     message: params.publishWebApp
       ? `Đạo Ký: Xuất bản Web App GitHub Pages (${params.config.siteTitle})`
-      : `Đạo Ký: Cập nhật cấu hình nhận dạng (${params.config.siteTitle})`,
+      : `Đạo Ký: Cập nhật giao diện & cấu hình web (${params.config.siteTitle})`,
     token: pat,
   });
   if (!commitRes.ok) return { ok: false, error: commitRes.error };
-  return { ok: true, commitUrl: commitRes.commitHtmlUrl };
+  return { ok: true, commitUrl: commitRes.commitHtmlUrl, astroSynced };
 }
 
 export async function ghDeployAstroTemplate(

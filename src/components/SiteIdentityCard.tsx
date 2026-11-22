@@ -206,6 +206,7 @@ export function SiteIdentityCard({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [themeApplyStatus, setThemeApplyStatus] = useState<string | null>(null);
   const [themeApplyError, setThemeApplyError] = useState<string | null>(null);
+  const [themeApplyNeedsAstroDeploy, setThemeApplyNeedsAstroDeploy] = useState(false);
 
   const hasLocalThemeDraftRef = useRef(false);
   const lastRepoKeyRef = useRef(`${config.githubOwner}/${config.githubRepo}`);
@@ -348,6 +349,7 @@ export function SiteIdentityCard({
     setThemeColors(sanitizeThemeCustomColors(config.themeColors));
     setThemeApplyStatus(null);
     setThemeApplyError(null);
+    setThemeApplyNeedsAstroDeploy(false);
   };
 
   const handleApplyThemeAndSync = async () => {
@@ -356,6 +358,7 @@ export function SiteIdentityCard({
     setIsApplyingTheme(true);
     setThemeApplyStatus(null);
     setThemeApplyError(null);
+    setThemeApplyNeedsAstroDeploy(false);
     setErrorMessage(null);
 
     try {
@@ -365,8 +368,8 @@ export function SiteIdentityCard({
         authStatus?.authenticated && config.githubOwner?.trim() && config.githubRepo?.trim()
       );
       if (!canSyncGitHub) {
-        setThemeApplyStatus(
-          'Đã áp dụng & lưu cấu hình trên máy. Kết nối GitHub để đồng bộ lên website.'
+        setThemeApplyError(
+          'Chưa kết nối GitHub Token/OAuth hoặc chưa chọn Repository — giao diện mới chỉ mới áp dụng trên máy.'
         );
         return;
       }
@@ -388,9 +391,17 @@ export function SiteIdentityCard({
         return;
       }
 
-      const okMsg = isAstroRepo
-        ? `Đã áp dụng giao diện & màu sắc trên máy và Astro (${config.githubOwner}/${config.githubRepo}).`
-        : 'Đã áp dụng giao diện & màu sắc trên máy và đồng bộ lên GitHub.';
+      const syncedAstro =
+        typeof ghRes.astroSynced === 'boolean' ? ghRes.astroSynced : isAstroRepo;
+      if (!syncedAstro) {
+        setThemeApplyNeedsAstroDeploy(true);
+        setThemeApplyError(
+          'Đã lưu cấu hình lên .blogvn/site-config.json, nhưng repository này chưa cài Template Astro Blog (hoặc đang dùng template khác) nên giao diện website trên GitHub Pages chưa đổi. Nhấn nút bên dưới để cài Template Astro 5 (giữ nguyên bài viết cũ).'
+        );
+        return;
+      }
+
+      const okMsg = `Đã áp dụng giao diện & màu sắc lên máy và đẩy BaseLayout + Cấu hình lên Astro (${config.githubOwner}/${config.githubRepo}). GitHub Actions đang build lại web.`;
       setThemeApplyStatus(okMsg);
       onDeployedToGitHub?.(okMsg, ghRes.commitUrl || config.pagesUrl);
     } catch (err: any) {
@@ -447,9 +458,14 @@ export function SiteIdentityCard({
         setStatusMessage({ text: msg, url: result.commitUrl || config.pagesUrl });
         onDeployedToGitHub?.(msg, result.commitUrl);
       } else if (options.syncToGitHub) {
-        const msg = isAstroRepo
-          ? `Đã đồng bộ Nhận dạng, Theme & Live Chat lên Astro (${config.githubOwner}/${config.githubRepo}) và kích hoạt build lại.`
-          : `Đã lưu & đồng bộ cấu hình nhận dạng lên Git (.blogvn/site-config.json).`;
+        const syncedAstro =
+          typeof result.astroSynced === 'boolean' ? result.astroSynced : isAstroRepo;
+        if (!syncedAstro) {
+          setThemeApplyNeedsAstroDeploy(true);
+        }
+        const msg = syncedAstro
+          ? `Đã đồng bộ Nhận dạng, Theme, BaseLayout & Live Chat lên Astro (${config.githubOwner}/${config.githubRepo}) và kích hoạt build lại.`
+          : `Đã lưu cấu hình lên .blogvn/site-config.json (repository này chưa cài Template Astro Blog nên giao diện web chưa đổi).`;
         setStatusMessage({ text: msg, url: result.commitUrl || config.pagesUrl });
         onDeployedToGitHub?.(msg, result.commitUrl);
       } else {
@@ -465,7 +481,7 @@ export function SiteIdentityCard({
     }
   };
 
-  const handleDeployCleanAstroTemplate = async () => {
+  const runDeployAstroTemplate = async (preservePosts: boolean) => {
     const nextCfg: BlogConfig = {
       ...buildDraftConfig(),
       postsDirectory: 'src/content/bai_viet',
@@ -473,6 +489,7 @@ export function SiteIdentityCard({
     hasLocalThemeDraftRef.current = false;
     setErrorMessage(null);
     setStatusMessage(null);
+    setThemeApplyError(null);
     setIsDeployingAstro(true);
 
     try {
@@ -483,7 +500,7 @@ export function SiteIdentityCard({
         branch: repoInfo?.defaultBranch || 'main',
         config: nextCfg,
         templateId: astroTemplate,
-        preservePosts: preservePostsOnDeploy,
+        preservePosts,
       });
 
       if (!result.ok) {
@@ -492,11 +509,13 @@ export function SiteIdentityCard({
       }
 
       setConfirmWipeAstro(false);
+      setThemeApplyNeedsAstroDeploy(false);
       const preservedNote =
-        preservePostsOnDeploy && (result.preservedCount || 0) > 0
+        preservePosts && (result.preservedCount || 0) > 0
           ? ` (đã giữ nguyên ${result.preservedCount} bài viết & ảnh cũ)`
           : '';
       const msg = `Đã triển khai Template Astro Blog Việt${preservedNote} lên ${config.githubOwner}/${config.githubRepo}! GitHub Actions đang build trang web.`;
+      setThemeApplyStatus(msg);
       setStatusMessage({
         text: msg,
         url: result.actionsUrl || result.commitUrl || config.pagesUrl,
@@ -508,6 +527,10 @@ export function SiteIdentityCard({
     } finally {
       setIsDeployingAstro(false);
     }
+  };
+
+  const handleDeployCleanAstroTemplate = async () => {
+    await runDeployAstroTemplate(preservePostsOnDeploy);
   };
 
   const addHeaderLink = () => {
@@ -1313,6 +1336,7 @@ export function SiteIdentityCard({
                 hasLocalThemeDraftRef.current = true;
                 setThemeApplyStatus(null);
                 setThemeApplyError(null);
+                setThemeApplyNeedsAstroDeploy(false);
                 setAstroTemplate(tplId);
                 const chosenPreset = EDITORIAL_THEMES[tplId];
                 if (chosenPreset) {
@@ -1324,6 +1348,7 @@ export function SiteIdentityCard({
                 hasLocalThemeDraftRef.current = true;
                 setThemeApplyStatus(null);
                 setThemeApplyError(null);
+                setThemeApplyNeedsAstroDeploy(false);
                 setStagedThemeMode(mode);
               }}
               themeColors={themeColors}
@@ -1331,6 +1356,7 @@ export function SiteIdentityCard({
                 hasLocalThemeDraftRef.current = true;
                 setThemeApplyStatus(null);
                 setThemeApplyError(null);
+                setThemeApplyNeedsAstroDeploy(false);
                 setThemeColors(sanitizeThemeCustomColors(nextColors));
               }}
               hasPendingChanges={hasPendingThemeChanges}
@@ -1345,6 +1371,32 @@ export function SiteIdentityCard({
               previewAuthorName={authorName}
               previewSiteIcon={siteIcon}
             />
+
+            {themeApplyNeedsAstroDeploy && (
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/35 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="text-xs leading-relaxed text-amber-800 dark:text-amber-200 break-words [overflow-wrap:anywhere]">
+                  Repository <code>{repoDisplay}</code> chưa có cấu trúc Template Astro (<code>src/cau_hinh/trang_web.ts</code>), nên khi nhấn Áp dụng hệ thống chỉ mới lưu tệp cấu hình chứ chưa thể đổi giao diện web trên GitHub Pages.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => runDeployAstroTemplate(true)}
+                  disabled={isDeployingAstro || !authStatus?.authenticated}
+                  className="inline-flex items-center justify-center gap-2 px-4 min-h-[40px] text-xs font-semibold rounded-xl bg-amber-600 text-white hover:bg-amber-700 cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0"
+                >
+                  {isDeployingAstro ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Đang cài Astro...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Cài Template Astro (Giữ bài cũ)
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
           {confirmWipeAstro && (

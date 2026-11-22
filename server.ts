@@ -33,11 +33,12 @@ import {
   generateSitemapXml,
 } from './src/utils/siteGenerators.ts';
 import {
+  buildAstroBaseLayoutModule,
   buildAstroSiteConfigModule,
   buildVietnameseAstroTemplateFiles,
   normalizeAstroTemplateId,
 } from './src/utils/astroTemplate.ts';
-import { sanitizeThemeCustomColors } from './src/data/themes.ts';
+import { resolveBlogTheme, sanitizeThemeCustomColors } from './src/data/themes.ts';
 
 dotenv.config();
 
@@ -1047,6 +1048,15 @@ function buildStandaloneWebAppFiles(params: {
   const iconHref = usePng ? './favicon.png' : siteConfig.siteIcon || './favicon.png';
   const headerLinks = Array.isArray(siteConfig.headerNavLinks) ? siteConfig.headerNavLinks : [];
   const footerLinks = Array.isArray(siteConfig.footerLinks) ? siteConfig.footerLinks : [];
+  const lightTheme = resolveBlogTheme({ ...siteConfig, themeMode: 'light' }, 'light');
+  const darkTheme = resolveBlogTheme({ ...siteConfig, themeMode: 'dark' }, 'dark');
+  const activeTheme = resolveBlogTheme(siteConfig);
+  const defaultStandaloneMode = activeTheme.isDark ? 'dark' : 'light';
+  const defaultThemeSig = JSON.stringify({
+    t: siteConfig.astroTemplate || 'newyorker-light',
+    m: defaultStandaloneMode,
+    c: siteConfig.themeColors || null,
+  });
 
   const cleanPosts = posts
     .filter((p) => !p.draft)
@@ -1069,8 +1079,8 @@ function buildStandaloneWebAppFiles(params: {
     description: tagline,
     start_url: './',
     display: 'standalone',
-    background_color: '#FAFAFA',
-    theme_color: '#111827',
+    background_color: activeTheme.palette.canvas,
+    theme_color: activeTheme.palette.accent,
     icons: [
       {
         src: iconHref,
@@ -1101,7 +1111,7 @@ self.addEventListener('fetch', (e) => {
 `;
 
   const indexHtml = `<!doctype html>
-<html lang="vi">
+<html lang="vi"${activeTheme.isDark ? ' class="dark"' : ''}>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -1117,10 +1127,10 @@ self.addEventListener('fetch', (e) => {
   <link rel="alternate" type="application/rss+xml" title="${escapeHtmlAttr(title)} RSS" href="./rss.xml" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
-    :root { --bg:#fafafa; --surface:#f3f4f6; --card:#ffffff; --border:#e5e7eb; --text:#111827; --muted:#6b7280; --link:#2563eb; --accent:#111827; --accent-text:#ffffff; }
-    html.dark { --bg:#0b0d12; --surface:#141720; --card:#1b202c; --border:#272d3d; --text:#f3f4f6; --muted:#9ca3af; --link:#60a5fa; --accent:#f3f4f6; --accent-text:#0b0d12; }
+    :root { --bg:${lightTheme.palette.canvas}; --surface:${lightTheme.palette.surface}; --card:${lightTheme.palette.surfaceElevated}; --border:${lightTheme.palette.border}; --text:${lightTheme.palette.textPrimary}; --muted:${lightTheme.palette.textMuted}; --link:${lightTheme.palette.link}; --accent:${lightTheme.palette.accent}; --accent-text:${lightTheme.palette.accentText}; }
+    html.dark { --bg:${darkTheme.palette.canvas}; --surface:${darkTheme.palette.surface}; --card:${darkTheme.palette.surfaceElevated}; --border:${darkTheme.palette.border}; --text:${darkTheme.palette.textPrimary}; --muted:${darkTheme.palette.textMuted}; --link:${darkTheme.palette.link}; --accent:${darkTheme.palette.accent}; --accent-text:${darkTheme.palette.accentText}; }
     * { box-sizing:border-box; }
-    body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); line-height:1.65; }
+    body { margin:0; font-family: ${activeTheme.fonts.body}; background:var(--bg); color:var(--text); line-height:1.65; }
     a { color:var(--link); text-decoration:none; } a:hover { text-decoration:underline; }
     header { position:sticky; top:0; z-index:20; background:var(--bg); border-bottom:1px solid var(--border); }
     .wrap { max-width:960px; margin:0 auto; padding:0 18px; }
@@ -1130,12 +1140,12 @@ self.addEventListener('fetch', (e) => {
     .links { display:flex; align-items:center; gap:16px; flex-wrap:wrap; font-size:14px; }
     .btn { background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:8px 12px; font-size:13px; cursor:pointer; }
     .hero { padding:42px 0 28px; border-bottom:1px solid var(--border); }
-    .hero h1 { font-size:clamp(28px, 4vw, 42px); line-height:1.15; margin:0 0 10px; }
+    .hero h1 { font-size:clamp(28px, 4vw, 42px); line-height:1.15; margin:0 0 10px; font-family: ${activeTheme.fonts.display}; }
     .hero p { color:var(--muted); margin:0; max-width:65ch; }
     .search { margin:24px 0 10px; width:100%; padding:11px 14px; border-radius:12px; border:1px solid var(--border); background:var(--card); color:var(--text); font-size:14px; }
     .post { padding:26px 0; border-bottom:1px solid var(--border); cursor:pointer; }
     .meta { font-size:12px; color:var(--muted); margin-bottom:6px; font-family:ui-monospace, monospace; }
-    .post h2 { margin:0 0 6px; font-size:22px; }
+    .post h2 { margin:0 0 6px; font-size:22px; font-family: ${activeTheme.fonts.display}; }
     .post p { margin:0; color:var(--muted); font-size:15px; }
     .prose img { max-width:100%; border-radius:12px; margin:16px 0; }
     .prose pre { background:var(--surface); padding:14px; border-radius:10px; overflow:auto; border:1px solid var(--border); }
@@ -1169,8 +1179,15 @@ self.addEventListener('fetch', (e) => {
   </footer>
   <script>
     if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js').catch(() => {}); }
-    const savedTheme = localStorage.getItem('blogvn_site_theme');
-    if (savedTheme === 'dark') document.documentElement.classList.add('dark');
+    const DEFAULT_THEME_MODE = ${JSON.stringify(defaultStandaloneMode)};
+    const DEFAULT_THEME_SIG = ${JSON.stringify(defaultThemeSig)};
+    const prevSig = localStorage.getItem('blogvn_site_theme_sig');
+    if (prevSig !== DEFAULT_THEME_SIG) {
+      localStorage.setItem('blogvn_site_theme', DEFAULT_THEME_MODE);
+      localStorage.setItem('blogvn_site_theme_sig', DEFAULT_THEME_SIG);
+    }
+    const savedTheme = localStorage.getItem('blogvn_site_theme') || DEFAULT_THEME_MODE;
+    document.documentElement.classList.toggle('dark', savedTheme === 'dark');
     document.getElementById('themeBtn').onclick = () => {
       const dark = document.documentElement.classList.toggle('dark');
       localStorage.setItem('blogvn_site_theme', dark ? 'dark' : 'light');
@@ -3693,6 +3710,7 @@ async function startServer() {
             },
           ];
 
+      let astroSynced = false;
       if (!publishWebApp) {
         const astroCfgCheck = await githubRequest<any>(
           `/repos/${owner}/${repo}/contents/src/cau_hinh/trang_web.ts?ref=${encodeURIComponent(branch)}`,
@@ -3700,19 +3718,29 @@ async function startServer() {
           token
         );
         if (astroCfgCheck.ok) {
+          astroSynced = true;
           const defaultPngB64 = isBundledDefaultSiteIcon(cleanCfg.siteIcon)
             ? readDefaultDaoKyPngBase64()
             : undefined;
-          filesToCommit.push({
-            path: 'src/cau_hinh/trang_web.ts',
-            content: buildAstroSiteConfigModule({
-              owner,
-              repo,
-              config: cleanCfg,
-              hasBundledPngFavicon: Boolean(cleanCfg.siteIcon?.startsWith('data:image/') || defaultPngB64),
-            }),
-            isBase64: false,
-          });
+          filesToCommit.push(
+            {
+              path: 'src/cau_hinh/trang_web.ts',
+              content: buildAstroSiteConfigModule({
+                owner,
+                repo,
+                config: cleanCfg,
+                hasBundledPngFavicon: Boolean(cleanCfg.siteIcon?.startsWith('data:image/') || defaultPngB64),
+              }),
+              isBase64: false,
+            },
+            {
+              path: 'src/layouts/BaseLayout.astro',
+              content: buildAstroBaseLayoutModule({
+                config: cleanCfg,
+              }),
+              isBase64: false,
+            }
+          );
           if (cleanCfg.customDomain) {
             filesToCommit.push({
               path: 'public/CNAME',
@@ -3755,7 +3783,7 @@ async function startServer() {
         files: filesToCommit,
         message: publishWebApp
           ? `Đạo Ký: Xuất bản Web App GitHub Pages & cấu hình nhận dạng (${cleanCfg.siteTitle || repo})`
-          : `Đạo Ký: Cập nhật cấu hình nhận dạng web (${cleanCfg.siteTitle || repo})`,
+          : `Đạo Ký: Cập nhật giao diện & cấu hình web (${cleanCfg.siteTitle || repo})`,
         token,
       });
 
@@ -3769,6 +3797,7 @@ async function startServer() {
 
       res.json({
         ok: true,
+        astroSynced,
         config: cleanCfg,
         commit: {
           sha: commitRes.commitSha,

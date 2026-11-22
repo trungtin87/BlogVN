@@ -800,37 +800,8 @@ export const SITE_CONFIG: SiteIdentityConfig = ${JSON.stringify(siteCfg, null, 2
 `;
 }
 
-export function buildVietnameseAstroTemplateFiles(params: {
-  owner: string;
-  repo: string;
-  config: Partial<BlogConfig>;
-  templateId?: AstroTemplateId | string;
-  includeStarterPosts?: boolean;
-  defaultFaviconPngBase64?: string;
-}): Array<{ path: string; content: string; isBase64?: boolean }> {
-  const {
-    owner,
-    repo,
-    config,
-    includeStarterPosts = true,
-    defaultFaviconPngBase64,
-  } = params;
-  const requestedMode: ThemeMode | undefined =
-    config.themeMode === 'dark' ? 'dark' : config.themeMode === 'light' ? 'light' : undefined;
-  const templateStyle = normalizeAstroTemplateId(
-    params.templateId || config.astroTemplate,
-    requestedMode || 'light'
-  );
-  const presetMeta =
-    ASTRO_TEMPLATE_PRESETS.find((p) => p.id === templateStyle) || ASTRO_TEMPLATE_PRESETS[0];
-  const resolvedMode: ThemeMode = requestedMode || (presetMeta.isDark ? 'dark' : 'light');
-  const sanitizedThemeColors = sanitizeAstroThemeColors(config.themeColors);
-  const tokens = applyThemeColorsToTokens(
-    TEMPLATE_DUAL_TOKENS[templateStyle][resolvedMode],
-    sanitizedThemeColors?.[resolvedMode],
-    resolvedMode === 'dark'
-  );
-  const baseTemplateColorJson = JSON.stringify(
+function buildBaseTemplateColorJson(): string {
+  return JSON.stringify(
     Object.fromEntries(
       (Object.keys(TEMPLATE_DUAL_TOKENS) as AstroTemplateId[]).map((tplId) => [
         tplId,
@@ -863,6 +834,1154 @@ export function buildVietnameseAstroTemplateFiles(params: {
       ])
     )
   );
+}
+
+export function buildAstroBaseLayoutModule(params: {
+  config: Partial<BlogConfig>;
+  templateId?: AstroTemplateId | string;
+}): string {
+  const { config } = params;
+  const requestedMode: ThemeMode | undefined =
+    config.themeMode === 'dark' ? 'dark' : config.themeMode === 'light' ? 'light' : undefined;
+  const templateStyle = normalizeAstroTemplateId(
+    params.templateId || config.astroTemplate,
+    requestedMode || 'light'
+  );
+  const presetMeta =
+    ASTRO_TEMPLATE_PRESETS.find((p) => p.id === templateStyle) || ASTRO_TEMPLATE_PRESETS[0];
+  const resolvedMode: ThemeMode = requestedMode || (presetMeta.isDark ? 'dark' : 'light');
+  const sanitizedThemeColors = sanitizeAstroThemeColors(config.themeColors);
+  const tokens = applyThemeColorsToTokens(
+    TEMPLATE_DUAL_TOKENS[templateStyle][resolvedMode],
+    sanitizedThemeColors?.[resolvedMode],
+    resolvedMode === 'dark'
+  );
+  const baseTemplateColorJson = buildBaseTemplateColorJson();
+
+  return `---
+import { getCollection } from 'astro:content';
+import { SITE_CONFIG } from '../cau_hinh/trang_web';
+import { withBase } from '../utils/url';
+
+interface Props {
+  title?: string;
+  description?: string;
+  ogImage?: string;
+  noindex?: boolean;
+  canonical?: string;
+  jsonLd?: Record<string, any>;
+}
+
+const {
+  title = SITE_CONFIG.siteTitle,
+  description = SITE_CONFIG.tagline,
+  ogImage = '/tainguyen/hinhanh/og-default.svg',
+  noindex = false,
+  canonical,
+  jsonLd,
+} = Astro.props;
+
+const fullTitle =
+  title === SITE_CONFIG.siteTitle ? title : \`\${title} | \${SITE_CONFIG.siteTitle}\`;
+const iconHref = withBase(SITE_CONFIG.siteIcon || '/favicon.svg');
+const ogImgHref = withBase(ogImage);
+const initialMode = SITE_CONFIG.themeMode === 'dark' ? 'dark' : 'light';
+const initialDark = initialMode === 'dark';
+const defaultThemeSig = \`\${SITE_CONFIG.templateStyle}:\${initialMode}:\${JSON.stringify(SITE_CONFIG.themeColors || null)}\`;
+const currentPath = Astro.url.pathname;
+
+const BASE_TEMPLATE_COLORS: Record<string, { light: Record<string, string>; dark: Record<string, string> }> = ${baseTemplateColorJson};
+const HEX_COLOR_RE = new RegExp('^#[0-9a-fA-F]{6}$');
+function cleanHex(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const s = v.trim();
+  return HEX_COLOR_RE.test(s) ? s.toUpperCase() : undefined;
+}
+function hexToRgbArr(hex: string): [number, number, number] {
+  return [
+    parseInt(hex.slice(1, 3), 16),
+    parseInt(hex.slice(3, 5), 16),
+    parseInt(hex.slice(5, 7), 16),
+  ];
+}
+function mixColorHex(a: string, b: string, ratioB: number): string {
+  const [r1, g1, b1] = hexToRgbArr(a);
+  const [r2, g2, b2] = hexToRgbArr(b);
+  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
+  return '#' + [r1 + (r2 - r1) * ratioB, g1 + (g2 - g1) * ratioB, b1 + (b2 - b1) * ratioB]
+    .map((n) => clamp(n).toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase();
+}
+function contrastForHex(bgHex: string): string {
+  const [r, g, b] = hexToRgbArr(bgHex).map((v) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.42 ? '#111216' : '#FFFFFF';
+}
+function buildCustomColorCss(): string {
+  const overrides = SITE_CONFIG.themeColors;
+  if (!overrides) return '';
+  const tplColors = BASE_TEMPLATE_COLORS[SITE_CONFIG.templateStyle] || BASE_TEMPLATE_COLORS['newyorker-light'];
+  const blocks: string[] = [];
+  (['light', 'dark'] as const).forEach((m) => {
+    const ov = overrides[m];
+    if (!ov) return;
+    const base = tplColors[m];
+    const isDark = m === 'dark';
+    const cBg = cleanHex(ov.canvas);
+    const cSurface = cleanHex(ov.surface);
+    const cText = cleanHex(ov.textPrimary);
+    const cAccent = cleanHex(ov.accent);
+    const cLink = cleanHex(ov.link);
+    if (!cBg && !cSurface && !cText && !cAccent && !cLink) return;
+    const bg = cBg || base.bg;
+    const text = cText || base.text;
+    const surface = cSurface || (cBg ? mixColorHex(bg, isDark ? '#FFFFFF' : '#000000', isDark ? 0.06 : 0.045) : base.surface);
+    const card = (cBg || cSurface) ? (isDark ? mixColorHex(surface, '#FFFFFF', 0.06) : mixColorHex(bg, '#FFFFFF', 0.72)) : base.card;
+    const border = (cBg || cText) ? mixColorHex(bg, text, isDark ? 0.2 : 0.14) : base.border;
+    const text2 = (cBg || cText) ? mixColorHex(text, bg, 0.22) : base.text2;
+    const muted = (cBg || cText) ? mixColorHex(text, bg, 0.45) : base.muted;
+    const accent = cAccent || base.accent;
+    const accentText = cAccent ? contrastForHex(accent) : base.accentText;
+    const link = cLink || base.link;
+    blocks.push(
+      \`:root[data-mode='\${m}'], :root[data-mode='\${m}'] body[data-template][data-template] { --bg: \${bg}; --surface: \${surface}; --card: \${card}; --border: \${border}; --text: \${text}; --text-2: \${text2}; --muted: \${muted}; --accent: \${accent}; --accent-text: \${accentText}; --link: \${link}; }\`
+    );
+  });
+  return blocks.join('\\n');
+}
+const customColorCss = buildCustomColorCss();
+
+const analyticsProvider = SITE_CONFIG.analyticsProvider || 'none';
+const analyticsId = (SITE_CONFIG.analyticsId || '').trim();
+const liveChat = SITE_CONFIG.liveChat;
+const activeChatChannels = (liveChat?.channels || []).filter(
+  (ch) => ch.enabled && ch.value && ch.value.trim().length > 0
+);
+const directChatChannels = activeChatChannels.filter(
+  (ch) => ch.id !== 'tawkto' && ch.id !== 'crisp'
+);
+const tawkChannel = activeChatChannels.find((ch) => ch.id === 'tawkto');
+const crispChannel = activeChatChannels.find((ch) => ch.id === 'crisp');
+const tawkWidgetId = tawkChannel?.value
+  ? tawkChannel.value
+      .trim()
+      .replace(/^https?:\\/\\/embed\\.tawk\\.to\\//i, '')
+      .replace(/^\\/+/, '')
+  : '';
+
+function resolveChatHref(id: string, rawValue: string): string {
+  const val = rawValue.trim();
+  if (/^(https?:|mailto:|tel:)/i.test(val)) return val;
+  if (id === 'zalo') return \`https://zalo.me/\${encodeURIComponent(val.replace(/^@/, ''))}\`;
+  if (id === 'messenger') return \`https://m.me/\${encodeURIComponent(val.replace(/^@/, ''))}\`;
+  if (id === 'telegram') return \`https://t.me/\${encodeURIComponent(val.replace(/^@/, ''))}\`;
+  if (id === 'whatsapp') {
+    const digits = val.replace(/[^0-9]/g, '');
+    const normalized = /^0\\d{8,10}$/.test(digits) ? \`84\${digits.slice(1)}\` : digits;
+    return \`https://wa.me/\${normalized}\`;
+  }
+  if (id === 'email') return \`mailto:\${val}\`;
+  return val;
+}
+
+const cleanCurrent = currentPath.replace(/\\/+$/, '') || '/';
+const homeClean = withBase('/').replace(/\\/+$/, '') || '/';
+
+function isNavActive(targetHref: string): boolean {
+  const cleanTarget = targetHref.replace(/\\/+$/, '') || '/';
+  if (cleanTarget === homeClean) return cleanCurrent === homeClean;
+  return cleanCurrent === cleanTarget || cleanCurrent.startsWith(\`\${cleanTarget}/\`);
+}
+
+let hasProjects = false;
+let hasBooks = false;
+let hasShop = false;
+try {
+  hasProjects = (await getCollection('du_an')).some((e) => !e.data.nhap && !e.data.draft);
+} catch {}
+try {
+  hasBooks = (await getCollection('sach')).some((e) => !e.data.nhap && !e.data.draft);
+} catch {}
+try {
+  hasShop = (await getCollection('cua_hang')).some((e) => !e.data.nhap && !e.data.draft);
+} catch {}
+
+const extraCollectionNav = [
+  ...(hasProjects ? [{ label: 'Dự án', href: withBase('/du-an/') }] : []),
+  ...(hasBooks ? [{ label: 'Sách', href: withBase('/sach/') }] : []),
+  ...(hasShop ? [{ label: 'Cửa hàng', href: withBase('/cua-hang/') }] : []),
+];
+
+const mainNav = SITE_CONFIG.isMultiPage
+  ? [
+      { label: 'Trang nhất', href: withBase('/') },
+      { label: 'Chuyên mục', href: withBase('/chuyen-muc/') },
+      { label: 'Kho bài', href: withBase('/bai-viet/') },
+      ...extraCollectionNav,
+      { label: 'Lưu trữ', href: withBase('/luu-tru/') },
+      { label: 'Giới thiệu', href: withBase('/gioi-thieu/') },
+    ]
+  : [
+      { label: 'Trang nhất', href: withBase('/') },
+      { label: 'Kho bài viết', href: withBase('/bai-viet/') },
+      ...extraCollectionNav,
+    ];
+
+const drawerExtraNav = SITE_CONFIG.isMultiPage
+  ? [
+      { label: 'Chủ đề (#Tags)', href: withBase('/chu-de/') },
+      { label: 'Liên hệ & Chat', href: withBase('/lien-he/') },
+    ]
+  : [];
+---
+
+<!doctype html>
+<html lang="vi" data-mode={initialMode} class={initialDark ? 'dark' : ''}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex" />}
+    {canonical && <link rel="canonical" href={canonical} />}
+
+    <script is:inline define:vars={{ defaultMode: initialMode, defaultSig: defaultThemeSig }}>
+      (function () {
+        try {
+          var prevSig = localStorage.getItem('daoky_theme_default_sig');
+          if (prevSig !== defaultSig) {
+            localStorage.setItem('daoky_theme_default_sig', defaultSig);
+            localStorage.setItem('daoky_theme_mode', defaultMode);
+          }
+          var saved = localStorage.getItem('daoky_theme_mode');
+          var mode = saved === 'dark' || saved === 'light' ? saved : defaultMode;
+          document.documentElement.setAttribute('data-mode', mode);
+          document.documentElement.classList.toggle('dark', mode === 'dark');
+        } catch (e) {}
+      })();
+    </script>
+
+    {analyticsProvider === 'ga4' && analyticsId && (
+      <>
+        <script async src={\`https://www.googletagmanager.com/gtag/js?id=\${encodeURIComponent(analyticsId)}\`}></script>
+        <script is:inline define:vars={{ gaId: analyticsId }}>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', gaId);
+        </script>
+      </>
+    )}
+    {analyticsProvider === 'cloudflare' && analyticsId && (
+      <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon={JSON.stringify({ token: analyticsId })}></script>
+    )}
+    {analyticsProvider === 'plausible' && analyticsId && (
+      <script defer data-domain={analyticsId} src="https://plausible.io/js/script.js"></script>
+    )}
+    {analyticsProvider === 'umami' && analyticsId && (
+      <script defer src="https://cloud.umami.is/script.js" data-website-id={analyticsId}></script>
+    )}
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImgHref} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+
+    <link rel="icon" href={iconHref} />
+    <link rel="apple-touch-icon" href={iconHref} />
+    <link rel="manifest" href={withBase('/manifest.webmanifest')} />
+    <link rel="sitemap" type="application/xml" title="Sitemap" href={withBase('/sitemap.xml')} />
+    <link rel="alternate" type="application/rss+xml" title={\`\${SITE_CONFIG.siteTitle} RSS\`} href={withBase('/rss.xml')} />
+    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    {customColorCss && <style is:inline set:html={customColorCss} />}
+  </head>
+  <body data-template={SITE_CONFIG.templateStyle}>
+    <header class="site-header">
+      <div class="wrap nav-inner">
+        <a class="brand" href={withBase('/')}>
+          <img src={iconHref} alt={SITE_CONFIG.headerTitle} width="30" height="30" />
+          <span>{SITE_CONFIG.headerTitle}</span>
+        </a>
+
+        <nav class="nav-links" aria-label="Điều hướng chính">
+          {mainNav.map((item) => (
+            <a
+              href={item.href}
+              class={isNavActive(item.href) ? 'active' : ''}
+            >
+              {item.label}
+            </a>
+          ))}
+          {SITE_CONFIG.headerNavLinks.map((link) => (
+            <a
+              href={withBase(link.url)}
+              target={link.url.startsWith('http') ? '_blank' : undefined}
+              rel={link.url.startsWith('http') ? 'noreferrer' : undefined}
+            >
+              {link.label}
+            </a>
+          ))}
+        </nav>
+
+        <div class="nav-actions">
+          <button
+            id="themeToggleBtn"
+            class="icon-btn theme-toggle-btn"
+            type="button"
+            aria-label="Chuyển chế độ Sáng / Tối"
+            title="Chuyển chế độ Sáng / Tối"
+          >
+            <svg class="sun-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4"/>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+            </svg>
+            <svg class="moon-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+            </svg>
+          </button>
+          <a class="icon-btn" href={withBase('/rss.xml')} title="RSS Feed" aria-label="RSS Feed">
+            RSS
+          </a>
+          <button id="mobileMenuBtn" class="mobile-menu-btn" type="button" aria-label="Mở menu">
+            ☰
+          </button>
+        </div>
+      </div>
+
+      <div id="mobileDrawer" class="mobile-drawer hidden">
+        <div class="wrap mobile-drawer-links">
+          {mainNav.map((item) => (
+            <a href={item.href}>{item.label}</a>
+          ))}
+          {drawerExtraNav.map((item) => (
+            <a href={item.href}>{item.label}</a>
+          ))}
+          {SITE_CONFIG.headerNavLinks.map((link) => (
+            <a href={withBase(link.url)}>{link.label}</a>
+          ))}
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap main-content">
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <div>
+          <p class="footer-copy">{SITE_CONFIG.footerText}</p>
+          <p class="footer-sub">Tác giả: {SITE_CONFIG.authorName}</p>
+        </div>
+        <div class="footer-links">
+          {SITE_CONFIG.isMultiPage ? (
+            <>
+              <a href={withBase('/chuyen-muc/')}>Chuyên mục</a>
+              <a href={withBase('/chu-de/')}>Chủ đề</a>
+              <a href={withBase('/luu-tru/')}>Lưu trữ</a>
+              <a href={withBase('/gioi-thieu/')}>Giới thiệu</a>
+              <a href={withBase('/lien-he/')}>Liên hệ</a>
+            </>
+          ) : (
+            <a href={withBase('/bai-viet/')}>Kho bài viết</a>
+          )}
+          <a href={withBase('/rss.xml')}>RSS</a>
+          {SITE_CONFIG.footerLinks.map((link) => (
+            <a
+              href={withBase(link.url)}
+              target={link.url.startsWith('http') ? '_blank' : undefined}
+              rel={link.url.startsWith('http') ? 'noreferrer' : undefined}
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
+      </div>
+    </footer>
+
+    {liveChat?.enabled && directChatChannels.length > 0 && (
+      <div id="daokyLiveChat" class="livechat-dock">
+        <div id="livechatPanel" class="livechat-panel hidden" role="dialog" aria-label={liveChat.title || 'Live Chat'}>
+          <div class="livechat-head">
+            <div>
+              <strong>{liveChat.title || 'Trò chuyện với tác giả'}</strong>
+              {liveChat.welcomeText && <p>{liveChat.welcomeText}</p>}
+            </div>
+            <button id="livechatCloseBtn" type="button" aria-label="Đóng hộp chat">✕</button>
+          </div>
+          <div class="livechat-list">
+            {directChatChannels.map((ch) => (
+              <a
+                class="livechat-item"
+                href={resolveChatHref(ch.id, ch.value)}
+                target={ch.id === 'email' ? undefined : '_blank'}
+                rel={ch.id === 'email' ? undefined : 'noreferrer'}
+              >
+                <span class="livechat-ch-name">{ch.label || ch.id.toUpperCase()}</span>
+                <span class="livechat-ch-arrow">Nhắn ngay →</span>
+              </a>
+            ))}
+          </div>
+        </div>
+        <button id="livechatToggleBtn" class="livechat-fab" type="button" aria-expanded="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          <span>Chat</span>
+        </button>
+      </div>
+    )}
+
+    {liveChat?.enabled && tawkWidgetId && (
+      <script is:inline define:vars={{ tawkId: tawkWidgetId }}>
+        var Tawk_API = Tawk_API || {}, Tawk_LoadStart = new Date();
+        (function () {
+          var s1 = document.createElement('script'),
+            s0 = document.getElementsByTagName('script')[0];
+          s1.async = true;
+          s1.src = 'https://embed.tawk.to/' + tawkId;
+          s1.charset = 'UTF-8';
+          s1.setAttribute('crossorigin', '*');
+          s0.parentNode.insertBefore(s1, s0);
+        })();
+      </script>
+    )}
+
+    {liveChat?.enabled && crispChannel?.value && (
+      <script is:inline define:vars={{ crispId: crispChannel.value }}>
+        window.$crisp = [];
+        window.CRISP_WEBSITE_ID = crispId;
+        (function () {
+          var d = document;
+          var s = d.createElement('script');
+          s.src = 'https://client.crisp.chat/l.js';
+          s.async = true;
+          d.getElementsByTagName('head')[0].appendChild(s);
+        })();
+      </script>
+    )}
+
+    <script is:inline>
+      const themeBtn = document.getElementById('themeToggleBtn');
+      if (themeBtn) {
+        themeBtn.addEventListener('click', () => {
+          const cur = document.documentElement.getAttribute('data-mode') === 'dark' ? 'dark' : 'light';
+          const next = cur === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-mode', next);
+          document.documentElement.classList.toggle('dark', next === 'dark');
+          try {
+            localStorage.setItem('daoky_theme_mode', next);
+          } catch (e) {}
+          const giscusFrame = document.querySelector('iframe.giscus-frame');
+          if (giscusFrame && giscusFrame.contentWindow) {
+            giscusFrame.contentWindow.postMessage(
+              { giscus: { setConfig: { theme: next } } },
+              'https://giscus.app'
+            );
+          }
+        });
+      }
+      const mBtn = document.getElementById('mobileMenuBtn');
+      const mDrawer = document.getElementById('mobileDrawer');
+      if (mBtn && mDrawer) {
+        mBtn.addEventListener('click', () => {
+          mDrawer.classList.toggle('hidden');
+        });
+      }
+      const chatToggle = document.getElementById('livechatToggleBtn');
+      const chatPanel = document.getElementById('livechatPanel');
+      const chatClose = document.getElementById('livechatCloseBtn');
+      if (chatToggle && chatPanel) {
+        chatToggle.addEventListener('click', () => {
+          const isHidden = chatPanel.classList.toggle('hidden');
+          chatToggle.setAttribute('aria-expanded', String(!isHidden));
+        });
+        if (chatClose) {
+          chatClose.addEventListener('click', () => {
+            chatPanel.classList.add('hidden');
+            chatToggle.setAttribute('aria-expanded', 'false');
+          });
+        }
+      }
+
+      document.querySelectorAll('.prose pre').forEach((preEl) => {
+        if (preEl.classList.contains('mermaid')) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'dk-copy-btn';
+        btn.textContent = 'Sao chép';
+        btn.addEventListener('click', () => {
+          const codeEl = preEl.querySelector('code');
+          const txt = codeEl ? codeEl.textContent || '' : preEl.textContent || '';
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(txt).then(() => {
+              btn.textContent = 'Đã chép';
+              window.setTimeout(() => {
+                btn.textContent = 'Sao chép';
+              }, 1600);
+            }).catch(() => {});
+          }
+        });
+        preEl.appendChild(btn);
+      });
+
+      const proseBlocks = document.querySelectorAll('.prose');
+      let needsKatex = false;
+      proseBlocks.forEach((el) => {
+        if (el.textContent && el.textContent.includes('$')) {
+          needsKatex = true;
+        }
+      });
+      if (needsKatex) {
+        const kCss = document.createElement('link');
+        kCss.rel = 'stylesheet';
+        kCss.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';
+        document.head.appendChild(kCss);
+        const kJs = document.createElement('script');
+        kJs.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';
+        kJs.onload = () => {
+          const kAuto = document.createElement('script');
+          kAuto.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js';
+          kAuto.onload = () => {
+            if (typeof window.renderMathInElement === 'function') {
+              proseBlocks.forEach((el) => {
+                window.renderMathInElement(el, {
+                  delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '$', right: '$', display: false },
+                  ],
+                  throwOnError: false,
+                });
+              });
+            }
+          };
+          document.head.appendChild(kAuto);
+        };
+        document.head.appendChild(kJs);
+      }
+
+      if (document.querySelectorAll('.mermaid').length > 0) {
+        const mScript = document.createElement('script');
+        mScript.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+        mScript.onload = () => {
+          if (window.mermaid) {
+            const isDarkMode = document.documentElement.getAttribute('data-mode') === 'dark';
+            window.mermaid.initialize({
+              startOnLoad: false,
+              theme: isDarkMode ? 'dark' : 'default',
+            });
+            window.mermaid.run();
+          }
+        };
+        document.head.appendChild(mScript);
+      }
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --bg: ${tokens.bg};
+    --surface: ${tokens.surface};
+    --card: ${tokens.card};
+    --border: ${tokens.border};
+    --text: ${tokens.text};
+    --text-2: ${tokens.text2};
+    --muted: ${tokens.muted};
+    --accent: ${tokens.accent};
+    --accent-text: ${tokens.accentText};
+    --link: ${tokens.link};
+    --font-display: ${tokens.fontDisplay};
+    --font-body: ${tokens.fontBody};
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  ${(Object.keys(TEMPLATE_DUAL_TOKENS) as AstroTemplateId[])
+    .flatMap((tplId) =>
+      (['light', 'dark'] as const).map((mode) => {
+        const t = TEMPLATE_DUAL_TOKENS[tplId][mode];
+        return `html[data-mode='${mode}'] body[data-template='${tplId}'] {
+    --bg: ${t.bg};
+    --surface: ${t.surface};
+    --card: ${t.card};
+    --border: ${t.border};
+    --text: ${t.text};
+    --text-2: ${t.text2};
+    --muted: ${t.muted};
+    --accent: ${t.accent};
+    --accent-text: ${t.accentText};
+    --link: ${t.link};
+    --font-display: ${t.fontDisplay};
+    --font-body: ${t.fontBody};
+  }`;
+      })
+    )
+    .join('\n\n  ')}
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    overflow-x: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.72;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: var(--link);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+
+  @media (max-width: 639px) {
+    .wrap {
+      padding: 0 16px;
+    }
+  }
+
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  body[data-template='newyorker-light'] .site-header {
+    border-bottom: 3px double var(--border);
+  }
+
+  body[data-template='monocle-magazine'] .site-header,
+  body[data-template='guardian-portal'] .site-header,
+  body[data-template='economist-digest'] .site-header {
+    border-top: 3px solid var(--accent);
+  }
+
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 60px;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    color: var(--text);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: -0.02em;
+    text-decoration: none !important;
+  }
+
+  .brand img {
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .brand span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .nav-links {
+    display: none;
+    align-items: center;
+    gap: 18px;
+    font-size: 0.88rem;
+    font-weight: 500;
+  }
+
+  .nav-links a {
+    color: var(--text-2);
+    text-decoration: none;
+    white-space: nowrap;
+    padding: 4px 0;
+    border-bottom: 2px solid transparent;
+  }
+
+  .nav-links a:hover,
+  .nav-links a.active {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .nav-links a.active {
+    border-bottom-color: var(--accent);
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .icon-btn,
+  .mobile-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none !important;
+  }
+
+  .theme-toggle-btn {
+    min-width: 38px;
+    padding: 0;
+  }
+
+  .theme-toggle-btn .sun-icon {
+    display: none;
+    color: #f59e0b;
+  }
+
+  .theme-toggle-btn .moon-icon {
+    display: block;
+    color: var(--link);
+  }
+
+  html[data-mode='dark'] .theme-toggle-btn .sun-icon {
+    display: block;
+  }
+
+  html[data-mode='dark'] .theme-toggle-btn .moon-icon {
+    display: none;
+  }
+
+  .mobile-menu-btn {
+    min-width: 38px;
+    padding: 0 10px;
+    font-size: 1rem;
+  }
+
+  .mobile-drawer {
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    padding: 12px 0 16px;
+  }
+
+  .mobile-drawer.hidden {
+    display: none;
+  }
+
+  .mobile-drawer-links {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mobile-drawer-links a {
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 500;
+    padding: 6px 0;
+  }
+
+  @media (min-width: 880px) {
+    .nav-links {
+      display: flex;
+    }
+    .mobile-menu-btn,
+    .mobile-drawer {
+      display: none !important;
+    }
+  }
+
+  .main-content {
+    min-height: calc(100vh - 200px);
+    padding-top: 28px;
+    padding-bottom: 64px;
+  }
+
+  .site-footer {
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    padding: 28px 0;
+  }
+
+  body[data-template='newyorker-light'] .site-footer {
+    border-top: 3px double var(--border);
+  }
+
+  .footer-inner {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .footer-copy {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--text-2);
+  }
+
+  .footer-sub {
+    margin: 4px 0 0;
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+
+  .footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    font-size: 0.84rem;
+  }
+
+  .prose {
+    font-size: 1.08rem;
+    line-height: 1.82;
+    color: var(--text-2);
+    max-width: 68ch;
+  }
+
+  body[data-template='newyorker-light'] .prose > p:first-of-type::first-letter,
+  body[data-template='espresso-salon'] .prose > p:first-of-type::first-letter,
+  body[data-template='kyoto-folio'] .prose > p:first-of-type::first-letter {
+    float: left;
+    font-family: var(--font-display);
+    font-size: 3.4rem;
+    line-height: 0.85;
+    font-weight: 700;
+    color: var(--text);
+    padding-right: 10px;
+    padding-top: 4px;
+  }
+
+  .prose h2,
+  .prose h3 {
+    font-family: var(--font-display);
+    color: var(--text);
+    margin-top: 2.1rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.25;
+  }
+
+  .prose p {
+    margin: 1.15rem 0;
+  }
+
+  .prose img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
+    margin: 1.6rem 0;
+    border: 1px solid var(--border);
+  }
+
+  .prose blockquote {
+    margin: 1.8rem 0;
+    padding: 1.1rem 1.25rem;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.15rem;
+    color: var(--text);
+  }
+
+  .prose pre {
+    position: relative;
+    padding: 1.1rem;
+    padding-top: 2.3rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.86rem;
+    line-height: 1.6;
+  }
+
+  .dk-copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 3px 9px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .dk-copy-btn:hover {
+    color: var(--text);
+    border-color: var(--link);
+  }
+
+  .dk-callout {
+    margin: 1.5rem 0;
+    padding: 0.95rem 1.15rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--link);
+    background: var(--surface);
+  }
+
+  .dk-callout-title {
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--link);
+    margin-bottom: 6px;
+  }
+
+  .dk-callout-tip { border-left-color: #16a34a; }
+  .dk-callout-tip .dk-callout-title { color: #16a34a; }
+  .dk-callout-warning, .dk-callout-caution { border-left-color: #d97706; }
+  .dk-callout-warning .dk-callout-title, .dk-callout-caution .dk-callout-title { color: #d97706; }
+  .dk-callout-important { border-left-color: #dc2626; }
+  .dk-callout-important .dk-callout-title { color: #dc2626; }
+
+  .dk-video-embed {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin: 1.6rem 0;
+    background: #000;
+  }
+
+  .dk-video-embed iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  .dk-mermaid-box {
+    margin: 1.6rem 0;
+    padding: 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    overflow-x: auto;
+  }
+
+  .dk-mermaid-box pre.mermaid {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    text-align: center;
+  }
+
+  .prose code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    padding: 0.15em 0.4em;
+    border-radius: 5px;
+    background: var(--surface);
+  }
+
+  .prose pre code {
+    background: transparent;
+    padding: 0;
+  }
+
+  .livechat-dock {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .livechat-fab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 46px;
+    padding: 0 18px;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    background: var(--accent);
+    color: var(--accent-text);
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  }
+
+  .livechat-panel {
+    width: min(320px, calc(100vw - 32px));
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+  }
+
+  .livechat-panel.hidden {
+    display: none;
+  }
+
+  .livechat-head {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .livechat-head strong {
+    display: block;
+    font-size: 0.92rem;
+    font-family: var(--font-display);
+  }
+
+  .livechat-head p {
+    margin: 4px 0 0;
+    font-size: 0.78rem;
+    color: var(--text-2);
+    line-height: 1.45;
+  }
+
+  .livechat-head button {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.95rem;
+    padding: 2px 6px;
+  }
+
+  .livechat-list {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .livechat-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.84rem;
+    font-weight: 600;
+    text-decoration: none !important;
+  }
+
+  .livechat-item:hover {
+    border-color: var(--link);
+  }
+
+  .livechat-ch-arrow {
+    font-size: 0.76rem;
+    color: var(--link);
+    font-family: var(--font-mono);
+  }
+</style>
+`;
+}
+
+export function buildVietnameseAstroTemplateFiles(params: {
+  owner: string;
+  repo: string;
+  config: Partial<BlogConfig>;
+  templateId?: AstroTemplateId | string;
+  includeStarterPosts?: boolean;
+  defaultFaviconPngBase64?: string;
+}): Array<{ path: string; content: string; isBase64?: boolean }> {
+  const {
+    owner,
+    repo,
+    config,
+    includeStarterPosts = true,
+    defaultFaviconPngBase64,
+  } = params;
+  const requestedMode: ThemeMode | undefined =
+    config.themeMode === 'dark' ? 'dark' : config.themeMode === 'light' ? 'light' : undefined;
+  const templateStyle = normalizeAstroTemplateId(
+    params.templateId || config.astroTemplate,
+    requestedMode || 'light'
+  );
+  const presetMeta =
+    ASTRO_TEMPLATE_PRESETS.find((p) => p.id === templateStyle) || ASTRO_TEMPLATE_PRESETS[0];
+  const resolvedMode: ThemeMode = requestedMode || (presetMeta.isDark ? 'dark' : 'light');
+  const sanitizedThemeColors = sanitizeAstroThemeColors(config.themeColors);
+  const tokens = applyThemeColorsToTokens(
+    TEMPLATE_DUAL_TOKENS[templateStyle][resolvedMode],
+    sanitizedThemeColors?.[resolvedMode],
+    resolvedMode === 'dark'
+  );
+  const baseLayoutAstro = buildAstroBaseLayoutModule({
+    config,
+    templateId: templateStyle,
+  });
 
   const siteTitle = (config.siteTitle || repo || 'Đạo Ký').trim();
   const tagline = (
@@ -1525,1099 +2644,6 @@ export const collections = {
     schema: postSchema,
   }),
 };
-`;
-
-  const baseLayoutAstro = `---
-import { getCollection } from 'astro:content';
-import { SITE_CONFIG } from '../cau_hinh/trang_web';
-import { withBase } from '../utils/url';
-
-interface Props {
-  title?: string;
-  description?: string;
-  ogImage?: string;
-  noindex?: boolean;
-  canonical?: string;
-  jsonLd?: Record<string, any>;
-}
-
-const {
-  title = SITE_CONFIG.siteTitle,
-  description = SITE_CONFIG.tagline,
-  ogImage = '/tainguyen/hinhanh/og-default.svg',
-  noindex = false,
-  canonical,
-  jsonLd,
-} = Astro.props;
-
-const fullTitle =
-  title === SITE_CONFIG.siteTitle ? title : \`\${title} | \${SITE_CONFIG.siteTitle}\`;
-const iconHref = withBase(SITE_CONFIG.siteIcon || '/favicon.svg');
-const ogImgHref = withBase(ogImage);
-const initialMode = SITE_CONFIG.themeMode === 'dark' ? 'dark' : 'light';
-const initialDark = initialMode === 'dark';
-const currentPath = Astro.url.pathname;
-
-const BASE_TEMPLATE_COLORS: Record<string, { light: Record<string, string>; dark: Record<string, string> }> = ${baseTemplateColorJson};
-const HEX_COLOR_RE = new RegExp('^#[0-9a-fA-F]{6}$');
-function cleanHex(v: unknown): string | undefined {
-  if (typeof v !== 'string') return undefined;
-  const s = v.trim();
-  return HEX_COLOR_RE.test(s) ? s.toUpperCase() : undefined;
-}
-function hexToRgbArr(hex: string): [number, number, number] {
-  return [
-    parseInt(hex.slice(1, 3), 16),
-    parseInt(hex.slice(3, 5), 16),
-    parseInt(hex.slice(5, 7), 16),
-  ];
-}
-function mixColorHex(a: string, b: string, ratioB: number): string {
-  const [r1, g1, b1] = hexToRgbArr(a);
-  const [r2, g2, b2] = hexToRgbArr(b);
-  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
-  return '#' + [r1 + (r2 - r1) * ratioB, g1 + (g2 - g1) * ratioB, b1 + (b2 - b1) * ratioB]
-    .map((n) => clamp(n).toString(16).padStart(2, '0'))
-    .join('')
-    .toUpperCase();
-}
-function contrastForHex(bgHex: string): string {
-  const [r, g, b] = hexToRgbArr(bgHex).map((v) => {
-    const s = v / 255;
-    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.42 ? '#111216' : '#FFFFFF';
-}
-function buildCustomColorCss(): string {
-  const overrides = SITE_CONFIG.themeColors;
-  if (!overrides) return '';
-  const tplColors = BASE_TEMPLATE_COLORS[SITE_CONFIG.templateStyle] || BASE_TEMPLATE_COLORS['newyorker-light'];
-  const blocks: string[] = [];
-  (['light', 'dark'] as const).forEach((m) => {
-    const ov = overrides[m];
-    if (!ov) return;
-    const base = tplColors[m];
-    const isDark = m === 'dark';
-    const cBg = cleanHex(ov.canvas);
-    const cSurface = cleanHex(ov.surface);
-    const cText = cleanHex(ov.textPrimary);
-    const cAccent = cleanHex(ov.accent);
-    const cLink = cleanHex(ov.link);
-    if (!cBg && !cSurface && !cText && !cAccent && !cLink) return;
-    const bg = cBg || base.bg;
-    const text = cText || base.text;
-    const surface = cSurface || (cBg ? mixColorHex(bg, isDark ? '#FFFFFF' : '#000000', isDark ? 0.06 : 0.045) : base.surface);
-    const card = (cBg || cSurface) ? (isDark ? mixColorHex(surface, '#FFFFFF', 0.06) : mixColorHex(bg, '#FFFFFF', 0.72)) : base.card;
-    const border = (cBg || cText) ? mixColorHex(bg, text, isDark ? 0.2 : 0.14) : base.border;
-    const text2 = (cBg || cText) ? mixColorHex(text, bg, 0.22) : base.text2;
-    const muted = (cBg || cText) ? mixColorHex(text, bg, 0.45) : base.muted;
-    const accent = cAccent || base.accent;
-    const accentText = cAccent ? contrastForHex(accent) : base.accentText;
-    const link = cLink || base.link;
-    blocks.push(
-      \`html:root[data-mode='\${m}'], html:root[data-mode='\${m}'] body[data-template] { --bg: \${bg}; --surface: \${surface}; --card: \${card}; --border: \${border}; --text: \${text}; --text-2: \${text2}; --muted: \${muted}; --accent: \${accent}; --accent-text: \${accentText}; --link: \${link}; }\`
-    );
-  });
-  return blocks.join('\\n');
-}
-const customColorCss = buildCustomColorCss();
-
-const analyticsProvider = SITE_CONFIG.analyticsProvider || 'none';
-const analyticsId = (SITE_CONFIG.analyticsId || '').trim();
-const liveChat = SITE_CONFIG.liveChat;
-const activeChatChannels = (liveChat?.channels || []).filter(
-  (ch) => ch.enabled && ch.value && ch.value.trim().length > 0
-);
-const directChatChannels = activeChatChannels.filter(
-  (ch) => ch.id !== 'tawkto' && ch.id !== 'crisp'
-);
-const tawkChannel = activeChatChannels.find((ch) => ch.id === 'tawkto');
-const crispChannel = activeChatChannels.find((ch) => ch.id === 'crisp');
-const tawkWidgetId = tawkChannel?.value
-  ? tawkChannel.value
-      .trim()
-      .replace(/^https?:\\/\\/embed\\.tawk\\.to\\//i, '')
-      .replace(/^\\/+/, '')
-  : '';
-
-function resolveChatHref(id: string, rawValue: string): string {
-  const val = rawValue.trim();
-  if (/^(https?:|mailto:|tel:)/i.test(val)) return val;
-  if (id === 'zalo') return \`https://zalo.me/\${encodeURIComponent(val.replace(/^@/, ''))}\`;
-  if (id === 'messenger') return \`https://m.me/\${encodeURIComponent(val.replace(/^@/, ''))}\`;
-  if (id === 'telegram') return \`https://t.me/\${encodeURIComponent(val.replace(/^@/, ''))}\`;
-  if (id === 'whatsapp') {
-    const digits = val.replace(/[^0-9]/g, '');
-    const normalized = /^0\\d{8,10}$/.test(digits) ? \`84\${digits.slice(1)}\` : digits;
-    return \`https://wa.me/\${normalized}\`;
-  }
-  if (id === 'email') return \`mailto:\${val}\`;
-  return val;
-}
-
-const cleanCurrent = currentPath.replace(/\\/+$/, '') || '/';
-const homeClean = withBase('/').replace(/\\/+$/, '') || '/';
-
-function isNavActive(targetHref: string): boolean {
-  const cleanTarget = targetHref.replace(/\\/+$/, '') || '/';
-  if (cleanTarget === homeClean) return cleanCurrent === homeClean;
-  return cleanCurrent === cleanTarget || cleanCurrent.startsWith(\`\${cleanTarget}/\`);
-}
-
-let hasProjects = false;
-let hasBooks = false;
-let hasShop = false;
-try {
-  hasProjects = (await getCollection('du_an')).some((e) => !e.data.nhap && !e.data.draft);
-} catch {}
-try {
-  hasBooks = (await getCollection('sach')).some((e) => !e.data.nhap && !e.data.draft);
-} catch {}
-try {
-  hasShop = (await getCollection('cua_hang')).some((e) => !e.data.nhap && !e.data.draft);
-} catch {}
-
-const extraCollectionNav = [
-  ...(hasProjects ? [{ label: 'Dự án', href: withBase('/du-an/') }] : []),
-  ...(hasBooks ? [{ label: 'Sách', href: withBase('/sach/') }] : []),
-  ...(hasShop ? [{ label: 'Cửa hàng', href: withBase('/cua-hang/') }] : []),
-];
-
-const mainNav = SITE_CONFIG.isMultiPage
-  ? [
-      { label: 'Trang nhất', href: withBase('/') },
-      { label: 'Chuyên mục', href: withBase('/chuyen-muc/') },
-      { label: 'Kho bài', href: withBase('/bai-viet/') },
-      ...extraCollectionNav,
-      { label: 'Lưu trữ', href: withBase('/luu-tru/') },
-      { label: 'Giới thiệu', href: withBase('/gioi-thieu/') },
-    ]
-  : [
-      { label: 'Trang nhất', href: withBase('/') },
-      { label: 'Kho bài viết', href: withBase('/bai-viet/') },
-      ...extraCollectionNav,
-    ];
-
-const drawerExtraNav = SITE_CONFIG.isMultiPage
-  ? [
-      { label: 'Chủ đề (#Tags)', href: withBase('/chu-de/') },
-      { label: 'Liên hệ & Chat', href: withBase('/lien-he/') },
-    ]
-  : [];
----
-
-<!doctype html>
-<html lang="vi" data-mode={initialMode} class={initialDark ? 'dark' : ''}>
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{fullTitle}</title>
-    <meta name="description" content={description} />
-    {noindex && <meta name="robots" content="noindex" />}
-    {canonical && <link rel="canonical" href={canonical} />}
-
-    <script is:inline define:vars={{ defaultMode: initialMode }}>
-      (function () {
-        try {
-          var saved = localStorage.getItem('daoky_theme_mode');
-          var mode = saved === 'dark' || saved === 'light' ? saved : defaultMode;
-          document.documentElement.setAttribute('data-mode', mode);
-          document.documentElement.classList.toggle('dark', mode === 'dark');
-        } catch (e) {}
-      })();
-    </script>
-
-    {analyticsProvider === 'ga4' && analyticsId && (
-      <>
-        <script async src={\`https://www.googletagmanager.com/gtag/js?id=\${encodeURIComponent(analyticsId)}\`}></script>
-        <script is:inline define:vars={{ gaId: analyticsId }}>
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', gaId);
-        </script>
-      </>
-    )}
-    {analyticsProvider === 'cloudflare' && analyticsId && (
-      <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon={JSON.stringify({ token: analyticsId })}></script>
-    )}
-    {analyticsProvider === 'plausible' && analyticsId && (
-      <script defer data-domain={analyticsId} src="https://plausible.io/js/script.js"></script>
-    )}
-    {analyticsProvider === 'umami' && analyticsId && (
-      <script defer src="https://cloud.umami.is/script.js" data-website-id={analyticsId}></script>
-    )}
-
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content={fullTitle} />
-    <meta property="og:description" content={description} />
-    <meta property="og:image" content={ogImgHref} />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={fullTitle} />
-    <meta name="twitter:description" content={description} />
-
-    <link rel="icon" href={iconHref} />
-    <link rel="apple-touch-icon" href={iconHref} />
-    <link rel="manifest" href={withBase('/manifest.webmanifest')} />
-    <link rel="sitemap" type="application/xml" title="Sitemap" href={withBase('/sitemap.xml')} />
-    <link rel="alternate" type="application/rss+xml" title={\`\${SITE_CONFIG.siteTitle} RSS\`} href={withBase('/rss.xml')} />
-    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    {customColorCss && <style is:inline set:html={customColorCss} />}
-  </head>
-  <body data-template={SITE_CONFIG.templateStyle}>
-    <header class="site-header">
-      <div class="wrap nav-inner">
-        <a class="brand" href={withBase('/')}>
-          <img src={iconHref} alt={SITE_CONFIG.headerTitle} width="30" height="30" />
-          <span>{SITE_CONFIG.headerTitle}</span>
-        </a>
-
-        <nav class="nav-links" aria-label="Điều hướng chính">
-          {mainNav.map((item) => (
-            <a
-              href={item.href}
-              class={isNavActive(item.href) ? 'active' : ''}
-            >
-              {item.label}
-            </a>
-          ))}
-          {SITE_CONFIG.headerNavLinks.map((link) => (
-            <a
-              href={withBase(link.url)}
-              target={link.url.startsWith('http') ? '_blank' : undefined}
-              rel={link.url.startsWith('http') ? 'noreferrer' : undefined}
-            >
-              {link.label}
-            </a>
-          ))}
-        </nav>
-
-        <div class="nav-actions">
-          <button
-            id="themeToggleBtn"
-            class="icon-btn theme-toggle-btn"
-            type="button"
-            aria-label="Chuyển chế độ Sáng / Tối"
-            title="Chuyển chế độ Sáng / Tối"
-          >
-            <svg class="sun-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="4"/>
-              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
-            </svg>
-            <svg class="moon-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-            </svg>
-          </button>
-          <a class="icon-btn" href={withBase('/rss.xml')} title="RSS Feed" aria-label="RSS Feed">
-            RSS
-          </a>
-          <button id="mobileMenuBtn" class="mobile-menu-btn" type="button" aria-label="Mở menu">
-            ☰
-          </button>
-        </div>
-      </div>
-
-      <div id="mobileDrawer" class="mobile-drawer hidden">
-        <div class="wrap mobile-drawer-links">
-          {mainNav.map((item) => (
-            <a href={item.href}>{item.label}</a>
-          ))}
-          {drawerExtraNav.map((item) => (
-            <a href={item.href}>{item.label}</a>
-          ))}
-          {SITE_CONFIG.headerNavLinks.map((link) => (
-            <a href={withBase(link.url)}>{link.label}</a>
-          ))}
-        </div>
-      </div>
-    </header>
-
-    <main class="wrap main-content">
-      <slot />
-    </main>
-
-    <footer class="site-footer">
-      <div class="wrap footer-inner">
-        <div>
-          <p class="footer-copy">{SITE_CONFIG.footerText}</p>
-          <p class="footer-sub">Tác giả: {SITE_CONFIG.authorName}</p>
-        </div>
-        <div class="footer-links">
-          {SITE_CONFIG.isMultiPage ? (
-            <>
-              <a href={withBase('/chuyen-muc/')}>Chuyên mục</a>
-              <a href={withBase('/chu-de/')}>Chủ đề</a>
-              <a href={withBase('/luu-tru/')}>Lưu trữ</a>
-              <a href={withBase('/gioi-thieu/')}>Giới thiệu</a>
-              <a href={withBase('/lien-he/')}>Liên hệ</a>
-            </>
-          ) : (
-            <a href={withBase('/bai-viet/')}>Kho bài viết</a>
-          )}
-          <a href={withBase('/rss.xml')}>RSS</a>
-          {SITE_CONFIG.footerLinks.map((link) => (
-            <a
-              href={withBase(link.url)}
-              target={link.url.startsWith('http') ? '_blank' : undefined}
-              rel={link.url.startsWith('http') ? 'noreferrer' : undefined}
-            >
-              {link.label}
-            </a>
-          ))}
-        </div>
-      </div>
-    </footer>
-
-    {liveChat?.enabled && directChatChannels.length > 0 && (
-      <div id="daokyLiveChat" class="livechat-dock">
-        <div id="livechatPanel" class="livechat-panel hidden" role="dialog" aria-label={liveChat.title || 'Live Chat'}>
-          <div class="livechat-head">
-            <div>
-              <strong>{liveChat.title || 'Trò chuyện với tác giả'}</strong>
-              {liveChat.welcomeText && <p>{liveChat.welcomeText}</p>}
-            </div>
-            <button id="livechatCloseBtn" type="button" aria-label="Đóng hộp chat">✕</button>
-          </div>
-          <div class="livechat-list">
-            {directChatChannels.map((ch) => (
-              <a
-                class="livechat-item"
-                href={resolveChatHref(ch.id, ch.value)}
-                target={ch.id === 'email' ? undefined : '_blank'}
-                rel={ch.id === 'email' ? undefined : 'noreferrer'}
-              >
-                <span class="livechat-ch-name">{ch.label || ch.id.toUpperCase()}</span>
-                <span class="livechat-ch-arrow">Nhắn ngay →</span>
-              </a>
-            ))}
-          </div>
-        </div>
-        <button id="livechatToggleBtn" class="livechat-fab" type="button" aria-expanded="false">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          <span>Chat</span>
-        </button>
-      </div>
-    )}
-
-    {liveChat?.enabled && tawkWidgetId && (
-      <script is:inline define:vars={{ tawkId: tawkWidgetId }}>
-        var Tawk_API = Tawk_API || {}, Tawk_LoadStart = new Date();
-        (function () {
-          var s1 = document.createElement('script'),
-            s0 = document.getElementsByTagName('script')[0];
-          s1.async = true;
-          s1.src = 'https://embed.tawk.to/' + tawkId;
-          s1.charset = 'UTF-8';
-          s1.setAttribute('crossorigin', '*');
-          s0.parentNode.insertBefore(s1, s0);
-        })();
-      </script>
-    )}
-
-    {liveChat?.enabled && crispChannel?.value && (
-      <script is:inline define:vars={{ crispId: crispChannel.value }}>
-        window.$crisp = [];
-        window.CRISP_WEBSITE_ID = crispId;
-        (function () {
-          var d = document;
-          var s = d.createElement('script');
-          s.src = 'https://client.crisp.chat/l.js';
-          s.async = true;
-          d.getElementsByTagName('head')[0].appendChild(s);
-        })();
-      </script>
-    )}
-
-    <script is:inline>
-      const themeBtn = document.getElementById('themeToggleBtn');
-      if (themeBtn) {
-        themeBtn.addEventListener('click', () => {
-          const cur = document.documentElement.getAttribute('data-mode') === 'dark' ? 'dark' : 'light';
-          const next = cur === 'dark' ? 'light' : 'dark';
-          document.documentElement.setAttribute('data-mode', next);
-          document.documentElement.classList.toggle('dark', next === 'dark');
-          try {
-            localStorage.setItem('daoky_theme_mode', next);
-          } catch (e) {}
-          const giscusFrame = document.querySelector('iframe.giscus-frame');
-          if (giscusFrame && giscusFrame.contentWindow) {
-            giscusFrame.contentWindow.postMessage(
-              { giscus: { setConfig: { theme: next } } },
-              'https://giscus.app'
-            );
-          }
-        });
-      }
-      const mBtn = document.getElementById('mobileMenuBtn');
-      const mDrawer = document.getElementById('mobileDrawer');
-      if (mBtn && mDrawer) {
-        mBtn.addEventListener('click', () => {
-          mDrawer.classList.toggle('hidden');
-        });
-      }
-      const chatToggle = document.getElementById('livechatToggleBtn');
-      const chatPanel = document.getElementById('livechatPanel');
-      const chatClose = document.getElementById('livechatCloseBtn');
-      if (chatToggle && chatPanel) {
-        chatToggle.addEventListener('click', () => {
-          const isHidden = chatPanel.classList.toggle('hidden');
-          chatToggle.setAttribute('aria-expanded', String(!isHidden));
-        });
-        if (chatClose) {
-          chatClose.addEventListener('click', () => {
-            chatPanel.classList.add('hidden');
-            chatToggle.setAttribute('aria-expanded', 'false');
-          });
-        }
-      }
-
-      document.querySelectorAll('.prose pre').forEach((preEl) => {
-        if (preEl.classList.contains('mermaid')) return;
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'dk-copy-btn';
-        btn.textContent = 'Sao chép';
-        btn.addEventListener('click', () => {
-          const codeEl = preEl.querySelector('code');
-          const txt = codeEl ? codeEl.textContent || '' : preEl.textContent || '';
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(txt).then(() => {
-              btn.textContent = 'Đã chép';
-              window.setTimeout(() => {
-                btn.textContent = 'Sao chép';
-              }, 1600);
-            }).catch(() => {});
-          }
-        });
-        preEl.appendChild(btn);
-      });
-
-      const proseBlocks = document.querySelectorAll('.prose');
-      let needsKatex = false;
-      proseBlocks.forEach((el) => {
-        if (el.textContent && el.textContent.includes('$')) {
-          needsKatex = true;
-        }
-      });
-      if (needsKatex) {
-        const kCss = document.createElement('link');
-        kCss.rel = 'stylesheet';
-        kCss.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';
-        document.head.appendChild(kCss);
-        const kJs = document.createElement('script');
-        kJs.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';
-        kJs.onload = () => {
-          const kAuto = document.createElement('script');
-          kAuto.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js';
-          kAuto.onload = () => {
-            if (typeof window.renderMathInElement === 'function') {
-              proseBlocks.forEach((el) => {
-                window.renderMathInElement(el, {
-                  delimiters: [
-                    { left: '$$', right: '$$', display: true },
-                    { left: '$', right: '$', display: false },
-                  ],
-                  throwOnError: false,
-                });
-              });
-            }
-          };
-          document.head.appendChild(kAuto);
-        };
-        document.head.appendChild(kJs);
-      }
-
-      if (document.querySelectorAll('.mermaid').length > 0) {
-        const mScript = document.createElement('script');
-        mScript.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
-        mScript.onload = () => {
-          if (window.mermaid) {
-            const isDarkMode = document.documentElement.getAttribute('data-mode') === 'dark';
-            window.mermaid.initialize({
-              startOnLoad: false,
-              theme: isDarkMode ? 'dark' : 'default',
-            });
-            window.mermaid.run();
-          }
-        };
-        document.head.appendChild(mScript);
-      }
-    </script>
-  </body>
-</html>
-
-<style is:global>
-  :root {
-    --bg: ${tokens.bg};
-    --surface: ${tokens.surface};
-    --card: ${tokens.card};
-    --border: ${tokens.border};
-    --text: ${tokens.text};
-    --text-2: ${tokens.text2};
-    --muted: ${tokens.muted};
-    --accent: ${tokens.accent};
-    --accent-text: ${tokens.accentText};
-    --link: ${tokens.link};
-    --font-display: ${tokens.fontDisplay};
-    --font-body: ${tokens.fontBody};
-    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  }
-
-  ${(Object.keys(TEMPLATE_DUAL_TOKENS) as AstroTemplateId[])
-    .flatMap((tplId) =>
-      (['light', 'dark'] as const).map((mode) => {
-        const t = TEMPLATE_DUAL_TOKENS[tplId][mode];
-        return `html[data-mode='${mode}'] body[data-template='${tplId}'] {
-    --bg: ${t.bg};
-    --surface: ${t.surface};
-    --card: ${t.card};
-    --border: ${t.border};
-    --text: ${t.text};
-    --text-2: ${t.text2};
-    --muted: ${t.muted};
-    --accent: ${t.accent};
-    --accent-text: ${t.accentText};
-    --link: ${t.link};
-    --font-display: ${t.fontDisplay};
-    --font-body: ${t.fontBody};
-  }`;
-      })
-    )
-    .join('\n\n  ')}
-
-  * {
-    box-sizing: border-box;
-  }
-
-  html,
-  body {
-    margin: 0;
-    padding: 0;
-    overflow-x: hidden;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-body);
-    line-height: 1.72;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  a {
-    color: var(--link);
-    text-decoration: none;
-  }
-
-  a:hover {
-    text-decoration: underline;
-    text-underline-offset: 4px;
-  }
-
-  .wrap {
-    width: 100%;
-    max-width: 1120px;
-    margin: 0 auto;
-    padding: 0 20px;
-  }
-
-  @media (max-width: 639px) {
-    .wrap {
-      padding: 0 16px;
-    }
-  }
-
-  .site-header {
-    position: sticky;
-    top: 0;
-    z-index: 40;
-    background: color-mix(in srgb, var(--bg) 92%, transparent);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border);
-  }
-
-  body[data-template='newyorker-light'] .site-header {
-    border-bottom: 3px double var(--border);
-  }
-
-  body[data-template='monocle-magazine'] .site-header,
-  body[data-template='guardian-portal'] .site-header,
-  body[data-template='economist-digest'] .site-header {
-    border-top: 3px solid var(--accent);
-  }
-
-  .nav-inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 60px;
-  }
-
-  .brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    color: var(--text);
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-size: 1.15rem;
-    letter-spacing: -0.02em;
-    text-decoration: none !important;
-  }
-
-  .brand img {
-    border-radius: 9999px;
-    border: 1px solid var(--border);
-    object-fit: cover;
-    flex-shrink: 0;
-  }
-
-  .brand span {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .nav-links {
-    display: none;
-    align-items: center;
-    gap: 18px;
-    font-size: 0.88rem;
-    font-weight: 500;
-  }
-
-  .nav-links a {
-    color: var(--text-2);
-    text-decoration: none;
-    white-space: nowrap;
-    padding: 4px 0;
-    border-bottom: 2px solid transparent;
-  }
-
-  .nav-links a:hover,
-  .nav-links a.active {
-    color: var(--text);
-    font-weight: 600;
-  }
-
-  .nav-links a.active {
-    border-bottom-color: var(--accent);
-  }
-
-  .nav-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
-  .icon-btn,
-  .mobile-menu-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 36px;
-    padding: 0 10px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 0.76rem;
-    font-weight: 500;
-    cursor: pointer;
-    text-decoration: none !important;
-  }
-
-  .theme-toggle-btn {
-    min-width: 38px;
-    padding: 0;
-  }
-
-  .theme-toggle-btn .sun-icon {
-    display: none;
-    color: #f59e0b;
-  }
-
-  .theme-toggle-btn .moon-icon {
-    display: block;
-    color: var(--link);
-  }
-
-  html[data-mode='dark'] .theme-toggle-btn .sun-icon {
-    display: block;
-  }
-
-  html[data-mode='dark'] .theme-toggle-btn .moon-icon {
-    display: none;
-  }
-
-  .mobile-menu-btn {
-    min-width: 38px;
-    padding: 0 10px;
-    font-size: 1rem;
-  }
-
-  .mobile-drawer {
-    border-top: 1px solid var(--border);
-    background: var(--bg);
-    padding: 12px 0 16px;
-  }
-
-  .mobile-drawer.hidden {
-    display: none;
-  }
-
-  .mobile-drawer-links {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .mobile-drawer-links a {
-    color: var(--text);
-    font-size: 0.95rem;
-    font-weight: 500;
-    padding: 6px 0;
-  }
-
-  @media (min-width: 880px) {
-    .nav-links {
-      display: flex;
-    }
-    .mobile-menu-btn,
-    .mobile-drawer {
-      display: none !important;
-    }
-  }
-
-  .main-content {
-    min-height: calc(100vh - 200px);
-    padding-top: 28px;
-    padding-bottom: 64px;
-  }
-
-  .site-footer {
-    border-top: 1px solid var(--border);
-    background: var(--surface);
-    padding: 28px 0;
-  }
-
-  body[data-template='newyorker-light'] .site-footer {
-    border-top: 3px double var(--border);
-  }
-
-  .footer-inner {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .footer-copy {
-    margin: 0;
-    font-size: 0.88rem;
-    color: var(--text-2);
-  }
-
-  .footer-sub {
-    margin: 4px 0 0;
-    font-size: 0.78rem;
-    color: var(--muted);
-    font-family: var(--font-mono);
-  }
-
-  .footer-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 18px;
-    font-size: 0.84rem;
-  }
-
-  .prose {
-    font-size: 1.08rem;
-    line-height: 1.82;
-    color: var(--text-2);
-    max-width: 68ch;
-  }
-
-  body[data-template='newyorker-light'] .prose > p:first-of-type::first-letter,
-  body[data-template='espresso-salon'] .prose > p:first-of-type::first-letter,
-  body[data-template='kyoto-folio'] .prose > p:first-of-type::first-letter {
-    float: left;
-    font-family: var(--font-display);
-    font-size: 3.4rem;
-    line-height: 0.85;
-    font-weight: 700;
-    color: var(--text);
-    padding-right: 10px;
-    padding-top: 4px;
-  }
-
-  .prose h2,
-  .prose h3 {
-    font-family: var(--font-display);
-    color: var(--text);
-    margin-top: 2.1rem;
-    margin-bottom: 0.75rem;
-    line-height: 1.25;
-  }
-
-  .prose p {
-    margin: 1.15rem 0;
-  }
-
-  .prose img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 10px;
-    margin: 1.6rem 0;
-    border: 1px solid var(--border);
-  }
-
-  .prose blockquote {
-    margin: 1.8rem 0;
-    padding: 1.1rem 1.25rem;
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-    font-family: var(--font-display);
-    font-style: italic;
-    font-size: 1.15rem;
-    color: var(--text);
-  }
-
-  .prose pre {
-    position: relative;
-    padding: 1.1rem;
-    border-radius: 10px;
-    overflow-x: auto;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    font-family: var(--font-mono);
-    font-size: 0.88rem;
-  }
-
-  .prose code {
-    font-family: var(--font-mono);
-    font-size: 0.88em;
-    background: var(--surface);
-    padding: 0.15em 0.4em;
-    border-radius: 5px;
-  }
-
-  .prose pre code {
-    background: transparent;
-    padding: 0;
-  }
-
-  .dk-copy-btn {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    padding: 4px 10px;
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    background: var(--card);
-    color: var(--text-2);
-    cursor: pointer;
-    opacity: 0.85;
-  }
-
-  .dk-copy-btn:hover {
-    opacity: 1;
-    border-color: var(--link);
-    color: var(--text);
-  }
-
-  .prose blockquote.dk-callout {
-    font-family: var(--font-body);
-    font-style: normal;
-    font-size: 1rem;
-    border: 1px solid var(--border);
-    border-left: 4px solid var(--link);
-    background: var(--surface);
-    border-radius: 10px;
-    padding: 0.95rem 1.15rem;
-  }
-
-  .prose blockquote.dk-callout-tip {
-    border-left-color: #10b981;
-  }
-
-  .prose blockquote.dk-callout-important {
-    border-left-color: #8b5cf6;
-  }
-
-  .prose blockquote.dk-callout-warning {
-    border-left-color: #f59e0b;
-  }
-
-  .prose blockquote.dk-callout-caution {
-    border-left-color: #ef4444;
-  }
-
-  .dk-callout-title {
-    display: block;
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text);
-    margin-bottom: 6px;
-  }
-
-  .dk-video-embed {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    margin: 1.5rem 0;
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    background: #000;
-  }
-
-  .dk-video-embed iframe {
-    width: 100%;
-    height: 100%;
-    border: 0;
-    display: block;
-  }
-
-  .dk-mermaid-box {
-    margin: 1.5rem 0;
-    padding: 1rem;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    overflow-x: auto;
-  }
-
-  .dk-mermaid-box pre.mermaid {
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    text-align: center;
-  }
-
-  .livechat-dock {
-    position: fixed;
-    right: 18px;
-    bottom: 18px;
-    z-index: 60;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 10px;
-  }
-
-  .livechat-fab {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 44px;
-    padding: 0 16px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: var(--accent);
-    color: var(--accent-text);
-    font-family: inherit;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  }
-
-  .livechat-panel {
-    width: min(320px, calc(100vw - 36px));
-    border-radius: 14px;
-    border: 1px solid var(--border);
-    background: var(--card);
-    color: var(--text);
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
-    overflow: hidden;
-  }
-
-  .livechat-panel.hidden {
-    display: none;
-  }
-
-  .livechat-head {
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .livechat-head strong {
-    display: block;
-    font-size: 0.92rem;
-    font-family: var(--font-display);
-  }
-
-  .livechat-head p {
-    margin: 4px 0 0;
-    font-size: 0.78rem;
-    color: var(--text-2);
-    line-height: 1.45;
-  }
-
-  .livechat-head button {
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 0.95rem;
-    padding: 2px 6px;
-  }
-
-  .livechat-list {
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .livechat-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    font-size: 0.84rem;
-    font-weight: 600;
-    text-decoration: none !important;
-  }
-
-  .livechat-item:hover {
-    border-color: var(--link);
-  }
-
-  .livechat-ch-arrow {
-    font-size: 0.76rem;
-    color: var(--link);
-    font-family: var(--font-mono);
-  }
-</style>
 `;
 
   const postCardAstro = `---
