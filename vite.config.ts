@@ -1,11 +1,17 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import { defineConfig } from 'vite';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineConfig, loadEnv } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig(() => {
-  const basePath = process.env.VITE_BASE_PATH || '/';
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, rootDir, '');
+  const rawBase = (env.VITE_BASE_PATH || process.env.VITE_BASE_PATH || '/').trim() || '/';
+  const basePath = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
+  const disableHmr = (env.DISABLE_HMR || process.env.DISABLE_HMR) === 'true';
 
   return {
     base: basePath,
@@ -97,12 +103,12 @@ export default defineConfig(() => {
     ],
     resolve: {
       alias: {
-        '@': path.resolve(import.meta.dirname, '.'),
+        '@': path.resolve(rootDir, '.'),
       },
     },
     server: {
-      hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      hmr: !disableHmr,
+      watch: disableHmr ? null : {},
     },
   };
 });

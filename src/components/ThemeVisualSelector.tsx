@@ -367,7 +367,7 @@ export function ThemeVisualSelector({
               Đang xem thử cục bộ:
             </span>{' '}
             <span style={{ color: palette.textSecondary }}>
-              {activePreset.name} ({currentMode === 'dark' ? 'Tối' : 'Sáng'}). Chưa lưu lên Cloud &amp; GitHub.
+              {activePreset.name} ({currentMode === 'dark' ? 'Tối' : 'Sáng'}). Chưa lưu trên máy &amp; GitHub.
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
@@ -402,7 +402,7 @@ export function ThemeVisualSelector({
               ) : (
                 <UploadCloud className="w-3.5 h-3.5" />
               )}
-              Áp dụng &amp; Đồng bộ
+              Áp dụng &amp; Lưu
             </button>
           </div>
         </div>
@@ -635,7 +635,7 @@ export function ThemeVisualSelector({
                 <span>Tuỳ chỉnh màu sắc mặc định (Sáng &amp; Tối)</span>
               </div>
               <p style={{ color: palette.textMuted }} className="text-xs">
-                Chọn giao diện <strong>{activePreset.name}</strong> &amp; phối màu để <strong>xem thử cục bộ</strong> bên dưới — chỉ khi nhấn <strong>Áp dụng</strong> mới lưu đồng bộ lên Firestore &amp; GitHub.
+                Chọn giao diện <strong>{activePreset.name}</strong> &amp; phối màu để <strong>xem thử cục bộ</strong> bên dưới — chỉ khi nhấn <strong>Áp dụng</strong> mới lưu lên máy &amp; đồng bộ GitHub.
               </p>
             </div>
 
@@ -835,7 +835,7 @@ export function ThemeVisualSelector({
                 <div className="text-xs font-semibold flex items-center gap-1.5">
                   {hasPendingChanges ? (
                     <span style={{ color: palette.link }}>
-                      Đang xem thử cục bộ — chưa lưu lên Cloud Firestore &amp; GitHub
+                      Đang xem thử cục bộ — chưa lưu trên máy &amp; GitHub
                     </span>
                   ) : applyStatusText ? (
                     <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
@@ -844,7 +844,7 @@ export function ThemeVisualSelector({
                     </span>
                   ) : (
                     <span style={{ color: palette.textSecondary }}>
-                      Đang dùng cấu hình đã đồng bộ. Bạn có thể chọn thử mẫu/màu khác trước khi nhấn Áp dụng.
+                      Đang dùng cấu hình trên máy. Bạn có thể chọn thử mẫu/màu khác trước khi nhấn Áp dụng.
                     </span>
                   )}
                 </div>
@@ -891,7 +891,7 @@ export function ThemeVisualSelector({
                   ) : (
                     <>
                       <UploadCloud className="w-4 h-4" />
-                      {hasPendingChanges ? 'Áp dụng & Đồng bộ' : 'Áp dụng lại lên Cloud & GitHub'}
+                      {hasPendingChanges ? 'Áp dụng & Lưu GitHub' : 'Đồng bộ lại lên GitHub'}
                     </>
                   )}
                 </button>
@@ -1238,7 +1238,7 @@ export function ThemeVisualSelector({
               className="px-4 py-3 border-t flex flex-wrap items-center justify-between gap-2.5"
             >
               <span style={{ color: palette.textSecondary }} className="text-xs font-medium">
-                Bản xem trước cục bộ chưa được ghi đồng bộ.
+                Bản xem trước cục bộ chưa được áp dụng lên máy &amp; GitHub.
               </span>
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 {onDiscard && (
@@ -1271,7 +1271,7 @@ export function ThemeVisualSelector({
                   ) : (
                     <UploadCloud className="w-4 h-4" />
                   )}
-                  Áp dụng &amp; Đồng bộ
+                  Áp dụng &amp; Lưu GitHub
                 </button>
               </div>
             </div>

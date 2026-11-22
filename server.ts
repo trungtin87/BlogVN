@@ -4082,9 +4082,9 @@ async function startServer() {
     const disableHmr = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
       server: {
-        middlewareMode: true,
-        hmr: disableHmr ? false : { server: httpServer },
-        ...(disableHmr ? { ws: false } : {}),
+        middlewareMode: disableHmr ? true : { server: httpServer },
+        hmr: !disableHmr,
+        ws: disableHmr ? false : { server: httpServer },
       },
       appType: 'spa',
     });

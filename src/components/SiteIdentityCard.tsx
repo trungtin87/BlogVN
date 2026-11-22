@@ -105,7 +105,6 @@ interface SiteIdentityCardProps {
   repoInfo: GitHubRepoInfo | null;
   repoStructure?: RepoStructureInfo | null;
   onUpdateConfig: (next: BlogConfig | ((prev: BlogConfig) => BlogConfig)) => void;
-  onApplyAndSyncConfig?: (nextCfg: BlogConfig) => Promise<void>;
   onDeployedToGitHub?: (message: string, commitUrl?: string) => void;
   onRefreshRepo?: () => void;
 }
@@ -148,7 +147,6 @@ export function SiteIdentityCard({
   repoInfo,
   repoStructure = null,
   onUpdateConfig,
-  onApplyAndSyncConfig,
   onDeployedToGitHub,
   onRefreshRepo,
 }: SiteIdentityCardProps) {
@@ -361,18 +359,14 @@ export function SiteIdentityCard({
     setErrorMessage(null);
 
     try {
-      if (onApplyAndSyncConfig) {
-        await onApplyAndSyncConfig(nextCfg);
-      } else {
-        onUpdateConfig(nextCfg);
-      }
+      onUpdateConfig(nextCfg);
 
       const canSyncGitHub = Boolean(
         authStatus?.authenticated && config.githubOwner?.trim() && config.githubRepo?.trim()
       );
       if (!canSyncGitHub) {
         setThemeApplyStatus(
-          'Đã áp dụng & lưu lên Cloud Firestore. Kết nối GitHub để đồng bộ lên website.'
+          'Đã áp dụng & lưu cấu hình trên máy. Kết nối GitHub để đồng bộ lên website.'
         );
         return;
       }
@@ -389,18 +383,18 @@ export function SiteIdentityCard({
 
       if (!ghRes.ok) {
         setThemeApplyError(
-          `Đã lưu lên Cloud Firestore nhưng đồng bộ GitHub lỗi: ${ghRes.error || 'Không xác định'}`
+          `Đã áp dụng trên máy nhưng đồng bộ GitHub lỗi: ${ghRes.error || 'Không xác định'}`
         );
         return;
       }
 
       const okMsg = isAstroRepo
-        ? `Đã áp dụng giao diện & màu sắc lên Firestore và Astro (${config.githubOwner}/${config.githubRepo}).`
-        : 'Đã áp dụng giao diện & màu sắc lên Cloud Firestore và GitHub.';
+        ? `Đã áp dụng giao diện & màu sắc trên máy và Astro (${config.githubOwner}/${config.githubRepo}).`
+        : 'Đã áp dụng giao diện & màu sắc trên máy và đồng bộ lên GitHub.';
       setThemeApplyStatus(okMsg);
       onDeployedToGitHub?.(okMsg, ghRes.commitUrl || config.pagesUrl);
     } catch (err: any) {
-      setThemeApplyError(err?.message || 'Không thể đồng bộ giao diện lên Firestore / GitHub.');
+      setThemeApplyError(err?.message || 'Không thể đồng bộ giao diện lên GitHub.');
     } finally {
       setIsApplyingTheme(false);
     }
@@ -432,11 +426,7 @@ export function SiteIdentityCard({
     }
 
     try {
-      if (onApplyAndSyncConfig) {
-        await onApplyAndSyncConfig(nextCfg);
-      } else {
-        onUpdateConfig(nextCfg);
-      }
+      onUpdateConfig(nextCfg);
 
       const result = await ghSaveSiteConfig({
         owner: config.githubOwner,
@@ -464,7 +454,7 @@ export function SiteIdentityCard({
         onDeployedToGitHub?.(msg, result.commitUrl);
       } else {
         setStatusMessage({
-          text: 'Đã lưu nhận dạng web lên Cloud Firestore & thiết bị.',
+          text: 'Đã lưu nhận dạng web trên thiết bị (Local).',
         });
       }
     } catch {
@@ -486,11 +476,7 @@ export function SiteIdentityCard({
     setIsDeployingAstro(true);
 
     try {
-      if (onApplyAndSyncConfig) {
-        await onApplyAndSyncConfig(nextCfg);
-      } else {
-        onUpdateConfig(nextCfg);
-      }
+      onUpdateConfig(nextCfg);
       const result = await ghDeployAstroTemplate({
         owner: config.githubOwner,
         repo: config.githubRepo,
