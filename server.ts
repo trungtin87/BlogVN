@@ -1076,6 +1076,7 @@ function buildStandaloneWebAppFiles(params: {
     }));
 
   const manifest = {
+    id: './',
     name: title,
     short_name: headerBrand.slice(0, 24),
     description: tagline,
@@ -1116,15 +1117,17 @@ self.addEventListener('fetch', (e) => {
 <html lang="vi"${activeTheme.isDark ? ' class="dark"' : ''}>
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" id="dk-theme-color" content="${escapeHtmlAttr(activeTheme.palette.canvas)}" />
+  <meta name="color-scheme" content="light dark" />
   <title>${escapeHtmlAttr(title)}</title>
   <meta name="description" content="${escapeHtmlAttr(tagline)}" />
   <meta property="og:title" content="${escapeHtmlAttr(title)}" />
   <meta property="og:description" content="${escapeHtmlAttr(tagline)}" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="${escapeHtmlAttr(headerBrand)}" />
-  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="manifest" href="./manifest.webmanifest?v=${encodeURIComponent(activeTheme.palette.canvas)}" />
   <link rel="icon" href="${escapeHtmlAttr(iconHref)}" />
   <link rel="apple-touch-icon" href="${escapeHtmlAttr(iconHref)}" />
   <link rel="alternate" type="application/rss+xml" title="${escapeHtmlAttr(title)} RSS" href="./rss.xml" />
@@ -1133,7 +1136,7 @@ self.addEventListener('fetch', (e) => {
     :root { --bg:${lightTheme.palette.canvas}; --surface:${lightTheme.palette.surface}; --card:${lightTheme.palette.surfaceElevated}; --border:${lightTheme.palette.border}; --text:${lightTheme.palette.textPrimary}; --muted:${lightTheme.palette.textMuted}; --link:${lightTheme.palette.link}; --accent:${lightTheme.palette.accent}; --accent-text:${lightTheme.palette.accentText}; }
     html.dark { --bg:${darkTheme.palette.canvas}; --surface:${darkTheme.palette.surface}; --card:${darkTheme.palette.surfaceElevated}; --border:${darkTheme.palette.border}; --text:${darkTheme.palette.textPrimary}; --muted:${darkTheme.palette.textMuted}; --link:${darkTheme.palette.link}; --accent:${darkTheme.palette.accent}; --accent-text:${darkTheme.palette.accentText}; }
     * { box-sizing:border-box; }
-    body { margin:0; font-family: ${activeTheme.fonts.body}; background:var(--bg); color:var(--text); line-height:1.65; }
+    html, body { margin:0; min-height:100dvh; font-family: ${activeTheme.fonts.body}; background:var(--bg); color:var(--text); line-height:1.65; }
     a { color:var(--link); text-decoration:none; } a:hover { text-decoration:underline; }
     header { position:sticky; top:0; z-index:20; background:var(--bg); border-bottom:1px solid var(--border); }
     .wrap { max-width:960px; margin:0 auto; padding:0 18px; }
@@ -1194,8 +1197,11 @@ self.addEventListener('fetch', (e) => {
     const LIGHT_BG = ${JSON.stringify(lightTheme.palette.canvas)};
     const DARK_BG = ${JSON.stringify(darkTheme.palette.canvas)};
     const updateMetaColor = (isDark) => {
+      const bg = isDark ? DARK_BG : LIGHT_BG;
+      document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+      document.documentElement.style.backgroundColor = bg;
       const m = document.querySelector('meta[name="theme-color"]');
-      if (m) m.setAttribute('content', isDark ? DARK_BG : LIGHT_BG);
+      if (m) m.setAttribute('content', bg);
     };
     updateMetaColor(savedTheme === 'dark');
     document.getElementById('themeBtn').onclick = () => {

@@ -867,6 +867,7 @@ export function buildAstroManifestJson(params: {
   return (
     JSON.stringify(
       {
+        id: './',
         name: siteTitle,
         short_name: headerBrand.slice(0, 24),
         description: tagline,
@@ -1055,6 +1056,11 @@ const activeTplColors = BASE_TEMPLATE_COLORS[SITE_CONFIG.templateStyle] || BASE_
 const lightBgColor = cleanHex(SITE_CONFIG.themeColors?.light?.canvas) || activeTplColors.light.bg;
 const darkBgColor = cleanHex(SITE_CONFIG.themeColors?.dark?.canvas) || activeTplColors.dark.bg;
 const initialBgColor = initialDark ? darkBgColor : lightBgColor;
+let sigHash = 0;
+for (let i = 0; i < defaultThemeSig.length; i++) {
+  sigHash = ((sigHash << 5) - sigHash + defaultThemeSig.charCodeAt(i)) | 0;
+}
+const manifestVer = Math.abs(sigHash).toString(36);
 
 const analyticsProvider = SITE_CONFIG.analyticsProvider || 'none';
 const analyticsId = (SITE_CONFIG.analyticsId || '').trim();
@@ -1144,9 +1150,12 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
 <html lang="vi" data-mode={initialMode} class={initialDark ? 'dark' : ''}>
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" id="dk-theme-color" content={initialBgColor} />
     <meta name="color-scheme" content="light dark" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex" />}
@@ -1162,12 +1171,14 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
           }
           var saved = localStorage.getItem('daoky_theme_mode');
           var mode = saved === 'dark' || saved === 'light' ? saved : defaultMode;
+          var activeBg = mode === 'dark' ? darkBgColor : lightBgColor;
           document.documentElement.setAttribute('data-mode', mode);
           document.documentElement.classList.toggle('dark', mode === 'dark');
           document.documentElement.style.colorScheme = mode;
+          document.documentElement.style.backgroundColor = activeBg;
           var metaTheme = document.querySelector('meta[name="theme-color"]');
           if (metaTheme) {
-            metaTheme.setAttribute('content', mode === 'dark' ? darkBgColor : lightBgColor);
+            metaTheme.setAttribute('content', activeBg);
           }
         } catch (e) {}
       })();
@@ -1204,7 +1215,7 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
 
     <link rel="icon" href={iconHref} />
     <link rel="apple-touch-icon" href={iconHref} />
-    <link rel="manifest" href={withBase('/manifest.webmanifest')} />
+    <link rel="manifest" href={withBase(\`/manifest.webmanifest?v=\${manifestVer}\`)} />
     <link rel="sitemap" type="application/xml" title="Sitemap" href={withBase('/sitemap.xml')} />
     <link rel="alternate" type="application/rss+xml" title={\`\${SITE_CONFIG.siteTitle} RSS\`} href={withBase('/rss.xml')} />
     {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
@@ -1389,12 +1400,17 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
         themeBtn.addEventListener('click', () => {
           const cur = document.documentElement.getAttribute('data-mode') === 'dark' ? 'dark' : 'light';
           const next = cur === 'dark' ? 'light' : 'dark';
+          const nextBg = next === 'dark' ? darkBgColor : lightBgColor;
           document.documentElement.setAttribute('data-mode', next);
           document.documentElement.classList.toggle('dark', next === 'dark');
           document.documentElement.style.colorScheme = next;
+          document.documentElement.style.backgroundColor = nextBg;
+          if (document.body) {
+            document.body.style.backgroundColor = nextBg;
+          }
           const metaTheme = document.querySelector('meta[name="theme-color"]');
           if (metaTheme) {
-            metaTheme.setAttribute('content', next === 'dark' ? darkBgColor : lightBgColor);
+            metaTheme.setAttribute('content', nextBg);
           }
           try {
             localStorage.setItem('daoky_theme_mode', next);
@@ -1553,7 +1569,7 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
   body {
     margin: 0;
     padding: 0;
-    min-height: 100%;
+    min-height: 100dvh;
     overflow-x: hidden;
     background: var(--bg);
     color: var(--text);
@@ -1760,7 +1776,7 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
   .site-footer {
     border-top: 1px solid var(--border);
     background: var(--surface);
-    padding: 28px 0;
+    padding: 28px 0 calc(28px + env(safe-area-inset-bottom, 0px));
   }
 
   body[data-template='newyorker-light'] .site-footer {
@@ -1957,7 +1973,7 @@ const drawerExtraNav = SITE_CONFIG.isMultiPage
   .livechat-dock {
     position: fixed;
     right: 18px;
-    bottom: 18px;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
     z-index: 60;
     display: flex;
     flex-direction: column;
