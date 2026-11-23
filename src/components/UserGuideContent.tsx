@@ -54,12 +54,12 @@ export function UserGuideContent({
       a: 'Vào tab GitHub & App → Mục 4 ("Template Web Blog Astro 5 chuẩn tiếng Việt") → chọn mẫu bố cục → bấm "Triển khai Template Astro Việt" để xoá sạch tệp xung đột cũ và nạp mới hoàn chỉnh kèm nhận dạng web của bạn.',
     },
     {
-      q: 'Người khác dùng chung app có cần đăng nhập Google hay add email trước không?',
-      a: 'Không bắt buộc. Ai cũng có thể mở Đạo Ký dùng ngay ở chế độ Cục bộ và nhập GitHub Token cá nhân của riêng mình. Đăng nhập Google chỉ là tuỳ chọn nếu bạn muốn sao lưu cấu hình/bản nháp lên Cloud Firestore.',
+      q: 'Người khác dùng chung app có cần đăng nhập hay cấp quyền email trước không?',
+      a: 'Không. Đạo Ký chạy trực tiếp trên trình duyệt — ai mở ứng dụng lên cũng dùng được ngay và tự nhập GitHub Personal Access Token của riêng mình.',
     },
     {
-      q: 'Lỗi "auth/unauthorized-domain" khi đăng nhập Google trên tên miền riêng?',
-      a: 'Truy cập Firebase Console → Authentication → Settings → Authorized domains và thêm tên miền GitHub Pages (hoặc tên miền tuỳ chỉnh) của bạn vào danh sách cho phép. Trong lúc đó bạn vẫn dùng GitHub Token và xuất .zip bình thường.',
+      q: 'Làm sao để sao lưu hoặc chuyển toàn bộ bài viết và cài đặt sang máy khác?',
+      a: 'Vào tab GitHub & App → Bài viết & Sao lưu → bấm Xuất sao lưu (.zip), sau đó sang máy mới bấm Nhập sao lưu (.zip) để khôi phục ngay.',
     },
   ];
 
@@ -103,7 +103,7 @@ export function UserGuideContent({
             </h3>
           </div>
           <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm leading-relaxed">
-            Đạo Ký đóng vai trò như một trình soạn thảo &amp; quản trị Blog tĩnh chạy trực tiếp trên trình duyệt của bạn — không bắt buộc đăng nhập Google và không lưu bài viết lên máy chủ trung gian.
+            Đạo Ký đóng vai trò như một trình soạn thảo &amp; quản trị Blog tĩnh chạy trực tiếp trên trình duyệt của bạn — không yêu cầu đăng nhập tài khoản trung gian và không lưu bài viết lên máy chủ ngoài.
           </p>
           <div className={`grid grid-cols-1 ${compact ? '' : 'sm:grid-cols-3'} gap-2.5 text-xs`}>
             <div
@@ -112,7 +112,7 @@ export function UserGuideContent({
             >
               <div className="font-semibold">1. Lưu cục bộ trên thiết bị</div>
               <p style={{ color: palette.textMuted }} className="leading-relaxed">
-                Bản nháp, nhận dạng web và GitHub Token cá nhân được lưu trực tiếp trên trình duyệt của bạn (tuỳ chọn đăng nhập Google để sao lưu Cloud).
+                Bản nháp, nhận dạng web và GitHub Token cá nhân được lưu trực tiếp trên trình duyệt của bạn và xuất/nhập dễ dàng qua tệp .zip.
               </p>
             </div>
             <div
@@ -174,7 +174,7 @@ export function UserGuideContent({
                 1
               </span>
               <span>
-                Vào tab <strong>GitHub &amp; App</strong> → Mục <strong>1. Phiên Google cá nhân &amp; Kết nối GitHub</strong>, bấm liên kết{' '}
+                Vào tab <strong>GitHub &amp; App</strong> → Mục <strong>Kết nối &amp; Repo</strong>, bấm liên kết{' '}
                 <strong>Tạo Token (repo + workflow)</strong>.
               </span>
             </li>

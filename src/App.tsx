@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
-import { onAuthStateChanged, type User } from 'firebase/auth';
-import { CheckCircle2, ExternalLink, Loader2, X } from 'lucide-react';
+import { CheckCircle2, ExternalLink, X } from 'lucide-react';
 import type {
   AuthStatus,
   BlogCollection,
@@ -21,7 +20,6 @@ import {
   resolveBlogTheme,
   sanitizeThemeCustomColors,
 } from './data/themes';
-import { auth, signInWithGoogle, signOutGoogle } from './firebase';
 import {
   getStoredGitHubPat,
   getUserStorageKey,
@@ -38,18 +36,11 @@ import {
   setActiveSessionUid,
   setStoredGitHubPat,
 } from './utils/githubClient';
-import {
-  backupWorkspaceToCloud,
-  checkCloudBackupMeta,
-  restoreWorkspaceFromCloud,
-  type CloudBackupMeta,
-} from './utils/firestoreSync';
 import { TopBar } from './components/TopBar';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { BlogShowcase } from './components/BlogShowcase';
 import { MarkdownEditor } from './components/MarkdownEditor';
 import { GitHubSyncPanel, type SettingsSubTab } from './components/GitHubSyncPanel';
-import { mapFirebaseAuthError } from './components/GoogleAuthGate';
 import { OfflineIndicator } from './components/PWAInstallButton';
 import { UserGuideModal } from './components/UserGuideModal';
 import { FloatingLiveChat } from './components/FloatingLiveChat';
@@ -76,7 +67,7 @@ function getPreferredThemeMode(): ThemeMode {
   return 'light';
 }
 
-function loadConfigForUid(uid: string, user?: User | null): BlogConfig {
+function loadConfigForUid(uid: string): BlogConfig {
   try {
     const raw = localStorage.getItem(getUserStorageKey(uid, 'config_v1'));
     if (raw) {
@@ -123,29 +114,7 @@ function loadConfigForUid(uid: string, user?: User | null): BlogConfig {
   return {
     ...DEFAULT_BLOG_CONFIG,
     themeMode: getPreferredThemeMode(),
-    authorName: user?.displayName || DEFAULT_BLOG_CONFIG.authorName,
-    authorAvatar: user?.photoURL || DEFAULT_BLOG_CONFIG.authorAvatar,
   };
-}
-
-function migrateLocalWorkspaceToUid(targetUid: string): void {
-  if (!targetUid || targetUid === LOCAL_WORKSPACE_UID || typeof window === 'undefined') return;
-  try {
-    const hasExistingAccountConfig = Boolean(
-      localStorage.getItem(getUserStorageKey(targetUid, 'config_v1'))
-    );
-    if (hasExistingAccountConfig) return;
-
-    const keys = ['config_v1', 'drafts_v1', 'gh_pat', 'schedules_v1'] as const;
-    for (const suffix of keys) {
-      const localVal = localStorage.getItem(getUserStorageKey(LOCAL_WORKSPACE_UID, suffix));
-      if (localVal && !localStorage.getItem(getUserStorageKey(targetUid, suffix))) {
-        localStorage.setItem(getUserStorageKey(targetUid, suffix), localVal);
-      }
-    }
-  } catch {
-    // ignore storage errors
-  }
 }
 
 function loadDraftsForUid(uid: string): BlogPost[] {
@@ -162,19 +131,17 @@ function loadDraftsForUid(uid: string): BlogPost[] {
 }
 
 export default function App() {
-  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [authInitializing, setAuthInitializing] = useState(true);
+  setActiveSessionUid(LOCAL_WORKSPACE_UID);
   const [gateThemeMode, setGateThemeMode] = useState<ThemeMode>(getPreferredThemeMode);
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('blog');
-  const [config, setConfig] = useState<BlogConfig>(() => ({
-    ...DEFAULT_BLOG_CONFIG,
-    themeMode: getPreferredThemeMode(),
-  }));
-  const [localDrafts, setLocalDrafts] = useState<BlogPost[]>([]);
-  const [hasPersonalPat, setHasPersonalPat] = useState(false);
-  const [cloudBackupMeta, setCloudBackupMeta] = useState<CloudBackupMeta>({ exists: false });
-  const [isCloudBusy, setIsCloudBusy] = useState(false);
+  const [config, setConfig] = useState<BlogConfig>(() => loadConfigForUid(LOCAL_WORKSPACE_UID));
+  const [localDrafts, setLocalDrafts] = useState<BlogPost[]>(() =>
+    loadDraftsForUid(LOCAL_WORKSPACE_UID)
+  );
+  const [hasPersonalPat, setHasPersonalPat] = useState<boolean>(() =>
+    Boolean(getStoredGitHubPat(LOCAL_WORKSPACE_UID))
+  );
 
   const [githubPosts, setGithubPosts] = useState<BlogPost[]>([]);
   const [postsTotalCount, setPostsTotalCount] = useState(0);
@@ -209,7 +176,7 @@ export default function App() {
     }
   }, [activeTab]);
 
-  const activeUid = firebaseUser?.uid || LOCAL_WORKSPACE_UID;
+  const activeUid = LOCAL_WORKSPACE_UID;
   activeUidRef.current = activeUid;
 
   const updateLocalConfig = useCallback((updater: SetStateAction<BlogConfig>) => {
@@ -240,65 +207,9 @@ export default function App() {
     [config, gateThemeMode]
   );
 
-  // Listen to optional Firebase Google Sign-In state; fall back seamlessly to local_workspace
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      const sessionUid = user?.uid || LOCAL_WORKSPACE_UID;
-      setFirebaseUser(user);
-      setActiveSessionUid(sessionUid);
-
-      // Clear transient state on account switch / sign-out
-      setGithubPosts([]);
-      setPostsTotalCount(0);
-      setPostsHasMore(false);
-      setScheduledTasks([]);
-      setUserRepos([]);
-      setRepoInfo(null);
-      setRepoStructure(null);
-      setBuildStatus(null);
-      setEditingPost(null);
-      setRepoError(null);
-      setAuthStatus(null);
-      setCloudBackupMeta({ exists: false });
-
-      if (user) {
-        migrateLocalWorkspaceToUid(user.uid);
-        const userCfg = loadConfigForUid(user.uid, user);
-        setConfig(userCfg);
-        setLocalDrafts(loadDraftsForUid(user.uid));
-        setHasPersonalPat(Boolean(getStoredGitHubPat(user.uid)));
-      } else {
-        const localCfg = loadConfigForUid(LOCAL_WORKSPACE_UID);
-        setConfig(localCfg);
-        setLocalDrafts(loadDraftsForUid(LOCAL_WORKSPACE_UID));
-        setHasPersonalPat(Boolean(getStoredGitHubPat(LOCAL_WORKSPACE_UID)));
-      }
-      setAuthInitializing(false);
-    });
-    return () => {
-      unsubscribe();
-    };
+    setActiveSessionUid(LOCAL_WORKSPACE_UID);
   }, []);
-
-  // Passive read-only check whether a Cloud backup already exists when signed in with Google
-  // (never writes to Cloud and never overwrites local device data automatically)
-  useEffect(() => {
-    if (!firebaseUser?.uid) {
-      setCloudBackupMeta({ exists: false });
-      return;
-    }
-    let cancelled = false;
-    checkCloudBackupMeta(firebaseUser.uid)
-      .then((meta) => {
-        if (!cancelled) setCloudBackupMeta(meta);
-      })
-      .catch(() => {
-        if (!cancelled) setCloudBackupMeta({ exists: false });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [firebaseUser?.uid]);
 
   // Synchronize <html> .dark class, color-scheme, body bg, and mobile theme-color meta tag
   useEffect(() => {
@@ -777,25 +688,9 @@ export default function App() {
 
     showBanner({
       message: userLogin
-        ? `Đã kết nối GitHub cá nhân (@${userLogin}) cho tài khoản Google này.`
+        ? `Đã kết nối GitHub cá nhân (@${userLogin}) trên thiết bị này.`
         : 'Đã lưu GitHub Token cá nhân.',
     });
-  };
-
-  const handleSignInGoogle = async () => {
-    try {
-      await signInWithGoogle();
-    } catch (err: any) {
-      throw new Error(mapFirebaseAuthError(err));
-    }
-  };
-
-  const handleSignOutGoogle = async () => {
-    const hasBackend = await isBackendAvailable();
-    if (hasBackend) {
-      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-    }
-    await signOutGoogle();
   };
 
   const handleClearLocalData = async () => {
@@ -825,11 +720,7 @@ export default function App() {
     setRepoStructure(null);
     setBuildStatus(null);
     setRepoError(null);
-    if (firebaseUser) {
-      await signOutGoogle();
-    } else {
-      await fetchAuthStatus();
-    }
+    await fetchAuthStatus();
     showBanner({ message: 'Đã xoá dữ liệu cục bộ trên thiết bị và đặt lại cấu hình mặc định.' });
   };
 
@@ -868,67 +759,6 @@ export default function App() {
       message: `Đã nhập ${importedPosts.length} bài viết vào Bản nháp trên máy.`,
     });
   };
-
-  const handleBackupLocalToCloud = useCallback(async () => {
-    if (!firebaseUser?.uid) {
-      throw new Error('Vui lòng đăng nhập tài khoản Google trước khi sao lưu lên Cloud Firestore.');
-    }
-    setIsCloudBusy(true);
-    try {
-      const result = await backupWorkspaceToCloud(firebaseUser.uid, config, localDrafts);
-      setCloudBackupMeta({ exists: true, updatedAt: result.backedUpAt });
-      showBanner({
-        message: `Đã sao lưu cấu hình & ${result.backedUpDraftsCount} bản nháp từ máy lên Cloud Firestore.`,
-      });
-    } finally {
-      setIsCloudBusy(false);
-    }
-  }, [firebaseUser?.uid, config, localDrafts]);
-
-  const handleRestoreFromCloud = useCallback(async () => {
-    if (!firebaseUser?.uid) {
-      throw new Error('Vui lòng đăng nhập tài khoản Google trước khi khôi phục từ Cloud Firestore.');
-    }
-    setIsCloudBusy(true);
-    try {
-      const bundle = await restoreWorkspaceFromCloud(firebaseUser.uid);
-      if (!bundle.exists) {
-        setCloudBackupMeta({ exists: false });
-        throw new Error('Tài khoản này chưa có bản sao lưu nào trên Cloud Firestore.');
-      }
-
-      if (bundle.config) {
-        updateLocalConfig((prev) => {
-          const nextMode: ThemeMode = bundle.config?.themeMode === 'dark' ? 'dark' : 'light';
-          return {
-            ...prev,
-            ...bundle.config,
-            themeMode: nextMode,
-            astroTemplate: normalizeAstroTemplateId(
-              bundle.config?.astroTemplate || prev.astroTemplate,
-              nextMode
-            ),
-            liveChat: bundle.config?.liveChat || prev.liveChat,
-            giscus: bundle.config?.giscus || prev.giscus,
-          };
-        });
-      }
-
-      if (bundle.drafts.length > 0) {
-        setLocalDrafts(bundle.drafts);
-      }
-
-      setCloudBackupMeta({
-        exists: true,
-        updatedAt: bundle.updatedAt || new Date().toISOString(),
-      });
-      showBanner({
-        message: `Đã khôi phục cấu hình & ${bundle.drafts.length} bản nháp từ Cloud Firestore về máy.`,
-      });
-    } finally {
-      setIsCloudBusy(false);
-    }
-  }, [firebaseUser?.uid, updateLocalConfig]);
 
   const handleImportConfig = (importedCfg: Partial<BlogConfig>) => {
     if (!importedCfg || typeof importedCfg !== 'object') return;
@@ -1117,22 +947,6 @@ export default function App() {
     return [...localDrafts, ...githubPosts].sort((a, b) => b.date.localeCompare(a.date));
   }, [localDrafts, githubPosts]);
 
-  if (authInitializing) {
-    return (
-      <div
-        style={{
-          backgroundColor: activeTheme.palette.canvas,
-          color: activeTheme.palette.textPrimary,
-          fontFamily: activeTheme.fonts.body,
-        }}
-        className="min-h-screen flex flex-col items-center justify-center gap-3 p-6"
-      >
-        <Loader2 className="w-6 h-6 animate-spin" style={{ color: activeTheme.palette.link }} />
-        <div className="text-sm font-medium">Đang khởi tạo không gian làm việc Đạo Ký...</div>
-      </div>
-    );
-  }
-
   const repoDisplayLabel =
     config.githubOwner && config.githubRepo
       ? `${config.githubOwner}/${config.githubRepo}`
@@ -1253,10 +1067,7 @@ export default function App() {
           <GitHubSyncPanel
             theme={activeTheme}
             config={config}
-            firebaseUser={firebaseUser}
             hasPersonalPat={hasPersonalPat}
-            cloudBackupMeta={cloudBackupMeta}
-            isCloudBusy={isCloudBusy}
             authStatus={authStatus}
             repoInfo={repoInfo}
             repoStructure={repoStructure}
@@ -1273,8 +1084,6 @@ export default function App() {
             onLoadMorePosts={handleLoadMorePosts}
             onRefreshSchedules={() => fetchSchedules()}
             onUpdateConfig={updateLocalConfig}
-            onBackupToCloud={handleBackupLocalToCloud}
-            onRestoreFromCloud={handleRestoreFromCloud}
             onImportPosts={handleImportPosts}
             onImportConfig={handleImportConfig}
             onDeployedToGitHub={(message, commitUrl) => {
@@ -1292,8 +1101,6 @@ export default function App() {
             onConnectOAuth={handleConnectOAuth}
             onLogoutOAuth={handleLogoutOAuth}
             onSavePersonalPat={handleSavePersonalPat}
-            onSignInGoogle={handleSignInGoogle}
-            onSignOutGoogle={handleSignOutGoogle}
             onUpdateTargetRepo={handleUpdateTargetRepo}
             onSiteCreated={handleSiteCreated}
             onClearLocalData={handleClearLocalData}
