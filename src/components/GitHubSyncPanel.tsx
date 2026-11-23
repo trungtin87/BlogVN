@@ -98,6 +98,7 @@ interface GitHubSyncPanelProps {
   onConnectOAuth: () => Promise<void>;
   onLogoutOAuth: () => Promise<void>;
   onSavePersonalPat: (token: string) => Promise<void>;
+  onSignInGoogle?: () => Promise<void>;
   onSignOutGoogle: () => Promise<void>;
   onUpdateTargetRepo: (owner: string, repo: string) => void;
   onSiteCreated: (owner: string, repo: string, pagesUrl: string, postsDirectory?: string) => void;
@@ -147,6 +148,7 @@ export function GitHubSyncPanel({
   onConnectOAuth,
   onLogoutOAuth,
   onSavePersonalPat,
+  onSignInGoogle,
   onSignOutGoogle,
   onUpdateTargetRepo,
   onSiteCreated,
@@ -160,6 +162,8 @@ export function GitHubSyncPanel({
   const [repoInput, setRepoInput] = useState(config.githubRepo);
   const [patInput, setPatInput] = useState('');
   const [isSavingPat, setIsSavingPat] = useState(false);
+  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
+  const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
   const [deletingPath, setDeletingPath] = useState<string | null>(null);
   const [confirmDeletePath, setConfirmDeletePath] = useState<string | null>(null);
   const [collectionFilter, setCollectionFilter] = useState<'all' | BlogCollection>('all');
@@ -173,6 +177,21 @@ export function GitHubSyncPanel({
   const [cloudActionStatus, setCloudActionStatus] = useState<string | null>(null);
   const [cloudActionError, setCloudActionError] = useState<string | null>(null);
   const [confirmCloudRestore, setConfirmCloudRestore] = useState(false);
+
+  const handleOptionalGoogleSignIn = async () => {
+    if (!onSignInGoogle) return;
+    setGoogleAuthError(null);
+    setIsGoogleSigningIn(true);
+    try {
+      await onSignInGoogle();
+    } catch (err: any) {
+      setGoogleAuthError(
+        err?.message || 'Không thể đăng nhập bằng Google. Bạn vẫn có thể dùng chế độ Cục bộ & GitHub Token bình thường.'
+      );
+    } finally {
+      setIsGoogleSigningIn(false);
+    }
+  };
 
   // Auto-delete scheduling modal state for an existing post
   const [scheduleDeleteTarget, setScheduleDeleteTarget] = useState<BlogPost | null>(null);
@@ -471,10 +490,10 @@ export function GitHubSyncPanel({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 style={{ fontFamily: fonts.display }} className="text-lg sm:text-xl font-bold">
-                  Tài khoản Google &amp; Kết nối GitHub
+                  Kết nối GitHub &amp; Tài khoản
                 </h2>
                 <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
-                  Dữ liệu ứng dụng tách biệt theo tài khoản Google và lưu cục bộ trên thiết bị.
+                  Dùng trực tiếp bằng GitHub Token cá nhân trên máy bạn — không cần đăng nhập Google hay cấp quyền email trước.
                 </p>
               </div>
               {authStatus?.authenticated ? (
@@ -484,8 +503,8 @@ export function GitHubSyncPanel({
               )}
             </div>
 
-            {/* Active Google Account Session Box */}
-            {firebaseUser && (
+            {/* Active Google Account Session Box or Local Mode Box */}
+            {firebaseUser ? (
               <div
                 style={{
                   borderColor: palette.border,
@@ -539,6 +558,51 @@ export function GitHubSyncPanel({
                   <LogOut className="w-3.5 h-3.5" />
                   Đổi / Đăng xuất Google
                 </button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  borderColor: palette.border,
+                  backgroundColor: palette.canvas,
+                }}
+                className="p-3.5 rounded-xl border space-y-2.5"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="text-xs sm:text-sm font-semibold flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Đang dùng Chế độ Cục bộ (Không cần đăng nhập Google)</span>
+                    </div>
+                    <p style={{ color: palette.textMuted }} className="text-[11px] leading-relaxed">
+                      Cấu hình, bản nháp &amp; GitHub Token lưu ngay trên trình duyệt này. Bạn có thể đăng nhập Google thêm nếu muốn sao lưu lên Cloud Firestore.
+                    </p>
+                  </div>
+                  {onSignInGoogle && (
+                    <button
+                      type="button"
+                      disabled={isGoogleSigningIn}
+                      onClick={() => void handleOptionalGoogleSignIn()}
+                      style={{
+                        borderColor: palette.border,
+                        backgroundColor: palette.surface,
+                        color: palette.textPrimary,
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 min-h-[38px] text-xs font-semibold rounded-lg border cursor-pointer hover:opacity-85 disabled:opacity-50 whitespace-nowrap shrink-0"
+                    >
+                      {isGoogleSigningIn ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Cloud className="w-3.5 h-3.5" style={{ color: palette.link }} />
+                      )}
+                      {isGoogleSigningIn ? 'Đang đăng nhập...' : 'Đăng nhập Google (Tuỳ chọn)'}
+                    </button>
+                  )}
+                </div>
+                {googleAuthError && (
+                  <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-[11px] leading-relaxed">
+                    {googleAuthError}
+                  </div>
+                )}
               </div>
             )}
 
@@ -667,7 +731,7 @@ export function GitHubSyncPanel({
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold flex items-center gap-1.5">
                   <KeyRound className="w-3.5 h-3.5" style={{ color: palette.link }} />
-                  GitHub Personal Access Token (Lưu riêng trên máy theo Google UID)
+                  GitHub Personal Access Token (Lưu cục bộ trên trình duyệt của bạn)
                 </span>
                 <a
                   href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=DaoKyBlog"
@@ -1153,7 +1217,9 @@ export function GitHubSyncPanel({
                   style={{ color: palette.textMuted, fontFamily: fonts.mono }}
                   className="text-[11px] pt-0.5"
                 >
-                  {cloudBackupMeta?.exists
+                  {!firebaseUser
+                    ? 'Đang ở Chế độ Cục bộ. Đăng nhập Google (tuỳ chọn) nếu muốn bật sao lưu Cloud Firestore.'
+                    : cloudBackupMeta?.exists
                     ? cloudBackupMeta.updatedAt
                       ? `Bản sao lưu Cloud gần nhất: ${new Date(
                           cloudBackupMeta.updatedAt
@@ -1165,59 +1231,85 @@ export function GitHubSyncPanel({
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
-              {onBackupToCloud && (
-                <button
-                  type="button"
-                  disabled={isCloudBusy}
-                  onClick={async () => {
-                    setCloudActionStatus(null);
-                    setCloudActionError(null);
-                    setConfirmCloudRestore(false);
-                    try {
-                      await onBackupToCloud();
-                      setCloudActionStatus(
-                        `Đã sao lưu cấu hình & ${localPosts.length} bản nháp từ máy lên Cloud Firestore.`
-                      );
-                    } catch (err: any) {
-                      setCloudActionError(
-                        err?.message || 'Không thể sao lưu dữ liệu lên Cloud Firestore.'
-                      );
-                    }
-                  }}
-                  style={{
-                    backgroundColor: palette.accent,
-                    color: palette.accentText,
-                  }}
-                  className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] sm:min-h-[40px] text-xs font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
-                >
-                  {isCloudBusy ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Upload className="w-4 h-4" />
+              {firebaseUser ? (
+                <>
+                  {onBackupToCloud && (
+                    <button
+                      type="button"
+                      disabled={isCloudBusy}
+                      onClick={async () => {
+                        setCloudActionStatus(null);
+                        setCloudActionError(null);
+                        setConfirmCloudRestore(false);
+                        try {
+                          await onBackupToCloud();
+                          setCloudActionStatus(
+                            `Đã sao lưu cấu hình & ${localPosts.length} bản nháp từ máy lên Cloud Firestore.`
+                          );
+                        } catch (err: any) {
+                          setCloudActionError(
+                            err?.message || 'Không thể sao lưu dữ liệu lên Cloud Firestore.'
+                          );
+                        }
+                      }}
+                      style={{
+                        backgroundColor: palette.accent,
+                        color: palette.accentText,
+                      }}
+                      className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] sm:min-h-[40px] text-xs font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {isCloudBusy ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4" />
+                      )}
+                      Sao lưu Local → Cloud
+                    </button>
                   )}
-                  Sao lưu Local → Cloud
-                </button>
-              )}
 
-              {onRestoreFromCloud && !confirmCloudRestore && (
-                <button
-                  type="button"
-                  disabled={isCloudBusy || !cloudBackupMeta?.exists}
-                  onClick={() => {
-                    setCloudActionStatus(null);
-                    setCloudActionError(null);
-                    setConfirmCloudRestore(true);
-                  }}
-                  style={{
-                    borderColor: palette.border,
-                    backgroundColor: palette.surface,
-                    color: palette.textPrimary,
-                  }}
-                  className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] sm:min-h-[40px] text-xs font-semibold rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-45 whitespace-nowrap"
-                >
-                  <Download className="w-4 h-4" style={{ color: palette.link }} />
-                  Khôi phục Cloud → Máy
-                </button>
+                  {onRestoreFromCloud && !confirmCloudRestore && (
+                    <button
+                      type="button"
+                      disabled={isCloudBusy || !cloudBackupMeta?.exists}
+                      onClick={() => {
+                        setCloudActionStatus(null);
+                        setCloudActionError(null);
+                        setConfirmCloudRestore(true);
+                      }}
+                      style={{
+                        borderColor: palette.border,
+                        backgroundColor: palette.surface,
+                        color: palette.textPrimary,
+                      }}
+                      className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] sm:min-h-[40px] text-xs font-semibold rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-45 whitespace-nowrap"
+                    >
+                      <Download className="w-4 h-4" style={{ color: palette.link }} />
+                      Khôi phục Cloud → Máy
+                    </button>
+                  )}
+                </>
+              ) : (
+                onSignInGoogle && (
+                  <button
+                    type="button"
+                    disabled={isGoogleSigningIn}
+                    onClick={() => void handleOptionalGoogleSignIn()}
+                    style={{
+                      backgroundColor: palette.accent,
+                      color: palette.accentText,
+                    }}
+                    className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] sm:min-h-[40px] text-xs font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {isGoogleSigningIn ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Cloud className="w-4 h-4" />
+                    )}
+                    {isGoogleSigningIn
+                      ? 'Đang đăng nhập...'
+                      : 'Đăng nhập Google để bật Cloud Backup'}
+                  </button>
+                )
               )}
 
               <button
@@ -1229,9 +1321,17 @@ export function GitHubSyncPanel({
                 }}
                 className="inline-flex items-center justify-center px-3.5 min-h-[44px] sm:min-h-[40px] text-xs font-medium rounded-xl border cursor-pointer hover:text-red-500 whitespace-nowrap sm:ml-auto"
               >
-                Đăng xuất &amp; Xoá toàn bộ dữ liệu cục bộ
+                {firebaseUser
+                  ? 'Đăng xuất & Xoá toàn bộ dữ liệu cục bộ'
+                  : 'Xoá toàn bộ dữ liệu cục bộ trên máy'}
               </button>
             </div>
+
+            {!firebaseUser && googleAuthError && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs break-words [overflow-wrap:anywhere]">
+                {googleAuthError}
+              </div>
+            )}
 
             {confirmCloudRestore && onRestoreFromCloud && (
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/35 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">

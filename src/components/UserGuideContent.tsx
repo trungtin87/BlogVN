@@ -54,12 +54,12 @@ export function UserGuideContent({
       a: 'Vào tab GitHub & App → Mục 4 ("Template Web Blog Astro 5 chuẩn tiếng Việt") → chọn mẫu bố cục → bấm "Triển khai Template Astro Việt" để xoá sạch tệp xung đột cũ và nạp mới hoàn chỉnh kèm nhận dạng web của bạn.',
     },
     {
-      q: 'Dùng chung URL Đạo Ký với người khác có bị lộ bài nháp hay Token không?',
-      a: 'Không. Đạo Ký chạy hoàn toàn phía trình duyệt (client-side) và phân tách toàn bộ cấu hình, bản nháp, lịch đăng bài và GitHub Token theo từng tài khoản Google UID riêng trên máy.',
+      q: 'Người khác dùng chung app có cần đăng nhập Google hay add email trước không?',
+      a: 'Không bắt buộc. Ai cũng có thể mở Đạo Ký dùng ngay ở chế độ Cục bộ và nhập GitHub Token cá nhân của riêng mình. Đăng nhập Google chỉ là tuỳ chọn nếu bạn muốn sao lưu cấu hình/bản nháp lên Cloud Firestore.',
     },
     {
       q: 'Lỗi "auth/unauthorized-domain" khi đăng nhập Google trên tên miền riêng?',
-      a: 'Truy cập Firebase Console → Authentication → Settings → Authorized domains và thêm tên miền GitHub Pages (hoặc tên miền tuỳ chỉnh) của bạn vào danh sách cho phép.',
+      a: 'Truy cập Firebase Console → Authentication → Settings → Authorized domains và thêm tên miền GitHub Pages (hoặc tên miền tuỳ chỉnh) của bạn vào danh sách cho phép. Trong lúc đó bạn vẫn dùng GitHub Token và xuất .zip bình thường.',
     },
   ];
 
@@ -87,7 +87,7 @@ export function UserGuideContent({
         })}
       </div>
 
-      {/* Section 1: Overview & Google Isolation */}
+      {/* Section 1: Overview & Local-first Storage */}
       {showSection('start') && (
         <section
           style={{
@@ -99,20 +99,20 @@ export function UserGuideContent({
           <div className="flex items-center gap-2.5">
             <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
             <h3 style={{ fontFamily: fonts.display }} className="text-base font-bold">
-              Bước 1: Đăng nhập Google &amp; Hiểu cách lưu trữ dữ liệu
+              Bước 1: Dùng ngay trên trình duyệt &amp; Hiểu cách lưu trữ dữ liệu
             </h3>
           </div>
           <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm leading-relaxed">
-            Đạo Ký đóng vai trò như một trình soạn thảo &amp; quản trị Blog tĩnh chạy trực tiếp trên trình duyệt của bạn — không lưu bài viết lên máy chủ trung gian.
+            Đạo Ký đóng vai trò như một trình soạn thảo &amp; quản trị Blog tĩnh chạy trực tiếp trên trình duyệt của bạn — không bắt buộc đăng nhập Google và không lưu bài viết lên máy chủ trung gian.
           </p>
           <div className={`grid grid-cols-1 ${compact ? '' : 'sm:grid-cols-3'} gap-2.5 text-xs`}>
             <div
               style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
               className="p-3 rounded-lg border space-y-1"
             >
-              <div className="font-semibold">1. Tài khoản Google</div>
+              <div className="font-semibold">1. Lưu cục bộ trên thiết bị</div>
               <p style={{ color: palette.textMuted }} className="leading-relaxed">
-                Tách biệt hoàn toàn dữ liệu trên máy (bản nháp, nhận dạng web, Token GitHub) theo từng người dùng.
+                Bản nháp, nhận dạng web và GitHub Token cá nhân được lưu trực tiếp trên trình duyệt của bạn (tuỳ chọn đăng nhập Google để sao lưu Cloud).
               </p>
             </div>
             <div

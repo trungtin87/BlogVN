@@ -9,7 +9,7 @@ interface GoogleAuthGateProps {
   onToggleTheme: (mode: ThemeMode) => void;
 }
 
-function mapFirebaseAuthError(err: any): string {
+export function mapFirebaseAuthError(err: any): string {
   const code = String(err?.code || '');
   if (code === 'auth/popup-closed-by-user') {
     return 'Bạn đã đóng cửa sổ đăng nhập Google trước khi hoàn tất.';
@@ -19,7 +19,7 @@ function mapFirebaseAuthError(err: any): string {
   }
   if (code === 'auth/unauthorized-domain') {
     const host = typeof window !== 'undefined' ? window.location.hostname : '';
-    return `Tên miền "${host}" chưa được thêm vào Authorized domains trong Firebase Console (Authentication → Settings → Authorized domains).`;
+    return `Tên miền "${host}" chưa được thêm vào Authorized domains trong Firebase Console (Authentication → Settings → Authorized domains). Bạn vẫn có thể dùng chế độ Cục bộ & GitHub Token bình thường.`;
   }
   if (code === 'auth/network-request-failed') {
     return 'Lỗi kết nối mạng khi liên hệ Google Sign-In.';

@@ -15,14 +15,13 @@ import type {
   WorkspaceTab,
 } from './types/blog';
 import {
-  AM_DUONG_THEMES,
   DEFAULT_BLOG_CONFIG,
   DEFAULT_LIVE_CHAT_CONFIG,
   normalizeAstroTemplateId,
   resolveBlogTheme,
   sanitizeThemeCustomColors,
 } from './data/themes';
-import { auth, signOutGoogle } from './firebase';
+import { auth, signInWithGoogle, signOutGoogle } from './firebase';
 import {
   getStoredGitHubPat,
   getUserStorageKey,
@@ -50,13 +49,14 @@ import { MobileBottomNav } from './components/MobileBottomNav';
 import { BlogShowcase } from './components/BlogShowcase';
 import { MarkdownEditor } from './components/MarkdownEditor';
 import { GitHubSyncPanel, type SettingsSubTab } from './components/GitHubSyncPanel';
-import { GoogleAuthGate } from './components/GoogleAuthGate';
+import { mapFirebaseAuthError } from './components/GoogleAuthGate';
 import { OfflineIndicator } from './components/PWAInstallButton';
 import { UserGuideModal } from './components/UserGuideModal';
 import { FloatingLiveChat } from './components/FloatingLiveChat';
 import { clearSocialCredentials } from './utils/socialPublisher';
 
 const GATE_THEME_KEY = 'blogvn_gate_theme_mode';
+const LOCAL_WORKSPACE_UID = 'local_workspace';
 
 interface ToastBanner {
   message: string;
@@ -76,9 +76,9 @@ function getPreferredThemeMode(): ThemeMode {
   return 'light';
 }
 
-function loadConfigForUid(user: User): BlogConfig {
+function loadConfigForUid(uid: string, user?: User | null): BlogConfig {
   try {
-    const raw = localStorage.getItem(getUserStorageKey(user.uid, 'config_v1'));
+    const raw = localStorage.getItem(getUserStorageKey(uid, 'config_v1'));
     if (raw) {
       const parsed = JSON.parse(raw);
       const mode: ThemeMode = parsed?.themeMode === 'dark' ? 'dark' : 'light';
@@ -123,9 +123,29 @@ function loadConfigForUid(user: User): BlogConfig {
   return {
     ...DEFAULT_BLOG_CONFIG,
     themeMode: getPreferredThemeMode(),
-    authorName: user.displayName || DEFAULT_BLOG_CONFIG.authorName,
-    authorAvatar: user.photoURL || DEFAULT_BLOG_CONFIG.authorAvatar,
+    authorName: user?.displayName || DEFAULT_BLOG_CONFIG.authorName,
+    authorAvatar: user?.photoURL || DEFAULT_BLOG_CONFIG.authorAvatar,
   };
+}
+
+function migrateLocalWorkspaceToUid(targetUid: string): void {
+  if (!targetUid || targetUid === LOCAL_WORKSPACE_UID || typeof window === 'undefined') return;
+  try {
+    const hasExistingAccountConfig = Boolean(
+      localStorage.getItem(getUserStorageKey(targetUid, 'config_v1'))
+    );
+    if (hasExistingAccountConfig) return;
+
+    const keys = ['config_v1', 'drafts_v1', 'gh_pat', 'schedules_v1'] as const;
+    for (const suffix of keys) {
+      const localVal = localStorage.getItem(getUserStorageKey(LOCAL_WORKSPACE_UID, suffix));
+      if (localVal && !localStorage.getItem(getUserStorageKey(targetUid, suffix))) {
+        localStorage.setItem(getUserStorageKey(targetUid, suffix), localVal);
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
 }
 
 function loadDraftsForUid(uid: string): BlogPost[] {
@@ -189,7 +209,7 @@ export default function App() {
     }
   }, [activeTab]);
 
-  const activeUid = firebaseUser?.uid || '';
+  const activeUid = firebaseUser?.uid || LOCAL_WORKSPACE_UID;
   activeUidRef.current = activeUid;
 
   const updateLocalConfig = useCallback((updater: SetStateAction<BlogConfig>) => {
@@ -216,18 +236,16 @@ export default function App() {
   }, []);
 
   const activeTheme = useMemo(
-    () =>
-      firebaseUser
-        ? resolveBlogTheme(config, gateThemeMode)
-        : AM_DUONG_THEMES[gateThemeMode] || AM_DUONG_THEMES.light,
-    [firebaseUser, config, gateThemeMode]
+    () => resolveBlogTheme(config, gateThemeMode),
+    [config, gateThemeMode]
   );
 
-  // Listen to Firebase Google Sign-In state and load strictly local-first per-UID data
+  // Listen to optional Firebase Google Sign-In state; fall back seamlessly to local_workspace
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const sessionUid = user?.uid || LOCAL_WORKSPACE_UID;
       setFirebaseUser(user);
-      setActiveSessionUid(user?.uid || '');
+      setActiveSessionUid(sessionUid);
 
       // Clear transient state on account switch / sign-out
       setGithubPosts([]);
@@ -244,16 +262,16 @@ export default function App() {
       setCloudBackupMeta({ exists: false });
 
       if (user) {
-        const userCfg = loadConfigForUid(user);
+        migrateLocalWorkspaceToUid(user.uid);
+        const userCfg = loadConfigForUid(user.uid, user);
         setConfig(userCfg);
         setLocalDrafts(loadDraftsForUid(user.uid));
         setHasPersonalPat(Boolean(getStoredGitHubPat(user.uid)));
-        setActiveTab('blog');
       } else {
-        const guestCfg = { ...DEFAULT_BLOG_CONFIG, themeMode: getPreferredThemeMode() };
-        setConfig(guestCfg);
-        setLocalDrafts([]);
-        setHasPersonalPat(false);
+        const localCfg = loadConfigForUid(LOCAL_WORKSPACE_UID);
+        setConfig(localCfg);
+        setLocalDrafts(loadDraftsForUid(LOCAL_WORKSPACE_UID));
+        setHasPersonalPat(Boolean(getStoredGitHubPat(LOCAL_WORKSPACE_UID)));
       }
       setAuthInitializing(false);
     });
@@ -262,12 +280,15 @@ export default function App() {
     };
   }, []);
 
-  // Passive read-only check whether a Cloud backup already exists for this Google UID
+  // Passive read-only check whether a Cloud backup already exists when signed in with Google
   // (never writes to Cloud and never overwrites local device data automatically)
   useEffect(() => {
-    if (!activeUid || !firebaseUser) return;
+    if (!firebaseUser?.uid) {
+      setCloudBackupMeta({ exists: false });
+      return;
+    }
     let cancelled = false;
-    checkCloudBackupMeta(activeUid)
+    checkCloudBackupMeta(firebaseUser.uid)
       .then((meta) => {
         if (!cancelled) setCloudBackupMeta(meta);
       })
@@ -277,7 +298,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [activeUid, firebaseUser]);
+  }, [firebaseUser?.uid]);
 
   // Synchronize <html> .dark class, color-scheme, body bg, and mobile theme-color meta tag
   useEffect(() => {
@@ -292,10 +313,6 @@ export default function App() {
 
   // Synchronize Website Identity (document.title, description, favicon, apple-touch-icon) with config
   useEffect(() => {
-    if (!firebaseUser) {
-      document.title = 'Đạo Ký — Đăng nhập';
-      return;
-    }
     const title = (config.siteTitle || 'Đạo Ký').trim();
     const desc = (config.tagline || '').trim();
     const icon = (config.siteIcon || './assets/aistudio/1794978557793_3b5d5cb0.png').trim();
@@ -315,7 +332,7 @@ export default function App() {
     if (iconLink && icon) iconLink.setAttribute('href', icon);
     const touchLink = document.querySelector('link[rel="apple-touch-icon"]');
     if (touchLink && icon) touchLink.setAttribute('href', icon);
-  }, [firebaseUser, config.siteTitle, config.tagline, config.siteIcon, config.headerTitle]);
+  }, [config.siteTitle, config.tagline, config.siteIcon, config.headerTitle]);
 
   // Local persistence fallback handled synchronously inside updateLocalConfig & hydration
   useEffect(() => {
@@ -765,6 +782,14 @@ export default function App() {
     });
   };
 
+  const handleSignInGoogle = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (err: any) {
+      throw new Error(mapFirebaseAuthError(err));
+    }
+  };
+
   const handleSignOutGoogle = async () => {
     const hasBackend = await isBackendAvailable();
     if (hasBackend) {
@@ -785,9 +810,27 @@ export default function App() {
     if (hasBackend) {
       await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     }
+    const resetCfg: BlogConfig = {
+      ...DEFAULT_BLOG_CONFIG,
+      themeMode: getPreferredThemeMode(),
+    };
+    setConfig(resetCfg);
     setLocalDrafts([]);
     setHasPersonalPat(false);
-    await signOutGoogle();
+    setGithubPosts([]);
+    setPostsTotalCount(0);
+    setPostsHasMore(false);
+    setScheduledTasks([]);
+    setRepoInfo(null);
+    setRepoStructure(null);
+    setBuildStatus(null);
+    setRepoError(null);
+    if (firebaseUser) {
+      await signOutGoogle();
+    } else {
+      await fetchAuthStatus();
+    }
+    showBanner({ message: 'Đã xoá dữ liệu cục bộ trên thiết bị và đặt lại cấu hình mặc định.' });
   };
 
   const handleToggleThemeMode = (themeMode: ThemeMode) => {
@@ -827,10 +870,12 @@ export default function App() {
   };
 
   const handleBackupLocalToCloud = useCallback(async () => {
-    if (!activeUid) return;
+    if (!firebaseUser?.uid) {
+      throw new Error('Vui lòng đăng nhập tài khoản Google trước khi sao lưu lên Cloud Firestore.');
+    }
     setIsCloudBusy(true);
     try {
-      const result = await backupWorkspaceToCloud(activeUid, config, localDrafts);
+      const result = await backupWorkspaceToCloud(firebaseUser.uid, config, localDrafts);
       setCloudBackupMeta({ exists: true, updatedAt: result.backedUpAt });
       showBanner({
         message: `Đã sao lưu cấu hình & ${result.backedUpDraftsCount} bản nháp từ máy lên Cloud Firestore.`,
@@ -838,13 +883,15 @@ export default function App() {
     } finally {
       setIsCloudBusy(false);
     }
-  }, [activeUid, config, localDrafts]);
+  }, [firebaseUser?.uid, config, localDrafts]);
 
   const handleRestoreFromCloud = useCallback(async () => {
-    if (!activeUid) return;
+    if (!firebaseUser?.uid) {
+      throw new Error('Vui lòng đăng nhập tài khoản Google trước khi khôi phục từ Cloud Firestore.');
+    }
     setIsCloudBusy(true);
     try {
-      const bundle = await restoreWorkspaceFromCloud(activeUid);
+      const bundle = await restoreWorkspaceFromCloud(firebaseUser.uid);
       if (!bundle.exists) {
         setCloudBackupMeta({ exists: false });
         throw new Error('Tài khoản này chưa có bản sao lưu nào trên Cloud Firestore.');
@@ -881,7 +928,7 @@ export default function App() {
     } finally {
       setIsCloudBusy(false);
     }
-  }, [activeUid, updateLocalConfig]);
+  }, [firebaseUser?.uid, updateLocalConfig]);
 
   const handleImportConfig = (importedCfg: Partial<BlogConfig>) => {
     if (!importedCfg || typeof importedCfg !== 'object') return;
@@ -1081,13 +1128,9 @@ export default function App() {
         className="min-h-screen flex flex-col items-center justify-center gap-3 p-6"
       >
         <Loader2 className="w-6 h-6 animate-spin" style={{ color: activeTheme.palette.link }} />
-        <div className="text-sm font-medium">Đang kiểm tra phiên đăng nhập Google...</div>
+        <div className="text-sm font-medium">Đang khởi tạo không gian làm việc Đạo Ký...</div>
       </div>
     );
-  }
-
-  if (!firebaseUser) {
-    return <GoogleAuthGate theme={activeTheme} onToggleTheme={handleToggleThemeMode} />;
   }
 
   const repoDisplayLabel =
@@ -1249,6 +1292,7 @@ export default function App() {
             onConnectOAuth={handleConnectOAuth}
             onLogoutOAuth={handleLogoutOAuth}
             onSavePersonalPat={handleSavePersonalPat}
+            onSignInGoogle={handleSignInGoogle}
             onSignOutGoogle={handleSignOutGoogle}
             onUpdateTargetRepo={handleUpdateTargetRepo}
             onSiteCreated={handleSiteCreated}
