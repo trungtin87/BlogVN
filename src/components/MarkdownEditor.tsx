@@ -1238,7 +1238,7 @@ export function MarkdownEditor({
         color: palette.textPrimary,
         fontFamily: fonts.body,
       }}
-      className="min-h-[calc(100vh-4rem)] flex flex-col pb-20 md:pb-6"
+      className="min-h-[calc(100vh-4rem)] flex flex-col pb-24 md:pb-8"
     >
       {/* Hidden File Inputs for Device Upload */}
       <input
@@ -1455,15 +1455,39 @@ export function MarkdownEditor({
                 borderColor: palette.border,
                 backgroundColor: palette.surfaceElevated,
               }}
-              className="flex-1 flex flex-col rounded-2xl border overflow-hidden min-h-[58vh] lg:min-h-[540px]"
+              className="flex-1 flex flex-col rounded-2xl border overflow-hidden min-h-[54vh] lg:min-h-[540px]"
             >
-              {/* Desktop/Tablet Formatting Bar (Hidden on mobile where Obsidian accessory bar docks above keyboard) */}
+              {/* Top Stats & Quick SEO Bar (Moved from bottom so mobile chrome never covers it) */}
+              <div
+                style={{
+                  borderColor: palette.border,
+                  backgroundColor: palette.surface,
+                  color: palette.textMuted,
+                  fontFamily: fonts.mono,
+                }}
+                className="px-3.5 sm:px-4 py-2 border-b text-xs tabular-nums flex flex-wrap items-center justify-between gap-2"
+              >
+                <span>
+                  {stats.words} từ · {stats.chars} ký tự · ~{stats.minutes} phút đọc
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPaneMode('optimize')}
+                  style={{ color: palette.link }}
+                  className="inline-flex items-center gap-1.5 min-h-[32px] font-semibold hover:underline underline-offset-4 cursor-pointer"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  Ảnh bìa &amp; SEO ({seoAudit.score}/100) →
+                </button>
+              </div>
+
+              {/* Formatting Bar (Always accessible at top of writing card; keyboard accessory bar also docks when typing on mobile) */}
               <div
                 style={{
                   borderColor: palette.border,
                   backgroundColor: palette.surface,
                 }}
-                className="hidden md:flex px-2.5 py-1.5 border-b items-center gap-1 overflow-x-auto flex-nowrap"
+                className="flex px-2.5 py-1.5 border-b items-center gap-1 overflow-x-auto no-scrollbar flex-nowrap"
               >
                 <button
                   type="button"
@@ -1746,31 +1770,8 @@ export function MarkdownEditor({
                   color: palette.textPrimary,
                   fontFamily: fonts.mono,
                 }}
-                className="flex-1 w-full p-4 sm:p-5 pb-20 md:pb-5 text-[16px] sm:text-[15px] leading-[1.7] resize-none focus:outline-none min-h-[54vh] md:min-h-[450px]"
+                className="flex-1 w-full p-4 sm:p-5 pb-10 md:pb-6 text-[16px] sm:text-[15px] leading-[1.7] resize-none focus:outline-none min-h-[50vh] md:min-h-[450px]"
               />
-
-              <div
-                style={{
-                  borderColor: palette.border,
-                  backgroundColor: palette.surface,
-                  color: palette.textMuted,
-                  fontFamily: fonts.mono,
-                }}
-                className="px-4 py-2.5 border-t text-xs tabular-nums flex flex-wrap items-center justify-between gap-2"
-              >
-                <span>
-                  {stats.words} từ · {stats.chars} ký tự · ~{stats.minutes} phút đọc
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPaneMode('optimize')}
-                  style={{ color: palette.link }}
-                  className="inline-flex items-center gap-1.5 font-semibold hover:underline underline-offset-4 cursor-pointer"
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  Ảnh bìa &amp; Tối ưu SEO ({seoAudit.score}/100) →
-                </button>
-              </div>
             </div>
           </div>
         )}
@@ -3046,10 +3047,10 @@ export function MarkdownEditor({
         onSelectCover={(publicPath) => setCover(publicPath)}
       />
 
-      {/* Mobile Obsidian Accessory Toolbar (Docked flush above soft keyboard via visualViewport) */}
+      {/* Mobile Obsidian Accessory Toolbar (Shown only when typing so bottom chrome never overlaps idle writing surface) */}
       <ObsidianMobileToolbar
         theme={theme}
-        visible={paneMode === 'write' || paneMode === 'split'}
+        visible={(paneMode === 'write' || paneMode === 'split') && editorFocused}
         editorFocused={editorFocused}
         canUndo={historyMeta.canUndo}
         canRedo={historyMeta.canRedo}

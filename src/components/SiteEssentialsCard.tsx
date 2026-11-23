@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Check,
   CheckCircle2,
+  ChevronDown,
   Copy,
   Download,
   ExternalLink,
@@ -69,6 +70,11 @@ export function SiteEssentialsCard({
   const framework = repoStructure?.framework || 'jekyll';
   const branch = repoInfo?.defaultBranch || 'main';
   const isAstroVn = framework === 'astro-vn' || Boolean(repoStructure?.hasAstroEngine);
+  const [showManualEditor, setShowManualEditor] = useState(!isAstroVn);
+
+  useEffect(() => {
+    setShowManualEditor(!isAstroVn);
+  }, [isAstroVn]);
   const basePagesUrl = (
     config.pagesUrl ||
     (config.githubRepo.toLowerCase() === `${config.githubOwner.toLowerCase()}.github.io`
@@ -211,11 +217,10 @@ export function SiteEssentialsCard({
           </div>
           <div>
             <h2 style={{ fontFamily: fonts.display }} className="text-lg font-bold">
-              3. RSS Feed, Sitemap XML, Robots.txt &amp; Tiện ích SEO Site
+              RSS Feed, Sitemap XML &amp; Tệp SEO kỹ thuật
             </h2>
             <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
-              Tự động tổng hợp từ {posts.filter((p) => !p.draft).length} bài viết đã xuất bản và đặt đúng thư mục tĩnh
-              theo framework (<code>{report?.staticRoot || 'root'}</code>).
+              Tổng hợp từ {posts.filter((p) => !p.draft).length} bài viết ({report?.staticRoot || 'root'}).
             </p>
           </div>
         </div>
@@ -229,47 +234,59 @@ export function SiteEssentialsCard({
             backgroundColor: palette.canvas,
             color: palette.textPrimary,
           }}
-          className="inline-flex items-center justify-center gap-1.5 px-3.5 min-h-[40px] text-xs font-medium rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0"
+          className="inline-flex items-center justify-center gap-1.5 px-3.5 min-h-[42px] text-xs font-medium rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isChecking ? 'animate-spin' : ''}`} />
-          Kiểm tra lại repo
+          Kiểm tra lại
         </button>
       </div>
 
       {/* Astro 5 Auto-Generated Notice */}
       {isAstroVn && (
-        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2 text-xs">
+        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2.5 text-xs sm:text-sm">
           <div className="flex items-center gap-2 font-semibold text-emerald-700 dark:text-emerald-300">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
-            Astro Blog Việt đang tự động sinh Sitemap, RSS, Robots.txt &amp; trang 404 khi build
+            Astro 5 tự động sinh Sitemap, RSS, Robots.txt &amp; trang 404 khi build
           </div>
-          <p style={{ color: palette.textSecondary }} className="leading-relaxed">
-            Các tệp SEO kỹ thuật được Astro 5 biên dịch tự động vào thư mục{' '}
-            <code>dist/</code> mỗi khi GitHub Actions chạy nên không cần tạo thủ công trong <code>public/</code>. Kiểm tra link thực tế trên trang đã xuất bản:
-          </p>
-          <div className="flex flex-wrap gap-3 pt-0.5 font-medium">
-            {[
-              { label: 'sitemap.xml', href: `${basePagesUrl}/sitemap.xml` },
-              { label: 'rss.xml', href: `${basePagesUrl}/rss.xml` },
-              { label: 'robots.txt', href: `${basePagesUrl}/robots.txt` },
-              { label: '404.html', href: `${basePagesUrl}/404.html` },
-            ].map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: palette.link, fontFamily: fonts.mono }}
-                className="inline-flex items-center gap-1 underline underline-offset-4"
-              >
-                {item.label} <ExternalLink className="w-3 h-3" />
-              </a>
-            ))}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-3 font-medium text-xs">
+              {[
+                { label: 'sitemap.xml', href: `${basePagesUrl}/sitemap.xml` },
+                { label: 'rss.xml', href: `${basePagesUrl}/rss.xml` },
+                { label: 'robots.txt', href: `${basePagesUrl}/robots.txt` },
+                { label: '404.html', href: `${basePagesUrl}/404.html` },
+              ].map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: palette.link, fontFamily: fonts.mono }}
+                  className="inline-flex items-center gap-1 underline underline-offset-4"
+                >
+                  {item.label} <ExternalLink className="w-3 h-3" />
+                </a>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowManualEditor((v) => !v)}
+              style={{
+                borderColor: palette.border,
+                backgroundColor: palette.surface,
+                color: palette.textPrimary,
+              }}
+              className="inline-flex items-center gap-1.5 px-3 min-h-[36px] text-xs font-medium rounded-lg border cursor-pointer"
+            >
+              <span>{showManualEditor ? 'Thu gọn mã XML' : 'Xem mã / Tạo Feed JSON'}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showManualEditor ? 'rotate-180' : ''}`} />
+            </button>
           </div>
         </div>
       )}
 
       {/* Essential Files Checklist & Preview Split */}
+      {showManualEditor && (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left: File Checklist */}
         <div className="lg:col-span-6 space-y-2.5">
@@ -438,6 +455,7 @@ export function SiteEssentialsCard({
           </div>
         </div>
       </div>
+      )}
 
       {publishError && (
         <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-xs">

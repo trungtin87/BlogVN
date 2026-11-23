@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   ExternalLink,
   Globe,
   ImagePlus,
   Loader2,
   MessageCircle,
+  Palette,
   Plus,
   Rocket,
   Save,
@@ -104,6 +106,7 @@ interface SiteIdentityCardProps {
   authStatus: AuthStatus | null;
   repoInfo: GitHubRepoInfo | null;
   repoStructure?: RepoStructureInfo | null;
+  sectionMode?: 'all' | 'appearance' | 'site' | 'none';
   onUpdateConfig: (next: BlogConfig | ((prev: BlogConfig) => BlogConfig)) => void;
   onDeployedToGitHub?: (message: string, commitUrl?: string) => void;
   onRefreshRepo?: () => void;
@@ -146,6 +149,7 @@ export function SiteIdentityCard({
   authStatus,
   repoInfo,
   repoStructure = null,
+  sectionMode = 'all',
   onUpdateConfig,
   onDeployedToGitHub,
   onRefreshRepo,
@@ -196,6 +200,15 @@ export function SiteIdentityCard({
     categoryId: config.giscus?.categoryId || '',
   }));
   const [preservePostsOnDeploy, setPreservePostsOnDeploy] = useState(false);
+  const [showNavLinksEditor, setShowNavLinksEditor] = useState(
+    () => (config.headerNavLinks?.length || 0) > 0 || (config.footerLinks?.length || 0) > 0
+  );
+  const [showAdvancedSite, setShowAdvancedSite] = useState(
+    () =>
+      Boolean(config.customDomain?.trim()) ||
+      (config.analyticsProvider && config.analyticsProvider !== 'none') ||
+      Boolean(config.giscus?.enabled)
+  );
 
   const [isSaving, setIsSaving] = useState(false);
   const [isDeployingApp, setIsDeployingApp] = useState(false);
@@ -541,67 +554,71 @@ export function SiteIdentityCard({
     setFooterLinks((prev) => [...prev, { label: '', url: 'https://' }]);
   };
 
-  return (
-    <section
-      id="site-identity-settings"
-      style={{
-        borderColor: palette.border,
-        backgroundColor: palette.surface,
-      }}
-      className="rounded-2xl border p-5 sm:p-6 space-y-6"
-    >
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div
-            style={{
-              backgroundColor: palette.canvas,
-              borderColor: palette.border,
-            }}
-            className="w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 overflow-hidden"
-          >
-            {siteIcon ? (
-              <img
-                src={siteIcon}
-                alt="Site Icon Preview"
-                className="w-6 h-6 object-contain rounded"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = 'none';
-                }}
-              />
-            ) : (
-              <Globe className="w-5 h-5" style={{ color: palette.link }} />
-            )}
-          </div>
-          <div>
-            <h2 style={{ fontFamily: fonts.display }} className="text-lg font-bold">
-              4. Nhận dạng Web cá nhân, Header/Footer &amp; Xuất bản Web App GitHub Pages
-            </h2>
-            <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
-              Tuỳ chỉnh Icon, Tiêu đề web, Header, Footer và Mô tả riêng cho{' '}
-              <code>{repoDisplay}</code>.
-            </p>
-          </div>
-        </div>
-      </div>
+  const showSiteSection = sectionMode === 'all' || sectionMode === 'site';
+  const showAppearanceSection = sectionMode === 'all' || sectionMode === 'appearance';
 
-      {/* Browser Tab Live Preview */}
-      <div
-        style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
-        className="p-3.5 rounded-xl border flex items-center gap-3"
+  return (
+    <div className={sectionMode === 'none' ? 'hidden' : 'space-y-6'}>
+      {/* PART A: SITE IDENTITY, LINKS, LIVE CHAT & ADVANCED SETTINGS */}
+      <section
+        id="site-identity-settings"
+        style={{
+          borderColor: palette.border,
+          backgroundColor: palette.surface,
+        }}
+        className={`${showSiteSection ? 'block' : 'hidden'} rounded-2xl border p-5 sm:p-6 space-y-6`}
       >
-        <img
-          src={siteIcon || './assets/aistudio/1794978557793_3b5d5cb0.png'}
-          alt="Icon"
-          className="w-6 h-6 rounded-full object-cover shrink-0 border"
-          style={{ borderColor: palette.border }}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold truncate">{siteTitle || 'Tiêu đề trang web'}</div>
-          <div style={{ color: palette.textMuted }} className="text-[11px] truncate">
-            {config.pagesUrl} · {tagline || 'Mô tả trang web'}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div
+              style={{
+                backgroundColor: palette.canvas,
+                borderColor: palette.border,
+              }}
+              className="w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 overflow-hidden"
+            >
+              {siteIcon ? (
+                <img
+                  src={siteIcon}
+                  alt="Site Icon Preview"
+                  className="w-7 h-7 object-contain rounded"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                <Globe className="w-5 h-5" style={{ color: palette.link }} />
+              )}
+            </div>
+            <div>
+              <h2 style={{ fontFamily: fonts.display }} className="text-lg sm:text-xl font-bold">
+                Thông tin &amp; Nhận dạng Website
+              </h2>
+              <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-0.5">
+                Tuỳ chỉnh Icon, Tiêu đề, Tác giả và Chân trang cho <code>{repoDisplay}</code>.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+
+        {/* Browser Tab Live Preview */}
+        <div
+          style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
+          className="p-3.5 rounded-xl border flex items-center gap-3"
+        >
+          <img
+            src={siteIcon || './assets/aistudio/1794978557793_3b5d5cb0.png'}
+            alt="Icon"
+            className="w-7 h-7 rounded-full object-cover shrink-0 border"
+            style={{ borderColor: palette.border }}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold truncate">{siteTitle || 'Tiêu đề trang web'}</div>
+            <div style={{ color: palette.textMuted }} className="text-xs truncate">
+              {config.pagesUrl} · {tagline || 'Mô tả trang web'}
+            </div>
+          </div>
+        </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
         {/* Icon & Header Brand */}
@@ -756,12 +773,33 @@ export function SiteIdentityCard({
         </div>
       </div>
 
-      {/* Custom Header Links & Footer Links */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div
-          style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
-          className="p-4 rounded-xl border space-y-3"
+      {/* Custom Header Links & Footer Links (Collapsible) */}
+      <div
+        style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
+        className="rounded-xl border overflow-hidden"
+      >
+        <button
+          type="button"
+          onClick={() => setShowNavLinksEditor((v) => !v)}
+          className="w-full px-4 py-3.5 flex items-center justify-between gap-3 text-left cursor-pointer hover:opacity-85 min-h-[48px]"
         >
+          <div>
+            <div className="text-sm font-semibold">
+              Liên kết Menu Header &amp; Chân trang ({headerNavLinks.length + footerLinks.length})
+            </div>
+            <div style={{ color: palette.textMuted }} className="text-xs mt-0.5">
+              Thêm các nút Giới thiệu, Liên hệ, YouTube, Facebook...
+            </div>
+          </div>
+          <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${showNavLinksEditor ? 'rotate-180' : ''}`} />
+        </button>
+
+        {showNavLinksEditor && (
+        <div style={{ borderColor: palette.border }} className="p-4 pt-3 border-t grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div
+            style={{ borderColor: palette.border, backgroundColor: palette.surface }}
+            className="p-4 rounded-xl border space-y-3"
+          >
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold">Liên kết thêm trên Header</span>
             <button
@@ -903,12 +941,36 @@ export function SiteIdentityCard({
             </div>
           )}
         </div>
+        </div>
+        )}
       </div>
 
-      {/* Custom Domain (CNAME), Web Analytics & Giscus Comments */}
+      {/* Custom Domain (CNAME), Web Analytics & Giscus Comments (Collapsible Advanced Section) */}
+      <div
+        style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
+        className="rounded-xl border overflow-hidden"
+      >
+        <button
+          type="button"
+          onClick={() => setShowAdvancedSite((v) => !v)}
+          className="w-full px-4 py-3.5 flex items-center justify-between gap-3 text-left cursor-pointer hover:opacity-85 min-h-[48px]"
+        >
+          <div>
+            <div className="text-sm font-semibold">
+              Cấu hình nâng cao (Tên miền CNAME, Analytics, Bình luận Giscus)
+            </div>
+            <div style={{ color: palette.textMuted }} className="text-xs mt-0.5">
+              {customDomain ? `Domain: ${customDomain}` : 'Không bắt buộc — mở khi cần gắn tên miền hoặc mã đo lường'}
+            </div>
+          </div>
+          <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${showAdvancedSite ? 'rotate-180' : ''}`} />
+        </button>
+
+        {showAdvancedSite && (
+        <div style={{ borderColor: palette.border }} className="p-4 pt-3 border-t space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div
-          style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
+          style={{ borderColor: palette.border, backgroundColor: palette.surface }}
           className="p-4 rounded-xl border space-y-3"
         >
           <div className="text-xs sm:text-sm font-semibold">
@@ -1069,6 +1131,9 @@ export function SiteIdentityCard({
               className="w-full px-3 min-h-[44px] text-xs rounded-lg border"
             />
           </div>
+        )}
+      </div>
+        </div>
         )}
       </div>
 
@@ -1290,46 +1355,58 @@ export function SiteIdentityCard({
             </button>
           )}
         </div>
+      </div>
+      </section>
 
-        {/* Dedicated Vietnamese Astro Template Clean Wipe & Deploy Box */}
-        <div
-          style={{
-            borderColor: palette.border,
-            backgroundColor: palette.canvas,
-          }}
-          className="p-4 rounded-xl border space-y-3"
-        >
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="text-sm font-semibold flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4" style={{ color: palette.link }} />
-                  Giao diện Blog &amp; Template Astro 5 chuẩn tiếng Việt
-                </div>
-                <p style={{ color: palette.textSecondary }} className="text-xs leading-relaxed">
-                  Mẫu thuần túy phục vụ viết &amp; đọc blog: ẩn khung mục lục rườm rà trên giao diện, giữ nguyên SEO ngầm (<code>sitemap.xml</code>, <code>robots.txt</code>, <code>BlogPosting</code> JSON-LD, RSS) và đẩy sạch lên{' '}
-                  <code>{repoDisplay}</code> kèm nhận dạng cá nhân.
-                </p>
-              </div>
-
-              {!confirmWipeAstro && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmWipeAstro(true)}
-                  disabled={isSaving || isDeployingApp || isDeployingAstro || !authStatus?.authenticated}
-                  style={{
-                    backgroundColor: palette.accent,
-                    color: palette.accentText,
-                  }}
-                  className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-45 whitespace-nowrap shrink-0"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Triển khai Template Astro Blog
-                </button>
-              )}
+      {/* PART B: UNIFIED THEME STUDIO & ASTRO TEMPLATE DEPLOYMENT */}
+      <section
+        id="unified-theme-studio"
+        style={{
+          borderColor: palette.border,
+          backgroundColor: palette.surface,
+        }}
+        className={`${showAppearanceSection ? 'block' : 'hidden'} rounded-2xl border p-5 sm:p-6 space-y-5`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b" style={{ borderColor: palette.border }}>
+          <div className="flex items-start gap-3">
+            <div
+              style={{
+                backgroundColor: palette.canvas,
+                borderColor: palette.border,
+              }}
+              className="w-11 h-11 rounded-xl border flex items-center justify-center shrink-0"
+            >
+              <Palette className="w-5 h-5" style={{ color: palette.link }} />
             </div>
+            <div>
+              <h2 style={{ fontFamily: fonts.display }} className="text-lg sm:text-xl font-bold">
+                Giao diện, Chế độ Sáng/Tối &amp; Bảng màu
+              </h2>
+              <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-0.5">
+                Thay đổi sẽ xem thử cục bộ trên máy trước. Nhấn <strong>Áp dụng &amp; Lưu</strong> để đồng bộ vào app và <code>{repoDisplay}</code>.
+              </p>
+            </div>
+          </div>
 
-            <ThemeVisualSelector
+          {!confirmWipeAstro && (
+            <button
+              type="button"
+              onClick={() => setConfirmWipeAstro(true)}
+              disabled={isSaving || isDeployingApp || isDeployingAstro || !authStatus?.authenticated}
+              style={{
+                borderColor: palette.border,
+                backgroundColor: palette.canvas,
+                color: palette.textPrimary,
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-45 whitespace-nowrap shrink-0"
+            >
+              <Sparkles className="w-4 h-4" style={{ color: palette.link }} />
+              Cài lại / Cập nhật Astro 5
+            </button>
+          )}
+        </div>
+
+        <ThemeVisualSelector
               theme={theme}
               selectedTemplate={astroTemplate}
               onSelectTemplate={(tplId) => {
@@ -1397,7 +1474,6 @@ export function SiteIdentityCard({
                 </button>
               </div>
             )}
-          </div>
 
           {confirmWipeAstro && (
             <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/35 space-y-3">
@@ -1470,8 +1546,7 @@ export function SiteIdentityCard({
               </div>
             </div>
           )}
-        </div>
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }

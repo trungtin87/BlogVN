@@ -285,18 +285,18 @@ export function ThemeVisualSelector({
       {/* Header & Filter + Sun/Moon Switch */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold">
-            Chọn mẫu giao diện Blog (5 Cơ bản · 5 Nhiều trang · Đủ Sáng/Tối)
+          <div className="text-base font-bold">
+            Mẫu giao diện Blog (5 Cơ bản · 5 Nhiều trang)
           </div>
-          <p style={{ color: palette.textMuted }} className="text-xs mt-0.5">
-            5 mẫu nhiều trang bổ sung sẵn Chuyên mục, Chủ đề, Lưu trữ theo năm, Giới thiệu &amp; Liên hệ; tất cả đều có nút Mặt trời / Mặt trăng.
+          <p style={{ color: palette.textMuted }} className="text-xs sm:text-sm mt-0.5">
+            Tất cả mẫu đều hỗ trợ chuyển nhanh Sáng / Tối (☀ / ☾). Chọn mẫu bên dưới để xem thử cục bộ trước khi nhấn Áp dụng.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <div
             style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
-            className="inline-flex flex-wrap p-1 rounded-xl border gap-0.5"
+            className="inline-flex flex-wrap p-1 rounded-xl border gap-1"
             role="group"
             aria-label="Lọc giao diện"
           >
@@ -320,7 +320,7 @@ export function ThemeVisualSelector({
                     backgroundColor: active ? palette.accent : 'transparent',
                     color: active ? palette.accentText : palette.textSecondary,
                   }}
-                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 min-h-[34px] text-xs font-medium rounded-lg cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[38px] text-xs font-medium rounded-lg cursor-pointer whitespace-nowrap shrink-0"
                 >
                   {Icon && <Icon className="w-3.5 h-3.5" />}
                   {tab.label}
@@ -337,7 +337,7 @@ export function ThemeVisualSelector({
               backgroundColor: palette.canvas,
               color: palette.textPrimary,
             }}
-            className="inline-flex items-center gap-1.5 px-3 min-h-[42px] sm:min-h-[38px] text-xs font-semibold rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 px-3.5 min-h-[44px] sm:min-h-[40px] text-xs font-semibold rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0"
             title={
               currentMode === 'dark'
                 ? 'Đang ở chế độ Tối — nhấn để chuyển sang Sáng (Mặt trời)'
@@ -345,68 +345,14 @@ export function ThemeVisualSelector({
             }
           >
             {currentMode === 'dark' ? (
-              <Sun className="w-3.5 h-3.5 text-amber-400" />
+              <Sun className="w-4 h-4 text-amber-400" />
             ) : (
-              <Moon className="w-3.5 h-3.5 text-indigo-500" />
+              <Moon className="w-4 h-4 text-indigo-500" />
             )}
             <span>{currentMode === 'dark' ? 'Chế độ Sáng' : 'Chế độ Tối'}</span>
           </button>
         </div>
       </div>
-
-      {onApply && hasPendingChanges && (
-        <div
-          style={{
-            borderColor: palette.link,
-            backgroundColor: palette.surfaceElevated,
-          }}
-          className="rounded-xl border p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
-        >
-          <div className="text-xs font-medium min-w-0">
-            <span style={{ color: palette.link }} className="font-semibold">
-              Đang xem thử cục bộ:
-            </span>{' '}
-            <span style={{ color: palette.textSecondary }}>
-              {activePreset.name} ({currentMode === 'dark' ? 'Tối' : 'Sáng'}). Chưa lưu trên máy &amp; GitHub.
-            </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-            {onDiscard && (
-              <button
-                type="button"
-                onClick={onDiscard}
-                disabled={isApplying}
-                style={{
-                  borderColor: palette.border,
-                  backgroundColor: palette.canvas,
-                  color: palette.textPrimary,
-                }}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 min-h-[40px] text-xs font-medium rounded-lg border cursor-pointer hover:opacity-85 disabled:opacity-50 whitespace-nowrap"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Huỷ
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onApply}
-              disabled={isApplying}
-              style={{
-                backgroundColor: palette.accent,
-                color: palette.accentText,
-              }}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 min-h-[40px] text-xs font-semibold rounded-lg cursor-pointer hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
-            >
-              {isApplying ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <UploadCloud className="w-3.5 h-3.5" />
-              )}
-              Áp dụng &amp; Lưu
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Visual Theme Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
@@ -695,11 +641,11 @@ export function ThemeVisualSelector({
           </div>
 
           {/* Quick Dual-Mode Curated Palettes */}
-          <div className="space-y-2">
-            <div style={{ color: palette.textMuted }} className="text-[11px] font-semibold uppercase tracking-wider">
-              Bảng màu gợi ý nhanh (áp dụng đồng bộ cả Sáng &amp; Tối)
+          <div className="space-y-2.5">
+            <div style={{ color: palette.textMuted }} className="text-xs font-semibold uppercase tracking-wider">
+              Bảng màu gợi ý (Sáng &amp; Tối)
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
               {CURATED_COLOR_PRESETS.map((preset) => {
                 const isMatched =
                   themeColors?.light?.accent === preset.light.accent &&
@@ -716,7 +662,7 @@ export function ThemeVisualSelector({
                       backgroundColor: palette.canvas,
                       color: palette.textPrimary,
                     }}
-                    className={`flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl border text-left text-xs font-medium cursor-pointer transition-all ${
+                    className={`flex items-center justify-between gap-2.5 px-3.5 min-h-[46px] rounded-xl border text-left text-xs sm:text-sm font-medium cursor-pointer transition-all ${
                       isMatched ? 'ring-1' : 'hover:opacity-90'
                     }`}
                   >
@@ -750,31 +696,31 @@ export function ThemeVisualSelector({
           </div>
 
           {/* 5 Fine-Grained Color Pickers for Active Editing Mode */}
-          <div className="space-y-2 pt-1">
+          <div className="space-y-2.5 pt-1">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div style={{ color: palette.textMuted }} className="text-[11px] font-semibold uppercase tracking-wider">
-                Tinh chỉnh từng màu cho chế độ {editingColorMode === 'dark' ? 'Tối (☾)' : 'Sáng (☀)'}
+              <div style={{ color: palette.textMuted }} className="text-xs font-semibold uppercase tracking-wider">
+                Tinh chỉnh từng màu ({editingColorMode === 'dark' ? 'Chế độ Tối ☾' : 'Chế độ Sáng ☀'})
               </div>
               {colorEditOverrides && Object.keys(colorEditOverrides).length > 0 && (
                 <button
                   type="button"
                   onClick={() => resetModeColors(editingColorMode)}
                   style={{ color: palette.link }}
-                  className="text-[11px] font-medium hover:underline cursor-pointer"
+                  className="text-xs font-medium hover:underline cursor-pointer min-h-[32px]"
                 >
                   Đặt lại riêng chế độ {editingColorMode === 'dark' ? 'Tối' : 'Sáng'}
                 </button>
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
               {(
                 [
                   { key: 'canvas', label: 'Nền trang', val: resolvedEditPalette.canvas },
                   { key: 'surface', label: 'Nền thẻ / Phụ', val: resolvedEditPalette.surface },
                   { key: 'textPrimary', label: 'Màu chữ chính', val: resolvedEditPalette.textPrimary },
                   { key: 'accent', label: 'Màu nhấn / Nút', val: resolvedEditPalette.accent },
-                  { key: 'link', label: 'Liên kết / Điểm nhấn', val: resolvedEditPalette.link },
+                  { key: 'link', label: 'Liên kết', val: resolvedEditPalette.link },
                 ] as const
               ).map((item) => {
                 const isCustomField = Boolean(colorEditOverrides?.[item.key]);
@@ -785,9 +731,9 @@ export function ThemeVisualSelector({
                       borderColor: isCustomField ? palette.link : palette.border,
                       backgroundColor: palette.canvas,
                     }}
-                    className="p-2.5 rounded-xl border flex items-center gap-2.5 min-w-0"
+                    className="p-3 min-h-[54px] rounded-xl border flex items-center gap-3 min-w-0"
                   >
-                    <label className="relative w-8 h-8 rounded-lg overflow-hidden border shrink-0 cursor-pointer" style={{ borderColor: palette.border, backgroundColor: item.val }}>
+                    <label className="relative w-9 h-9 rounded-lg overflow-hidden border shrink-0 cursor-pointer" style={{ borderColor: palette.border, backgroundColor: item.val }}>
                       <input
                         type="color"
                         value={item.val}
@@ -797,10 +743,10 @@ export function ThemeVisualSelector({
                       />
                     </label>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-semibold truncate">{item.label}</div>
+                      <div className="text-xs font-semibold">{item.label}</div>
                       <div
                         style={{ color: palette.textMuted, fontFamily: fonts.mono }}
-                        className="text-[10.5px] uppercase truncate"
+                        className="text-xs uppercase"
                       >
                         {item.val}
                       </div>
@@ -810,11 +756,11 @@ export function ThemeVisualSelector({
                         type="button"
                         onClick={() => updateSingleColor(editingColorMode, item.key, undefined)}
                         style={{ color: palette.textMuted }}
-                        className="p-1 rounded-md hover:opacity-80 cursor-pointer shrink-0"
+                        className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:opacity-80 cursor-pointer shrink-0"
                         title="Về màu mặc định"
                         aria-label={`Khôi phục ${item.label}`}
                       >
-                        <RotateCcw className="w-3 h-3" />
+                        <RotateCcw className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -1231,51 +1177,6 @@ export function ThemeVisualSelector({
               </div>
             )}
           </div>
-
-          {onApply && hasPendingChanges && (
-            <div
-              style={{ borderColor: palette.border, backgroundColor: palette.surface }}
-              className="px-4 py-3 border-t flex flex-wrap items-center justify-between gap-2.5"
-            >
-              <span style={{ color: palette.textSecondary }} className="text-xs font-medium">
-                Bản xem trước cục bộ chưa được áp dụng lên máy &amp; GitHub.
-              </span>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                {onDiscard && (
-                  <button
-                    type="button"
-                    onClick={onDiscard}
-                    disabled={isApplying}
-                    style={{
-                      borderColor: palette.border,
-                      backgroundColor: palette.canvas,
-                      color: palette.textPrimary,
-                    }}
-                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 min-h-[42px] text-xs font-medium rounded-xl border cursor-pointer hover:opacity-85 disabled:opacity-50"
-                  >
-                    Huỷ xem thử
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={onApply}
-                  disabled={isApplying}
-                  style={{
-                    backgroundColor: palette.accent,
-                    color: palette.accentText,
-                  }}
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 min-h-[42px] text-xs font-semibold rounded-xl cursor-pointer hover:opacity-90 disabled:opacity-50"
-                >
-                  {isApplying ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <UploadCloud className="w-4 h-4" />
-                  )}
-                  Áp dụng &amp; Lưu GitHub
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

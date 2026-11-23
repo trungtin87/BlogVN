@@ -49,7 +49,7 @@ import { TopBar } from './components/TopBar';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { BlogShowcase } from './components/BlogShowcase';
 import { MarkdownEditor } from './components/MarkdownEditor';
-import { GitHubSyncPanel } from './components/GitHubSyncPanel';
+import { GitHubSyncPanel, type SettingsSubTab } from './components/GitHubSyncPanel';
 import { GoogleAuthGate } from './components/GoogleAuthGate';
 import { OfflineIndicator } from './components/PWAInstallButton';
 import { UserGuideModal } from './components/UserGuideModal';
@@ -174,6 +174,11 @@ export default function App() {
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [toast, setToast] = useState<ToastBanner | null>(null);
   const [mobileEditorFocused, setMobileEditorFocused] = useState(false);
+  const [focusSectionRequest, setFocusSectionRequest] = useState<{
+    tab: SettingsSubTab;
+    elementId?: string;
+    nonce: number;
+  } | null>(null);
   const isRunningDueRef = useRef(false);
   const buildPollTimerRef = useRef<number | null>(null);
   const activeUidRef = useRef<string>('');
@@ -1248,6 +1253,7 @@ export default function App() {
             onUpdateTargetRepo={handleUpdateTargetRepo}
             onSiteCreated={handleSiteCreated}
             onClearLocalData={handleClearLocalData}
+            focusSectionRequest={focusSectionRequest}
           />
         )}
       </main>
@@ -1298,9 +1304,11 @@ export default function App() {
         hideOnMobile={mobileEditorFocused && activeTab === 'editor'}
         onOpenSettings={() => {
           setActiveTab('github');
-          window.setTimeout(() => {
-            document.getElementById('live-chat-settings')?.scrollIntoView({ behavior: 'smooth' });
-          }, 120);
+          setFocusSectionRequest({
+            tab: 'site',
+            elementId: 'live-chat-settings',
+            nonce: Date.now(),
+          });
         }}
       />
 

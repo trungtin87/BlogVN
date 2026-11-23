@@ -3,6 +3,7 @@ import type { User } from 'firebase/auth';
 import {
   Archive,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Cloud,
   Download,
@@ -13,9 +14,11 @@ import {
   FolderOpen,
   GitBranch,
   GitCommitHorizontal,
+  Globe,
   KeyRound,
   Loader2,
   LogOut,
+  Palette,
   PlusCircle,
   RefreshCw,
   ShieldAlert,
@@ -27,7 +30,6 @@ import {
   X,
 } from 'lucide-react';
 import type {
-  AstroTemplateId,
   AuthStatus,
   BlogCollection,
   BlogConfig,
@@ -38,8 +40,6 @@ import type {
   GitHubRepoSummary,
   RepoStructureInfo,
   ScheduledTask,
-  ThemeCustomColors,
-  ThemeMode,
 } from '../types/blog';
 import {
   COLLECTION_LABELS,
@@ -60,8 +60,9 @@ import { PWAInstallButton } from './PWAInstallButton';
 import { SiteEssentialsCard } from './SiteEssentialsCard';
 import { SiteIdentityCard } from './SiteIdentityCard';
 import { ScheduleManagerCard } from './ScheduleManagerCard';
-import { ThemeVisualSelector } from './ThemeVisualSelector';
 import type { CloudBackupMeta } from '../utils/firestoreSync';
+
+export type SettingsSubTab = 'connect' | 'appearance' | 'site' | 'content';
 
 interface GitHubSyncPanelProps {
   theme: BlogTheme;
@@ -101,6 +102,7 @@ interface GitHubSyncPanelProps {
   onUpdateTargetRepo: (owner: string, repo: string) => void;
   onSiteCreated: (owner: string, repo: string, pagesUrl: string, postsDirectory?: string) => void;
   onClearLocalData: () => Promise<void>;
+  focusSectionRequest?: { tab: SettingsSubTab; elementId?: string; nonce: number } | null;
 }
 
 const FILTER_TABS: Array<{ id: 'all' | BlogCollection; label: string }> = [
@@ -149,8 +151,11 @@ export function GitHubSyncPanel({
   onUpdateTargetRepo,
   onSiteCreated,
   onClearLocalData,
+  focusSectionRequest = null,
 }: GitHubSyncPanelProps) {
   const { palette, fonts, isDark } = theme;
+  const [settingsTab, setSettingsTab] = useState<SettingsSubTab>('connect');
+  const [showCommitHistory, setShowCommitHistory] = useState(false);
   const [ownerInput, setOwnerInput] = useState(config.githubOwner);
   const [repoInput, setRepoInput] = useState(config.githubRepo);
   const [patInput, setPatInput] = useState('');
@@ -174,30 +179,32 @@ export function GitHubSyncPanel({
   const [deleteAtInput, setDeleteAtInput] = useState('');
   const [isSavingDeleteSchedule, setIsSavingDeleteSchedule] = useState(false);
 
-  // One-click new blog state (for new users)
+  // One-click new blog state (uses unified Theme settings from config)
   const [newSiteTitle, setNewSiteTitle] = useState('');
   const [newRepoName, setNewRepoName] = useState('');
   const [newTagline, setNewTagline] = useState('');
   const [useAstroVnTemplate, setUseAstroVnTemplate] = useState(true);
-  const [selectedAstroPreset, setSelectedAstroPreset] = useState<AstroTemplateId>(() =>
-    normalizeAstroTemplateId(config.astroTemplate, config.themeMode)
-  );
-  const [stagedNewThemeMode, setStagedNewThemeMode] = useState<ThemeMode>(() =>
-    config.themeMode === 'dark' ? 'dark' : 'light'
-  );
-  const [stagedNewThemeColors, setStagedNewThemeColors] = useState<ThemeCustomColors | undefined>(
-    () => sanitizeThemeCustomColors(config.themeColors)
-  );
   const [isCreatingSite, setIsCreatingSite] = useState(false);
   const [createSiteError, setCreateSiteError] = useState<string | null>(null);
+
+  const activeTemplateId = normalizeAstroTemplateId(config.astroTemplate, config.themeMode);
+  const activeTemplateName = EDITORIAL_THEMES[activeTemplateId]?.name || activeTemplateId;
 
   useEffect(() => {
     setOwnerInput(config.githubOwner);
     setRepoInput(config.githubRepo);
-    setSelectedAstroPreset(normalizeAstroTemplateId(config.astroTemplate, config.themeMode));
-    setStagedNewThemeMode(config.themeMode === 'dark' ? 'dark' : 'light');
-    setStagedNewThemeColors(sanitizeThemeCustomColors(config.themeColors));
-  }, [config.githubOwner, config.githubRepo, config.astroTemplate, config.themeMode, config.themeColors]);
+  }, [config.githubOwner, config.githubRepo]);
+
+  useEffect(() => {
+    if (!focusSectionRequest) return;
+    setSettingsTab(focusSectionRequest.tab);
+    if (focusSectionRequest.elementId) {
+      const targetId = focusSectionRequest.elementId;
+      window.setTimeout(() => {
+        document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
+    }
+  }, [focusSectionRequest]);
 
   useEffect(() => {
     if (authStatus?.user?.login && !newRepoName) {
@@ -308,7 +315,7 @@ export function GitHubSyncPanel({
 
       let postsDir = '_posts';
       if (useAstroVnTemplate) {
-        const chosenTheme = EDITORIAL_THEMES[selectedAstroPreset];
+        const chosenTheme = EDITORIAL_THEMES[activeTemplateId];
         const nextCfg: BlogConfig = {
           ...config,
           siteTitle: newSiteTitle.trim() || config.siteTitle,
@@ -318,22 +325,22 @@ export function GitHubSyncPanel({
           pagesUrl: data.pagesUrl,
           postsDirectory: 'src/content/bai_viet',
           themeMode:
-            stagedNewThemeMode ||
-            (chosenTheme ? (chosenTheme.isDark ? 'dark' : 'light') : config.themeMode),
-          astroTemplate: selectedAstroPreset,
-          themeColors: sanitizeThemeCustomColors(stagedNewThemeColors),
+            config.themeMode ||
+            (chosenTheme ? (chosenTheme.isDark ? 'dark' : 'light') : 'light'),
+          astroTemplate: activeTemplateId,
+          themeColors: sanitizeThemeCustomColors(config.themeColors),
         };
         const astroRes = await ghDeployAstroTemplate({
           owner: data.owner,
           repo: data.repo,
           config: nextCfg,
-          templateId: selectedAstroPreset,
+          templateId: activeTemplateId,
           preservePosts: false,
         });
         if (!astroRes.ok) {
           setCreateSiteError(
             astroRes.error ||
-              'Đã tạo repo nhưng chưa đẩy được Template Astro Việt. Bạn có thể bấm Triển khai lại ở mục 4 bên dưới.'
+              'Đã tạo repo nhưng chưa đẩy được Template Astro Việt. Bạn có thể bấm Cài lại Astro ở tab Giao diện.'
           );
           return;
         }
@@ -378,40 +385,82 @@ export function GitHubSyncPanel({
       }}
       className="min-h-[calc(100vh-4rem)] pt-8 pb-24 md:py-14"
     >
-      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 space-y-8 sm:space-y-10">
-        {/* Header */}
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 space-y-6 sm:space-y-8">
+        {/* Header + Clean Sub-Navigation */}
         <div
           style={{ borderColor: palette.border }}
-          className="pb-6 border-b flex flex-col sm:flex-row sm:items-end justify-between gap-4"
+          className="pb-5 border-b space-y-4"
         >
-          <div>
-            <div style={{ color: palette.textMuted, fontFamily: fonts.mono }} className="text-xs mb-2">
-              Đạo Ký Workspace · {repoDisplay}
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div>
+              <div style={{ color: palette.textMuted, fontFamily: fonts.mono }} className="text-xs mb-1.5">
+                Đạo Ký Workspace · {repoDisplay}
+              </div>
+              <h1 style={{ fontFamily: fonts.display }} className="text-2xl sm:text-3xl font-bold tracking-tight">
+                Cài đặt &amp; Cấu hình
+              </h1>
             </div>
-            <h1 style={{ fontFamily: fonts.display }} className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Kết nối GitHub &amp; Cài đặt App
-            </h1>
+
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isLoading}
+              style={{
+                borderColor: palette.border,
+                backgroundColor: palette.surface,
+                color: palette.textPrimary,
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] sm:min-h-[40px] text-sm font-medium rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Đồng bộ GitHub
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isLoading}
-            style={{
-              borderColor: palette.border,
-              backgroundColor: palette.surface,
-              color: palette.textPrimary,
-            }}
-            className="inline-flex items-center justify-center gap-2 px-4 min-h-[44px] sm:min-h-[40px] text-sm font-medium rounded-xl border cursor-pointer hover:opacity-85 whitespace-nowrap shrink-0"
+          {/* Spacious Category Sub-Tabs */}
+          <div
+            style={{ borderColor: palette.border, backgroundColor: palette.surface }}
+            className="grid grid-cols-2 sm:grid-cols-4 p-1.5 rounded-2xl border gap-1.5"
+            role="tablist"
+            aria-label="Danh mục cài đặt"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Đồng bộ lại từ GitHub
-          </button>
+            {(
+              [
+                { id: 'connect', label: 'Kết nối & Repo', icon: FolderGit2 },
+                { id: 'appearance', label: 'Giao diện & Màu', icon: Palette },
+                { id: 'site', label: 'Nhận dạng & Chat', icon: Globe },
+                { id: 'content', label: 'Bài viết & Sao lưu', icon: Archive },
+              ] as const
+            ).map((tab) => {
+              const active = settingsTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setSettingsTab(tab.id)}
+                  style={{
+                    backgroundColor: active ? palette.accent : 'transparent',
+                    color: active ? palette.accentText : palette.textSecondary,
+                  }}
+                  className="inline-flex items-center justify-center gap-2 px-3 min-h-[44px] text-xs sm:text-sm font-semibold rounded-xl cursor-pointer transition-colors whitespace-nowrap"
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
+        {/* TAB 1: CONNECT & REPOSITORY */}
+        {settingsTab === 'connect' && (
+        <div className="space-y-6">
         {/* Auth & Target Repository Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Authentication Status & Repo Picker Card (Existing Users) */}
+          {/* Authentication Status & Repo Picker Card */}
           <div
             style={{
               borderColor: palette.border,
@@ -421,11 +470,11 @@ export function GitHubSyncPanel({
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 style={{ fontFamily: fonts.display }} className="text-lg font-bold">
-                  1. Phiên Google cá nhân &amp; Kết nối GitHub
+                <h2 style={{ fontFamily: fonts.display }} className="text-lg sm:text-xl font-bold">
+                  Tài khoản Google &amp; Kết nối GitHub
                 </h2>
-                <p style={{ color: palette.textSecondary }} className="text-sm mt-1">
-                  Dữ liệu ứng dụng được tách biệt hoàn toàn theo tài khoản Google trên máy của bạn và kết nối thẳng tới GitHub repository của riêng bạn.
+                <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
+                  Dữ liệu ứng dụng tách biệt theo tài khoản Google và lưu cục bộ trên thiết bị.
                 </p>
               </div>
               {authStatus?.authenticated ? (
@@ -825,21 +874,6 @@ export function GitHubSyncPanel({
                     <span className="text-right truncate">{repoStructure.postsDir}</span>
                   </div>
                 )}
-                {repoStructure?.uploadDir && (
-                  <div className="flex items-center justify-between gap-2">
-                    <span style={{ color: palette.textMuted }}>Thư mục tải ảnh</span>
-                    <span className="text-right truncate">{repoStructure.uploadDir}</span>
-                  </div>
-                )}
-                {repoStructure?.frontmatterSchema && (
-                  <div className="flex items-center justify-between gap-2">
-                    <span style={{ color: palette.textMuted }}>Frontmatter tự động</span>
-                    <span className="text-right truncate">
-                      {repoStructure.frontmatterSchema.titleKey} · {repoStructure.frontmatterSchema.dateKey} ·{' '}
-                      {repoStructure.frontmatterSchema.coverKey}
-                    </span>
-                  </div>
-                )}
                 <div className="flex items-center justify-between gap-2">
                   <span style={{ color: palette.textMuted }}>Triển khai web</span>
                   <span className="flex items-center gap-1.5">
@@ -894,18 +928,18 @@ export function GitHubSyncPanel({
               <PlusCircle className="w-5 h-5" style={{ color: palette.link }} />
             </div>
             <div>
-              <h2 style={{ fontFamily: fonts.display }} className="text-lg font-bold">
-                2. Tạo Blog GitHub Pages mới trong 1 chạm (Dành cho người mới)
+              <h2 style={{ fontFamily: fonts.display }} className="text-lg sm:text-xl font-bold">
+                Tạo Blog GitHub Pages mới trong 1 chạm
               </h2>
-              <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
-                Chưa có trang web? Đạo Ký sẽ tự tạo repository, nạp Template Blog chuẩn tiếng Việt kết hợp nhận dạng cá nhân và tự bật GitHub Pages cho bạn.
+              <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-0.5">
+                Tự tạo repository, nạp Template Blog Astro 5 tiếng Việt và bật GitHub Pages cho người mới.
               </p>
             </div>
           </div>
 
           <form onSubmit={handleCreateStarterSite} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
             <div className="md:col-span-4">
-              <label style={{ color: palette.textMuted }} className="block text-xs mb-1">
+              <label style={{ color: palette.textMuted }} className="block text-xs mb-1 font-medium">
                 Tên blog của bạn
               </label>
               <input
@@ -918,12 +952,12 @@ export function GitHubSyncPanel({
                   borderColor: palette.border,
                   color: palette.textPrimary,
                 }}
-                className="w-full px-3 min-h-[44px] sm:min-h-[40px] text-xs sm:text-sm rounded-xl border"
+                className="w-full px-3 min-h-[46px] text-sm rounded-xl border"
               />
             </div>
 
             <div className="md:col-span-3">
-              <label style={{ color: palette.textMuted }} className="block text-xs mb-1">
+              <label style={{ color: palette.textMuted }} className="block text-xs mb-1 font-medium">
                 Tên repository GitHub
               </label>
               <input
@@ -937,12 +971,12 @@ export function GitHubSyncPanel({
                   color: palette.textPrimary,
                   fontFamily: fonts.mono,
                 }}
-                className="w-full px-3 min-h-[44px] sm:min-h-[40px] text-xs rounded-xl border"
+                className="w-full px-3 min-h-[46px] text-xs sm:text-sm rounded-xl border"
               />
             </div>
 
             <div className="md:col-span-3">
-              <label style={{ color: palette.textMuted }} className="block text-xs mb-1">
+              <label style={{ color: palette.textMuted }} className="block text-xs mb-1 font-medium">
                 Mô tả ngắn (tuỳ chọn)
               </label>
               <input
@@ -955,7 +989,7 @@ export function GitHubSyncPanel({
                   borderColor: palette.border,
                   color: palette.textPrimary,
                 }}
-                className="w-full px-3 min-h-[44px] sm:min-h-[40px] text-xs sm:text-sm rounded-xl border"
+                className="w-full px-3 min-h-[46px] text-sm rounded-xl border"
               />
             </div>
 
@@ -967,7 +1001,7 @@ export function GitHubSyncPanel({
                   backgroundColor: palette.accent,
                   color: palette.accentText,
                 }}
-                className="w-full inline-flex items-center justify-center gap-1.5 px-4 min-h-[44px] sm:min-h-[40px] text-xs sm:text-sm font-semibold rounded-xl cursor-pointer disabled:opacity-45 whitespace-nowrap"
+                className="w-full inline-flex items-center justify-center gap-1.5 px-4 min-h-[46px] text-sm font-semibold rounded-xl cursor-pointer disabled:opacity-45 whitespace-nowrap"
               >
                 {isCreatingSite ? (
                   <>
@@ -981,43 +1015,34 @@ export function GitHubSyncPanel({
             </div>
           </form>
 
-          <div className="space-y-3">
-            <label className="inline-flex items-center gap-2 text-xs cursor-pointer select-none">
+          <div
+            style={{ borderColor: palette.border, backgroundColor: palette.canvas }}
+            className="p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          >
+            <label className="inline-flex items-center gap-2.5 text-xs sm:text-sm cursor-pointer select-none min-h-[36px]">
               <input
                 type="checkbox"
                 checked={useAstroVnTemplate}
                 onChange={(e) => setUseAstroVnTemplate(e.target.checked)}
-                className="rounded"
+                className="w-4 h-4 rounded"
               />
               <span style={{ color: palette.textSecondary }}>
-                Dùng <strong>Template Web Blog Astro 5 tiếng Việt</strong> (xoá dữ liệu cũ nếu repo đã tồn tại &amp; nhúng nhận dạng web cá nhân)
+                Dùng mẫu Astro 5:{' '}
+                <strong style={{ color: palette.textPrimary }}>{activeTemplateName}</strong> (
+                {config.themeMode === 'dark' ? 'Tối' : 'Sáng'})
               </span>
             </label>
 
             {useAstroVnTemplate && (
-              <ThemeVisualSelector
-                theme={theme}
-                selectedTemplate={selectedAstroPreset}
-                onSelectTemplate={(tplId) => {
-                  setSelectedAstroPreset(tplId);
-                  const chosen = EDITORIAL_THEMES[tplId];
-                  if (chosen) {
-                    setStagedNewThemeMode(chosen.isDark ? 'dark' : 'light');
-                  }
-                }}
-                previewMode={stagedNewThemeMode}
-                onToggleThemeMode={(mode) => setStagedNewThemeMode(mode)}
-                themeColors={stagedNewThemeColors}
-                onChangeColors={(nextColors) =>
-                  setStagedNewThemeColors(sanitizeThemeCustomColors(nextColors))
-                }
-                previewSiteTitle={newSiteTitle || config.siteTitle}
-                previewHeaderTitle={config.headerTitle}
-                previewTagline={newTagline || config.tagline}
-                previewAuthorName={config.authorName}
-                previewSiteIcon={config.siteIcon}
-                compact
-              />
+              <button
+                type="button"
+                onClick={() => setSettingsTab('appearance')}
+                style={{ color: palette.link }}
+                className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold hover:underline cursor-pointer whitespace-nowrap self-start sm:self-auto"
+              >
+                <Palette className="w-4 h-4" />
+                Chọn mẫu &amp; màu giao diện →
+              </button>
             )}
           </div>
 
@@ -1027,19 +1052,10 @@ export function GitHubSyncPanel({
             </div>
           )}
         </div>
+        </div>
+        )}
 
-        {/* RSS Feed, Sitemap XML, Robots.txt & Technical SEO Essentials */}
-        <SiteEssentialsCard
-          theme={theme}
-          config={config}
-          posts={posts}
-          authStatus={authStatus}
-          repoInfo={repoInfo}
-          repoStructure={repoStructure}
-          onPublished={() => onRefresh()}
-        />
-
-        {/* Website Identity, Favicon/Icon, Header, Footer & Standalone Web App Deploy */}
+        {/* TAB 2 & 3 SHARED MOUNTED STATE: APPEARANCE & SITE IDENTITY */}
         <SiteIdentityCard
           theme={theme}
           config={config}
@@ -1047,11 +1063,34 @@ export function GitHubSyncPanel({
           authStatus={authStatus}
           repoInfo={repoInfo}
           repoStructure={repoStructure}
+          sectionMode={
+            settingsTab === 'appearance'
+              ? 'appearance'
+              : settingsTab === 'site'
+              ? 'site'
+              : 'none'
+          }
           onUpdateConfig={onUpdateConfig}
           onDeployedToGitHub={onDeployedToGitHub}
           onRefreshRepo={onRefresh}
         />
 
+        {/* TAB 3 ADDITION: SITE SEO ESSENTIALS */}
+        {settingsTab === 'site' && (
+          <SiteEssentialsCard
+            theme={theme}
+            config={config}
+            posts={posts}
+            authStatus={authStatus}
+            repoInfo={repoInfo}
+            repoStructure={repoStructure}
+            onPublished={() => onRefresh()}
+          />
+        )}
+
+        {/* TAB 4: POSTS, SCHEDULE, CLOUD BACKUP & ARCHIVE */}
+        {settingsTab === 'content' && (
+        <div className="space-y-6">
         {/* Scheduled Post Publishing & Auto-Delete Queue */}
         <ScheduleManagerCard
           theme={theme}
@@ -1272,11 +1311,11 @@ export function GitHubSyncPanel({
                 <Archive className="w-5 h-5" style={{ color: palette.link }} />
               </div>
               <div>
-                <h2 style={{ fontFamily: fonts.display }} className="text-lg font-bold">
-                  5. Thư viện Media, Sao lưu (.zip) &amp; Nhập từ WordPress (.xml)
+                <h2 style={{ fontFamily: fonts.display }} className="text-lg sm:text-xl font-bold">
+                  Thư viện Media, Sao lưu (.zip) &amp; WordPress (.xml)
                 </h2>
                 <p style={{ color: palette.textSecondary }} className="text-xs sm:text-sm mt-1">
-                  Duyệt toàn bộ ảnh đã tải lên repository, sao lưu toàn bộ bài viết + cấu hình ra tệp <code>.zip</code>, hoặc chuyển dữ liệu từ WordPress sang Markdown.
+                  Duyệt ảnh đã tải lên repo, xuất bản sao lưu ZIP hoặc nhập dữ liệu từ WordPress.
                 </p>
               </div>
             </div>
@@ -1642,7 +1681,7 @@ export function GitHubSyncPanel({
           </div>
         )}
 
-        {/* Recent Commits History */}
+        {/* Recent Commits History (Collapsible) */}
         {repoInfo && repoInfo.commits.length > 0 && (
           <div
             style={{
@@ -1651,40 +1690,52 @@ export function GitHubSyncPanel({
             }}
             className="rounded-2xl border overflow-hidden"
           >
-            <div
+            <button
+              type="button"
+              onClick={() => setShowCommitHistory((v) => !v)}
               style={{ borderColor: palette.border, backgroundColor: palette.surface }}
-              className="px-5 sm:px-6 py-4 border-b flex items-center gap-2"
+              className="w-full px-5 sm:px-6 py-4 flex items-center justify-between gap-3 text-left cursor-pointer hover:opacity-85 min-h-[52px]"
             >
-              <GitCommitHorizontal className="w-5 h-5" style={{ color: palette.accent }} />
-              <h2 style={{ fontFamily: fonts.display }} className="text-lg font-bold">
-                Lịch sử Commit gần đây
-              </h2>
-            </div>
-            <div style={{ borderColor: palette.border }} className="divide-y">
-              {repoInfo.commits.map((c) => (
-                <a
-                  key={c.sha}
-                  href={c.htmlUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ borderColor: palette.border }}
-                  className="px-5 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
-                >
-                  <div className="text-sm font-medium truncate">{c.message}</div>
-                  <div
-                    style={{ color: palette.textMuted, fontFamily: fonts.mono }}
-                    className="text-xs tabular-nums shrink-0 flex items-center gap-2"
+              <div className="flex items-center gap-2">
+                <GitCommitHorizontal className="w-5 h-5" style={{ color: palette.accent }} />
+                <h2 style={{ fontFamily: fonts.display }} className="text-base sm:text-lg font-bold">
+                  Lịch sử Commit gần đây ({repoInfo.commits.length})
+                </h2>
+              </div>
+              <ChevronDown
+                className={`w-4 h-4 shrink-0 transition-transform ${showCommitHistory ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {showCommitHistory && (
+              <div style={{ borderColor: palette.border }} className="divide-y border-t">
+                {repoInfo.commits.map((c) => (
+                  <a
+                    key={c.sha}
+                    href={c.htmlUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ borderColor: palette.border }}
+                    className="px-5 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
                   >
-                    <span>{c.authorName}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{c.sha.slice(0, 7)}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{c.date.slice(0, 10)}</span>
-                  </div>
-                </a>
-              ))}
-            </div>
+                    <div className="text-sm font-medium truncate">{c.message}</div>
+                    <div
+                      style={{ color: palette.textMuted, fontFamily: fonts.mono }}
+                      className="text-xs tabular-nums shrink-0 flex items-center gap-2"
+                    >
+                      <span>{c.authorName}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{c.sha.slice(0, 7)}</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{c.date.slice(0, 10)}</span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
+        )}
+        </div>
         )}
       </div>
 
