@@ -5,17 +5,20 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
   FileEdit,
   Globe,
   KeyRound,
   LayoutTemplate,
+  Phone,
   Rocket,
   ShieldCheck,
+  User,
   Youtube,
 } from 'lucide-react';
 import type { BlogTheme } from '../types/blog';
 
-export type GuideSectionId = 'all' | 'start' | 'github' | 'astro' | 'editor' | 'faq';
+export type GuideSectionId = 'all' | 'start' | 'github' | 'astro' | 'editor' | 'faq' | 'author';
 
 interface UserGuideContentProps {
   theme: BlogTheme;
@@ -30,6 +33,7 @@ const GUIDE_TABS: Array<{ id: GuideSectionId; label: string }> = [
   { id: 'astro', label: '3. Astro & Nhận dạng' },
   { id: 'editor', label: '4. Viết bài & YouTube' },
   { id: 'faq', label: 'Xử lý lỗi' },
+  { id: 'author', label: 'Tác giả' },
 ];
 
 export function UserGuideContent({
@@ -371,6 +375,92 @@ export function UserGuideContent({
                 </div>
               );
             })}
+          </div>
+        </section>
+      )}
+      {/* Section 6: Author */}
+      {showSection('author') && (
+        <section
+          style={{
+            borderColor: palette.border,
+            backgroundColor: palette.surface,
+          }}
+          className="rounded-xl border p-4 sm:p-5 space-y-4"
+        >
+          <div className="flex items-center gap-2.5">
+            <User className="w-5 h-5 shrink-0" style={{ color: palette.link }} />
+            <h3 style={{ fontFamily: fonts.display }} className="text-base font-bold">
+              Tác giả
+            </h3>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5">
+            <div className="w-full max-w-[280px] sm:max-w-[260px] shrink-0">
+              <img
+                src="./assets/aistudio/file_0000000034308211bf90a2177ba79f74_2a671c11.png"
+                alt="Tác giả Bùi Trung Tín — Trảng Bàng, Tây Ninh"
+                className="w-full h-auto rounded-xl border shadow-sm object-contain"
+                style={{ borderColor: palette.border }}
+              />
+            </div>
+
+            <div className="flex-1 min-w-0 space-y-3 text-xs sm:text-sm">
+              <div>
+                <div style={{ fontFamily: fonts.display }} className="text-lg font-bold">
+                  Bùi Trung Tín
+                </div>
+                <p style={{ color: palette.textSecondary }} className="mt-1 italic leading-relaxed">
+                  “Nguyện cho mọi người thân khỏe mạnh, tâm bình an, sống đủ đầy và hạnh phúc.”
+                </p>
+              </div>
+
+              <div
+                style={{
+                  borderColor: palette.border,
+                  backgroundColor: palette.canvas,
+                }}
+                className="p-3 rounded-lg border space-y-1.5 text-xs"
+              >
+                <div>
+                  <span style={{ color: palette.textMuted }}>Sinh năm:</span>{' '}
+                  <strong>1987 (Đinh Mão)</strong>
+                </div>
+                <div>
+                  <span style={{ color: palette.textMuted }}>Quê quán:</span>{' '}
+                  <strong>Trảng Bàng, Tây Ninh</strong>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                <a
+                  href="https://trungtin87.github.io"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    backgroundColor: palette.accent,
+                    color: palette.accentText,
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 min-h-[38px] text-xs font-semibold rounded-lg hover:opacity-90 whitespace-nowrap"
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>trungtin87.github.io</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+
+                <a
+                  href="tel:0969711187"
+                  style={{
+                    borderColor: palette.border,
+                    backgroundColor: palette.canvas,
+                    color: palette.textPrimary,
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 min-h-[38px] text-xs font-semibold rounded-lg border hover:opacity-85 whitespace-nowrap"
+                >
+                  <Phone className="w-3.5 h-3.5" style={{ color: palette.link }} />
+                  <span>0969711187</span>
+                </a>
+              </div>
+            </div>
           </div>
         </section>
       )}
